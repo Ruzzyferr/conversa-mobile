@@ -23,7 +23,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const baseTabBarHeight = 26;
+  const baseTabBarHeight = 28;
   const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom - 12, spacing.xs) : spacing.xs;
   const totalTabBarHeight = baseTabBarHeight + bottomPadding;
   const paddingTop = Math.max(bottomPadding / 5, spacing.xs);
@@ -32,27 +32,26 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarActiveTintColor: colors.primaryLight,
+        tabBarInactiveTintColor: colors.textSecondaryDark,
         tabBarStyle: {
           position: 'absolute',
           bottom: 0,
-          left: spacing.lg,
-          right: spacing.lg,
-          marginBottom: Math.max(insets.bottom - 8, 0),
-          backgroundColor: 'rgba(20, 20, 32, 0.85)',
-          borderRadius: 24,
-          borderTopWidth: 0,
-          borderWidth: 1,
-          borderColor: colors.border + '40',
-          height: totalTabBarHeight,
-          paddingBottom: paddingBottom,
+          left: 0,
+          right: 0,
+          marginBottom: 0,
+          backgroundColor: colors.backgroundSecondaryDark,
+          borderTopWidth: 1,
+          borderTopColor: colors.borderDark,
+          borderWidth: 0,
+          height: totalTabBarHeight + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: paddingTop,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
+          shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 8,
+          shadowRadius: 8,
+          elevation: 5,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -63,10 +62,10 @@ export default function TabLayout() {
           marginTop: 0,
         },
         headerStyle: {
-          backgroundColor: colors.backgroundSecondary,
+          backgroundColor: colors.backgroundSecondaryDark,
         },
-        headerTintColor: colors.text,
-        headerShown: useClientOnlyValue(false, true),
+        headerTintColor: colors.textDark,
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="home"

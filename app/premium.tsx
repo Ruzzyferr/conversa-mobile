@@ -14,6 +14,7 @@ import { typography } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
+import { PremiumCard } from "@/src/components/PremiumCard";
 import { usePremium } from "@/src/state/premium";
 import {
   getOfferings,
@@ -41,7 +42,18 @@ export default function PremiumScreen() {
   const loadOfferings = async () => {
     try {
       setLoading(true);
-      const currentOffering = await getOfferings();
+      
+      // Get user ID for RevenueCat initialization
+      let userId: string | undefined;
+      try {
+        const me = await api.getMe();
+        userId = me.user.id;
+      } catch (error) {
+        console.error("Failed to get user info for RevenueCat:", error);
+        // Continue anyway, getOfferings will try to initialize
+      }
+      
+      const currentOffering = await getOfferings(userId);
       setOffering(currentOffering);
 
       // Auto-select monthly package if available
@@ -66,15 +78,26 @@ export default function PremiumScreen() {
     }
   };
 
-  const handlePurchase = async () => {
-    if (!selectedPackage) {
+  const handlePurchase = async (pkg?: PurchasesPackage) => {
+    const packageToPurchase = pkg || selectedPackage;
+    if (!packageToPurchase) {
       Alert.alert("Error", "Please select a package");
       return;
     }
 
     try {
       setPurchasing(true);
-      const customerInfo = await purchasePremium(selectedPackage);
+      
+      // Get user ID for RevenueCat initialization
+      let userId: string | undefined;
+      try {
+        const me = await api.getMe();
+        userId = me.user.id;
+      } catch (error) {
+        console.error("Failed to get user info for RevenueCat:", error);
+      }
+      
+      const customerInfo = await purchasePremium(packageToPurchase, userId);
       
       // Check if purchase was successful
       const isPremium = customerInfo.entitlements.active["premium"] !== undefined;
@@ -111,7 +134,17 @@ export default function PremiumScreen() {
   const handleRestore = async () => {
     try {
       setRestoring(true);
-      const customerInfo = await restorePurchases();
+      
+      // Get user ID for RevenueCat initialization
+      let userId: string | undefined;
+      try {
+        const me = await api.getMe();
+        userId = me.user.id;
+      } catch (error) {
+        console.error("Failed to get user info for RevenueCat:", error);
+      }
+      
+      const customerInfo = await restorePurchases(userId);
       
       const isPremium = customerInfo.entitlements.active["premium"] !== undefined;
       
@@ -144,14 +177,40 @@ export default function PremiumScreen() {
   const getPackageLabel = (packageToFormat: PurchasesPackage): string => {
     switch (packageToFormat.packageType) {
       case "MONTHLY":
-        return "Monthly";
+        return "Pro";
       case "ANNUAL":
-        return "Annual";
+        return "Pro Annual";
       case "WEEKLY":
-        return "Weekly";
+        return "Pro Weekly";
       default:
-        return packageToFormat.identifier;
+        return "Pro";
     }
+  };
+
+  const getPackageSubtitle = (packageToFormat: PurchasesPackage): string => {
+    return "Everything on Basic plus:";
+  };
+
+  const getPackageFeatures = (): string[] => {
+    return [
+      "Unlimited AI Polish",
+      "Unlimited Messages",
+      "Who Liked You",
+      "Boost Profile",
+      "Advanced Filters",
+    ];
+  };
+
+  const extractPriceAndTime = (priceString: string): { price: string; time: string } => {
+    // Try to extract price and time from price string
+    // Format might be "$8.99/month" or "$8.99 / month" or "$8.99/mo"
+    const match = priceString.match(/^([^/\s]+)(?:\s*\/\s*([^/\s]+))?/);
+    if (match) {
+      const price = match[1];
+      const time = match[2] || "/ month";
+      return { price, time: time.startsWith("/") ? time : `/${time}` };
+    }
+    return { price: priceString, time: "/ month" };
   };
 
   if (premiumEnabled) {
@@ -301,44 +360,34 @@ export default function PremiumScreen() {
             <Text style={styles.loadingText}>Loading packages...</Text>
           </View>
         ) : offering && offering.availablePackages.length > 0 ? (
-          <Card style={styles.packagesCard}>
-            <Text style={styles.packagesTitle}>Choose Your Plan</Text>
-            {offering.availablePackages.map((pkg) => (
-              <TouchableOpacity
-                key={pkg.identifier}
-                style={[
-                  styles.packageOption,
-                  selectedPackage?.identifier === pkg.identifier &&
-                    styles.packageOptionSelected,
-                ]}
-                onPress={() => setSelectedPackage(pkg)}
-              >
-                <View style={styles.packageInfo}>
-                  <Text style={styles.packageLabel}>{getPackageLabel(pkg)}</Text>
-                  <Text style={styles.packagePrice}>{formatPrice(pkg)}</Text>
-                </View>
-                {selectedPackage?.identifier === pkg.identifier && (
-                  <Text style={styles.checkmark}>✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </Card>
-        ) : (
-          <Card style={styles.errorCard}>
-            <Text style={styles.errorText}>
-              Premium packages are not available at the moment. Please try again later.
-            </Text>
-          </Card>
-        )}
-
-        {offering && offering.availablePackages.length > 0 && (
           <>
-            <PrimaryButton
-              title={purchasing ? "Processing..." : "Go Premium"}
-              onPress={handlePurchase}
-              disabled={purchasing || !selectedPackage}
-              style={styles.premiumButton}
-            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.cardsContainer}
+              style={styles.cardsScrollView}
+            >
+              {offering.availablePackages.map((pkg) => {
+                const { price, time } = extractPriceAndTime(formatPrice(pkg));
+                return (
+                  <PremiumCard
+                    key={pkg.identifier}
+                    title={getPackageLabel(pkg)}
+                    price={price}
+                    priceTime={time}
+                    subtitle={getPackageSubtitle(pkg)}
+                    features={getPackageFeatures()}
+                    buttonText={purchasing ? "Processing..." : "Get pro now"}
+                    onPress={() => {
+                      setSelectedPackage(pkg);
+                      handlePurchase(pkg);
+                    }}
+                    isSelected={selectedPackage?.identifier === pkg.identifier}
+                    style={styles.premiumCard}
+                  />
+                );
+              })}
+            </ScrollView>
 
             <TouchableOpacity
               onPress={handleRestore}
@@ -352,6 +401,12 @@ export default function PremiumScreen() {
               )}
             </TouchableOpacity>
           </>
+        ) : (
+          <Card style={styles.errorCard}>
+            <Text style={styles.errorText}>
+              Premium packages are not available at the moment. Please try again later.
+            </Text>
+          </Card>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -428,48 +483,15 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
   },
-  packagesCard: {
+  cardsScrollView: {
     marginBottom: spacing.md,
   },
-  packagesTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: spacing.md,
+  cardsContainer: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.md,
   },
-  packageOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 12,
-    marginBottom: spacing.sm,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  packageOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + "20",
-  },
-  packageInfo: {
-    flex: 1,
-  },
-  packageLabel: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xs / 2,
-  },
-  packagePrice: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
-  },
-  checkmark: {
-    fontSize: typography.fontSize.xl,
-    color: colors.primary,
-    fontWeight: typography.fontWeight.bold,
+  premiumCard: {
+    marginRight: spacing.md,
   },
   errorCard: {
     marginBottom: spacing.md,
@@ -482,10 +504,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
-  premiumButton: {
-    marginTop: spacing.sm,
-  },
   restoreButton: {
+    marginTop: spacing.md,
     marginTop: spacing.md,
     padding: spacing.md,
     alignItems: "center",

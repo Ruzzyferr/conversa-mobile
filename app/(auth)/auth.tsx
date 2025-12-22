@@ -7,6 +7,7 @@ import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { Card } from "@/src/components/Card";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
+import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 
@@ -30,8 +31,8 @@ export default function AuthScreen() {
         ? await api.loginEmail(input.trim())
         : await api.loginPhone(input.trim());
 
-      // If code is required, navigate to verify code screen
-      if (result.requiresCode) {
+      // Code is always sent now, navigate to verify code screen
+      if (result.userId) {
         setLoading(false); // Stop loading before navigation
         router.push({
           pathname: "/(auth)/verify-code",
@@ -41,26 +42,18 @@ export default function AuthScreen() {
             userId: result.userId,
           },
         });
-        return;
-      }
-
-      // Otherwise, set token and proceed
-      if (result.token) {
-        await setToken(result.token);
-        setLoading(false); // Stop loading before navigation
-        router.replace("/(auth)/profile-setup");
       }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to authenticate";
       Alert.alert("Error", errorMessage);
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView>
+    <SafeAreaView style={styles.container}>
+      <RainBackground />
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -103,6 +96,10 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   content: {
     flex: 1,
     justifyContent: "center",

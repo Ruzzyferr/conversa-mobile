@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -40,6 +40,7 @@ export default function ProfileScreen() {
   const [applyingCode, setApplyingCode] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -126,34 +127,23 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Çıkış Yap",
-      "Hesabından çıkış yapmak istediğine emin misin?",
-      [
-        {
-          text: "İptal",
-          style: "cancel",
-        },
-        {
-          text: "Çıkış Yap",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // Try to logout from server
-              await api.logout();
-            } catch (error) {
-              // Even if server logout fails, clear local token
-              console.error("Logout error:", error);
-            } finally {
-              // Always clear local token
-              await clearToken();
-              router.replace("/(auth)/welcome");
-            }
-          },
-        },
-      ]
-    );
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    setShowLogoutModal(false);
+    try {
+      // Try to logout from server
+      await api.logout();
+    } catch (error) {
+      // Even if server logout fails, clear local token
+      console.error("Logout error:", error);
+    } finally {
+      // Always clear local token
+      await clearToken();
+      router.replace("/(auth)/welcome");
+    }
   };
 
   if (loading) {
@@ -195,40 +185,6 @@ export default function ProfileScreen() {
             <Text style={styles.subtitle}>📍 {profile.city}</Text>
           )}
         </View>
-
-      {userInfo && (
-        <Card style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📧 Hesap Bilgileri</Text>
-          </View>
-          
-          {userInfo.user.email && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>E-posta</Text>
-              <Text style={styles.infoValue}>{userInfo.user.email}</Text>
-            </View>
-          )}
-
-          {userInfo.user.phone && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Telefon</Text>
-              <Text style={styles.infoValue}>{userInfo.user.phone}</Text>
-            </View>
-          )}
-
-          <View style={[styles.infoRow, styles.lastInfoRow]}>
-            <Text style={styles.infoLabel}>Profil Durumu</Text>
-            <View style={[
-              styles.statusBadge,
-              userInfo.profileExists ? styles.statusBadgeSuccess : styles.statusBadgeWarning
-            ]}>
-              <Text style={styles.statusText}>
-                {userInfo.profileExists ? "✓ Tamamlandı" : "⚠ Eksik"}
-              </Text>
-            </View>
-          </View>
-        </Card>
-      )}
 
       {profile && (
         <Card style={styles.card}>
@@ -291,6 +247,16 @@ export default function ProfileScreen() {
         </Card>
       )}
 
+      {userInfo?.profileExists && (
+        <Card style={styles.card}>
+          <PrimaryButton
+            title="Profili Düzenle"
+            onPress={() => router.push("/profile-edit")}
+            style={styles.editButton}
+          />
+        </Card>
+      )}
+
       {!userInfo?.profileExists && (
         <Card style={[styles.card, styles.incompleteCard]}>
           <Text style={styles.cardTitle}>⚠️ Profilini Tamamla</Text>
@@ -349,7 +315,7 @@ export default function ProfileScreen() {
             <TextInput
               style={styles.codeInput}
               placeholder="Enter referral code"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={colors.textSecondaryDark}
               value={codeInput}
               onChangeText={setCodeInput}
               autoCapitalize="characters"
@@ -388,6 +354,37 @@ export default function ProfileScreen() {
         />
       </View>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Çıkış Yap</Text>
+            <Text style={styles.modalMessage}>
+              Hesabından çıkış yapmak istediğine emin misin?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.modalButtonCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.modalButtonConfirmText}>Çıkış Yap</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -395,7 +392,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundDark,
   },
   contentContainer: {
     padding: spacing.lg,
@@ -428,23 +425,23 @@ const styles = StyleSheet.create({
   profileImageText: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
   },
   title: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
   },
   loadingText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginTop: spacing.xl,
   },
@@ -460,16 +457,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderDark,
   },
   cardTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
   },
   cardDescription: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.md,
     lineHeight: 20,
   },
@@ -485,16 +482,17 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
     flex: 1,
   },
   infoValue: {
-    fontSize: typography.fontSize.base,
-    color: colors.text,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: typography.fontSize.sm,
+    color: colors.textDark,
+    fontWeight: typography.fontWeight.medium,
     flex: 1,
     textAlign: "right",
+    flexShrink: 1,
   },
   statusBadge: {
     paddingHorizontal: spacing.md,
@@ -510,7 +508,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.textDark,
   },
   purposeBadge: {
     backgroundColor: colors.primary + "20",
@@ -529,7 +527,7 @@ const styles = StyleSheet.create({
   },
   languageLabel: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
     marginBottom: spacing.sm,
   },
@@ -553,23 +551,23 @@ const styles = StyleSheet.create({
   languageTagText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
-    color: colors.text,
+    color: colors.textDark,
   },
   bioSection: {
     marginTop: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderDark,
   },
   bioLabel: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
     marginBottom: spacing.sm,
   },
   bioText: {
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     lineHeight: 24,
   },
   editButton: {
@@ -583,7 +581,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error,
   },
   logoutButtonText: {
-    color: colors.text,
+    color: colors.textDark,
     fontWeight: typography.fontWeight.semibold,
   },
   referralCodeContainer: {
@@ -591,15 +589,15 @@ const styles = StyleSheet.create({
   },
   referralCodeLabel: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.sm,
   },
   referralCodeBox: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     padding: spacing.md,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     marginBottom: spacing.md,
   },
   referralCodeText: {
@@ -621,9 +619,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   copyButton: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   shareButton: {
     backgroundColor: colors.primary,
@@ -631,14 +629,14 @@ const styles = StyleSheet.create({
   referralButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.textDark,
   },
   applyCodeButton: {
     marginTop: spacing.sm,
     paddingVertical: spacing.md,
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderDark,
     paddingTop: spacing.md,
   },
   applyCodeText: {
@@ -651,16 +649,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderDark,
   },
   codeInput: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     borderRadius: 12,
     padding: spacing.md,
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.md,
     textAlign: "center",
     letterSpacing: 2,
@@ -676,9 +674,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   submitButton: {
     backgroundColor: colors.primary,
@@ -686,6 +684,65 @@ const styles = StyleSheet.create({
   codeInputButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.textDark,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 20,
+    padding: spacing.xl,
+    width: "100%",
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondaryDark,
+    marginBottom: spacing.xl,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: colors.backgroundDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  modalButtonConfirm: {
+    backgroundColor: colors.error,
+  },
+  modalButtonCancelText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.textDark,
+  },
+  modalButtonConfirmText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: "#FFFFFF",
   },
 });

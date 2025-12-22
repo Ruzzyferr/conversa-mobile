@@ -15,7 +15,11 @@
     },
     "ios": {
       "bundleIdentifier": "com.swiip.mobile",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Profil fotoğraflarınızı çekmek için kamera erişimine ihtiyacımız var.",
+        "NSLocationWhenInUseUsageDescription": "Yakınındaki insanları görmek için konum erişimine ihtiyacımız var."
+      }
     },
     "android": {
       "package": "com.swiip.mobile",
@@ -24,7 +28,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",

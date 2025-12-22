@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,6 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
-import { clearToken } from "@/src/services/authStore";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
 
@@ -64,7 +63,7 @@ const INTERESTS = [
   "Teknoloji",
 ];
 
-export default function ProfileSetupScreen() {
+export default function ProfileEditScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -77,13 +76,36 @@ export default function ProfileSetupScreen() {
   const [bio, setBio] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
 
-  const currentStep = 2;
-  const totalSteps = 4;
-  const progress = (currentStep / totalSteps) * 100;
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const profile = await api.getMyProfile();
+      setDisplayName(profile.displayName);
+      setBirthYear(profile.birthYear?.toString() || "");
+      setPurpose(profile.purpose);
+      setLanguagesNative(profile.languagesNative || []);
+      setLanguagesPractice(profile.languagesPractice || []);
+      setPhotos(profile.photos || []);
+      setBio(profile.bio || "");
+      setSelectedInterests(profile.interests || []);
+      if (profile.city) {
+        setLocation({ lat: 0, lng: 0, city: profile.city });
+      }
+    } catch (error) {
+      Alert.alert("Hata", "Profil yüklenemedi");
+      router.back();
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   const requestMediaLibraryPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -109,46 +131,6 @@ export default function ProfileSetupScreen() {
     return true;
   };
 
-  const requestLocationPermissions = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "İzin Gerekli",
-        "Yakınındaki insanları görmek için konum erişim izni gereklidir."
-      );
-      return false;
-    }
-    return true;
-  };
-
-  const getCurrentLocation = async () => {
-    const hasPermission = await requestLocationPermissions();
-    if (!hasPermission) return;
-
-    try {
-      const loc = await Location.getCurrentPositionAsync({});
-      // Reverse geocoding to get city name
-      const [address] = await Location.reverseGeocodeAsync({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
-      
-      setLocation({
-        lat: loc.coords.latitude,
-        lng: loc.coords.longitude,
-        city: address?.city || address?.region || undefined,
-      });
-    } catch (error) {
-      console.error("Location error:", error);
-      Alert.alert("Hata", "Konum alınamadı");
-    }
-  };
-
-  React.useEffect(() => {
-    // Request location on mount
-    getCurrentLocation();
-  }, []);
-
   const pickImageFromLibrary = async (index: number) => {
     const hasPermission = await requestMediaLibraryPermissions();
     if (!hasPermission) return;
@@ -162,13 +144,11 @@ export default function ProfileSetupScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const newPhotos = [...photos];
-      // If we're replacing an existing photo or adding a new one
       if (index < newPhotos.length) {
         newPhotos[index] = result.assets[0].uri;
       } else {
         newPhotos.push(result.assets[0].uri);
       }
-      // Limit to 3 photos
       setPhotos(newPhotos.slice(0, 3));
     }
   };
@@ -186,13 +166,11 @@ export default function ProfileSetupScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const newPhotos = [...photos];
-      // If we're replacing an existing photo or adding a new one
       if (index < newPhotos.length) {
         newPhotos[index] = result.assets[0].uri;
       } else {
         newPhotos.push(result.assets[0].uri);
       }
-      // Limit to 3 photos
       setPhotos(newPhotos.slice(0, 3));
     }
   };
@@ -236,14 +214,6 @@ export default function ProfileSetupScreen() {
     );
   };
 
-  const toggleLanguageNative = (language: string) => {
-    setLanguagesNative((prev) =>
-      prev.includes(language)
-        ? prev.filter((l) => l !== language)
-        : [...prev, language]
-    );
-  };
-
   const toggleLanguagePractice = (language: string) => {
     setLanguagesPractice((prev) =>
       prev.includes(language)
@@ -252,75 +222,53 @@ export default function ProfileSetupScreen() {
     );
   };
 
-  const handleCancel = () => {
-    Alert.alert(
-      "İptal Et",
-      "Profil oluşturmayı iptal etmek istediğine emin misin? Tüm bilgiler kaybolacak.",
-      [
-        {
-          text: "Hayır",
-          style: "cancel",
-        },
-        {
-          text: "Evet, İptal Et",
-          style: "destructive",
-          onPress: async () => {
-            // Clear token and go back to welcome
-            try {
-              await api.logout();
-            } catch (error) {
-              // Ignore logout errors
-            }
-            await clearToken();
-            router.replace("/(auth)/welcome");
-          },
-        },
-      ]
-    );
+  const requestLocationPermissions = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "İzin Gerekli",
+        "Yakınındaki insanları görmek için konum erişim izni gereklidir."
+      );
+      return false;
+    }
+    return true;
   };
 
-  const handleContinue = async () => {
-    // Validation
-    if (!displayName.trim()) {
-      Alert.alert("Uyarı", "Lütfen isminizi girin");
-      return;
+  const getCurrentLocation = async () => {
+    const hasPermission = await requestLocationPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const loc = await Location.getCurrentPositionAsync({});
+      const [address] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      
+      setLocation({
+        lat: loc.coords.latitude,
+        lng: loc.coords.longitude,
+        city: address?.city || address?.region || undefined,
+      });
+    } catch (error) {
+      console.error("Location error:", error);
+      Alert.alert("Hata", "Konum alınamadı");
     }
-    if (displayName.trim().length < 2) {
-      Alert.alert("Uyarı", "İsim en az 2 karakter olmalıdır");
-      return;
-    }
-    if (languagesNative.length === 0) {
-      Alert.alert("Uyarı", "Lütfen en az bir ana dil seçin");
-      return;
-    }
+  };
+
+  const handleSave = async () => {
     if (languagesPractice.length === 0) {
       Alert.alert("Uyarı", "Lütfen en az bir öğrenmek istediğiniz dil seçin");
-      return;
-    }
-    if (!birthYear || birthYear.length !== 4) {
-      Alert.alert("Uyarı", "Lütfen geçerli bir doğum yılı girin (örn: 1990)");
-      return;
-    }
-    const year = parseInt(birthYear);
-    const currentYear = new Date().getFullYear();
-    const minYear = currentYear - 100;
-    const maxYear = currentYear - 18;
-    if (isNaN(year) || year < minYear || year > maxYear) {
-      Alert.alert("Uyarı", `Doğum yılı ${minYear} ile ${maxYear} arasında olmalıdır`);
-      return;
-    }
-    if (photos.length === 0) {
-      Alert.alert("Uyarı", "Lütfen en az bir fotoğraf seçin");
       return;
     }
 
     setLoading(true);
     try {
       await api.upsertMyProfile({
-        displayName: displayName.trim(),
-        birthYear: year,
+        displayName: displayName.trim(), // Cannot change but required
+        birthYear: birthYear ? parseInt(birthYear) : undefined, // Cannot change but required
         purpose: purpose,
-        languagesNative: languagesNative,
+        languagesNative: languagesNative, // Cannot change but required
         languagesPractice: languagesPractice,
         photos: photos,
         bio: bio.trim() || undefined,
@@ -330,20 +278,29 @@ export default function ProfileSetupScreen() {
         lng: location?.lng,
       });
 
-      // Navigate to home
-      router.replace("/(tabs)/home");
+      Alert.alert("Başarılı", "Profil güncellendi");
+      router.back();
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : "Profil kaydedilemedi";
+        error instanceof Error ? error.message : "Profil güncellenemedi";
       Alert.alert("Hata", errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  if (loadingProfile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Yükleniyor...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      {/* Animated Rain Background */}
       <RainBackground />
       
       <KeyboardAvoidingView
@@ -359,104 +316,54 @@ export default function ProfileSetupScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
-            </View>
-            <Text style={styles.progressText}>
-              Adım {currentStep}/{totalSteps}
-            </Text>
-            <Text style={styles.progressPercent}>{Math.round(progress)}% Tamamlandı</Text>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <MaterialIcons name="arrow-back" size={24} color={colors.textDark} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Profili Düzenle</Text>
+            <View style={{ width: 24 }} />
           </View>
 
-          {/* Photo Selection Section */}
+          {/* Display Name - Read Only */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>En iyi fotoğraflarını seç</Text>
-            <Text style={styles.sectionSubtitle}>
-              Yüzünün net göründüğü bir fotoğraf seç.
-            </Text>
-            <View style={styles.photosContainer}>
-              {[0, 1, 2].map((index) => {
-                const hasPhoto = !!photos[index];
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.photoSlot,
-                      !hasPhoto && styles.photoSlotEmpty,
-                    ]}
-                    onPress={() => showImagePickerOptions(index)}
-                    activeOpacity={0.8}
-                  >
-                    {hasPhoto ? (
-                      <>
-                        <Image
-                          source={{ uri: photos[index] }}
-                          style={styles.photoImage}
-                          resizeMode="cover"
-                        />
-                        {index === 0 && (
-                          <View style={styles.coverBadge}>
-                            <Text style={styles.coverBadgeText}>KAPAK</Text>
-                          </View>
-                        )}
-                        <TouchableOpacity
-                          style={styles.editButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            removePhoto(index);
-                          }}
-                        >
-                          <MaterialIcons name="close" size={16} color="#FFF" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={styles.photoPlaceholder}>
-                        <MaterialIcons
-                          name="add"
-                          size={32}
-                          color={colors.accent}
-                        />
-                        <Text style={styles.addPhotoText}>Ekle</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Display Name Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>İsmin Nedir? *</Text>
+            <Text style={styles.sectionTitle}>İsim</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, styles.readOnlyInput]}
               value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="İsmini gir"
+              editable={false}
               placeholderTextColor={colors.textSecondaryDark}
-              maxLength={40}
             />
+            <Text style={styles.readOnlyNote}>İsim değiştirilemez</Text>
           </View>
 
-          {/* Birth Year Section */}
+          {/* Birth Year - Read Only */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Doğum Yılın? *</Text>
+            <Text style={styles.sectionTitle}>Doğum Yılı</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, styles.readOnlyInput]}
               value={birthYear}
-              onChangeText={setBirthYear}
-              placeholder="Örn: 1990"
+              editable={false}
               placeholderTextColor={colors.textSecondaryDark}
-              keyboardType="number-pad"
-              maxLength={4}
             />
+            <Text style={styles.readOnlyNote}>Doğum yılı değiştirilemez</Text>
+          </View>
+
+          {/* Native Languages - Read Only */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ana Dillerin</Text>
+            <View style={styles.languagesContainer}>
+              {languagesNative.map((lang) => (
+                <View key={lang} style={[styles.languageTag, styles.readOnlyTag]}>
+                  <Text style={styles.languageText}>{lang}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.readOnlyNote}>Ana diller değiştirilemez</Text>
           </View>
 
           {/* Purpose Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Arayışın Ne? *</Text>
+            <Text style={styles.sectionTitle}>Arayışın Ne?</Text>
             <View style={styles.purposeContainer}>
               {(["CONVERSATION", "PRACTICE", "COFFEE"] as Purpose[]).map((p) => (
                 <TouchableOpacity
@@ -482,39 +389,6 @@ export default function ProfileSetupScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          </View>
-
-          {/* Native Languages Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ana Dillerin *</Text>
-            <Text style={styles.sectionSubtitle}>
-              Anadili olarak konuştuğun dilleri seç
-            </Text>
-            <View style={styles.languagesContainer}>
-              {LANGUAGES.map((lang) => {
-                const isSelected = languagesNative.includes(lang);
-                return (
-                  <TouchableOpacity
-                    key={lang}
-                    style={[
-                      styles.languageTag,
-                      isSelected && styles.languageTagSelected,
-                    ]}
-                    onPress={() => toggleLanguageNative(lang)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.languageText,
-                        isSelected && styles.languageTextSelected,
-                      ]}
-                    >
-                      {lang}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
             </View>
           </View>
 
@@ -551,6 +425,54 @@ export default function ProfileSetupScreen() {
             </View>
           </View>
 
+          {/* Photo Selection Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Fotoğraflar</Text>
+            <View style={styles.photosContainer}>
+              {[0, 1, 2].map((index) => {
+                const hasPhoto = !!photos[index];
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.photoSlot,
+                      !hasPhoto && styles.photoSlotEmpty,
+                    ]}
+                    onPress={() => showImagePickerOptions(index)}
+                    activeOpacity={0.8}
+                  >
+                    {hasPhoto ? (
+                      <>
+                        <Image
+                          source={{ uri: photos[index] }}
+                          style={styles.photoImage}
+                          resizeMode="cover"
+                        />
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            removePhoto(index);
+                          }}
+                        >
+                          <MaterialIcons name="close" size={16} color="#FFF" />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View style={styles.photoPlaceholder}>
+                        <MaterialIcons
+                          name="add"
+                          size={32}
+                          color={colors.accent}
+                        />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
           {/* About Me Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Kendinden Bahset</Text>
@@ -559,23 +481,14 @@ export default function ProfileSetupScreen() {
                 style={styles.bioInput}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="İnsanlara senden bahset. Nelerden hoşlanırsın, burada olma amacın ne?"
+                placeholder="İnsanlara senden bahset..."
                 placeholderTextColor={colors.textSecondaryDark}
                 multiline
                 maxLength={500}
                 numberOfLines={6}
                 textAlignVertical="top"
               />
-              <View style={styles.bioFooter}>
-                <MaterialIcons
-                  name="sentiment-satisfied-alt"
-                  size={20}
-                  color={colors.textSecondaryDark}
-                />
-                <Text style={styles.charCount}>
-                  {bio.length}/500
-                </Text>
-              </View>
+              <Text style={styles.charCount}>{bio.length}/500</Text>
             </View>
           </View>
 
@@ -609,30 +522,31 @@ export default function ProfileSetupScreen() {
             </View>
           </View>
 
-          {/* Continue Button */}
+          {/* Location Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Konum</Text>
+            <TouchableOpacity
+              style={styles.locationButton}
+              onPress={getCurrentLocation}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="location-on" size={20} color={colors.primary} />
+              <Text style={styles.locationButtonText}>
+                {location?.city || "Konum Güncelle"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Save Button */}
           <TouchableOpacity
-            style={styles.continueButton}
-            onPress={handleContinue}
+            style={styles.saveButton}
+            onPress={handleSave}
             disabled={loading}
             activeOpacity={0.8}
           >
-            <Text style={styles.continueButtonText}>Devam Et</Text>
-            <MaterialIcons
-              name="arrow-forward"
-              size={20}
-              color="#FFF"
-              style={styles.continueButtonIcon}
-            />
-          </TouchableOpacity>
-
-          {/* Cancel Button */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancel}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelButtonText}>İptal Et</Text>
+            <Text style={styles.saveButtonText}>
+              {loading ? "Kaydediliyor..." : "Kaydet"}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -698,6 +612,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: typography.fontSize.base,
+    color: colors.textDark,
+  },
   keyboardView: {
     flex: 1,
   },
@@ -708,30 +631,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
-  progressContainer: {
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.xl,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 2,
-    overflow: "hidden",
-    marginBottom: spacing.sm,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: colors.accent,
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    marginBottom: spacing.xs,
-  },
-  progressPercent: {
-    fontSize: typography.fontSize.sm,
-    color: colors.accent,
-    fontWeight: typography.fontWeight.semibold,
+  headerTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
   },
   section: {
     marginBottom: spacing.xl,
@@ -746,6 +655,81 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondaryDark,
     marginBottom: spacing.md,
+  },
+  textInput: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    padding: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.textDark,
+    marginTop: spacing.sm,
+  },
+  readOnlyInput: {
+    opacity: 0.6,
+  },
+  readOnlyNote: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondaryDark,
+    marginTop: spacing.xs,
+    fontStyle: "italic",
+  },
+  purposeContainer: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  purposeOption: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    alignItems: "center",
+  },
+  purposeOptionSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryLight,
+  },
+  purposeText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textDark,
+  },
+  purposeTextSelected: {
+    color: "#FFF",
+  },
+  languagesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  languageTag: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  languageTagSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryLight,
+  },
+  readOnlyTag: {
+    opacity: 0.6,
+  },
+  languageText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textDark,
+    fontWeight: typography.fontWeight.medium,
+  },
+  languageTextSelected: {
+    color: "#FFF",
   },
   photosContainer: {
     flexDirection: "row",
@@ -768,20 +752,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  coverBadge: {
-    position: "absolute",
-    top: spacing.xs,
-    left: spacing.xs,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  coverBadgeText: {
-    fontSize: 10,
-    fontWeight: typography.fontWeight.semibold,
-    color: "#FFF",
-  },
   editButton: {
     position: "absolute",
     bottom: spacing.xs,
@@ -799,12 +769,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  addPhotoText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.accent,
-    marginTop: spacing.xs,
-    fontWeight: typography.fontWeight.medium,
-  },
   bioContainer: {
     backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 12,
@@ -819,18 +783,11 @@ const styles = StyleSheet.create({
     minHeight: 120,
     textAlignVertical: "top",
   },
-  bioFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
-  },
   charCount: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondaryDark,
+    marginTop: spacing.sm,
+    textAlign: "right",
   },
   interestsContainer: {
     flexDirection: "row",
@@ -858,34 +815,35 @@ const styles = StyleSheet.create({
   interestTextSelected: {
     color: "#FFF",
   },
-  continueButton: {
+  locationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  locationButtonText: {
+    fontSize: typography.fontSize.base,
+    color: colors.textDark,
+    fontWeight: typography.fontWeight.medium,
+  },
+  saveButton: {
     backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
     marginTop: spacing.lg,
     marginBottom: spacing.xl,
   },
-  continueButtonText: {
+  saveButtonText: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: "#FFF",
-  },
-  continueButtonIcon: {
-    marginLeft: spacing.sm,
-  },
-  cancelButton: {
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  cancelButtonText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    textDecorationLine: "underline",
   },
   modalOverlay: {
     flex: 1,
@@ -951,67 +909,5 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
     color: colors.textSecondaryDark,
   },
-  textInput: {
-    backgroundColor: colors.backgroundSecondaryDark,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    padding: spacing.md,
-    fontSize: typography.fontSize.base,
-    color: colors.textDark,
-    marginTop: spacing.sm,
-  },
-  purposeContainer: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  purposeOption: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: 12,
-    backgroundColor: colors.backgroundSecondaryDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    alignItems: "center",
-  },
-  purposeOptionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryLight,
-  },
-  purposeText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.textDark,
-  },
-  purposeTextSelected: {
-    color: "#FFF",
-  },
-  languagesContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  languageTag: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 20,
-    backgroundColor: colors.backgroundSecondaryDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-  },
-  languageTagSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryLight,
-  },
-  languageText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textDark,
-    fontWeight: typography.fontWeight.medium,
-  },
-  languageTextSelected: {
-    color: "#FFF",
-  },
 });
+

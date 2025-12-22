@@ -163,11 +163,14 @@ class ApiClient {
     displayName: string;
     birthYear?: number;
     city?: string;
+    lat?: number;
+    lng?: number;
     languagesNative?: string[];
     languagesPractice?: string[];
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
     bio?: string;
     photos?: string[];
+    interests?: string[];
   }): Promise<{
     id: string;
     userId: string;
@@ -179,6 +182,7 @@ class ApiClient {
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
     bio: string | null;
     photos: string[];
+    interests: string[];
     createdAt: string;
     updatedAt: string;
   }> {
@@ -261,6 +265,15 @@ class ApiClient {
 
   async pass(toUserId: string): Promise<void> {
     await this.client.post("/api/v1/discovery/pass", { toUserId });
+  }
+
+  async favorite(toUserId: string): Promise<{
+    success: boolean;
+    favoritesRemaining?: number;
+    favoritesLimit?: number;
+  }> {
+    const response = await this.client.post("/api/v1/discovery/favorite", { toUserId });
+    return response.data;
   }
 
   async listMatches(): Promise<
@@ -378,6 +391,10 @@ class ApiClient {
       likesRemaining?: number;
       likesLimit?: number;
       canLike?: boolean;
+      favoritesUsed?: number;
+      favoritesRemaining?: number;
+      favoritesLimit?: number;
+      canFavorite?: boolean;
     };
   }> {
     const response = await this.client.get("/api/v1/ai/usage");

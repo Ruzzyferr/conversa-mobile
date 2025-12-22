@@ -1,36 +1,42 @@
 /**
- * Premium dark theme colors for Swiip
+ * Premium theme colors for Swiip (Light + Dark support)
  */
 export const colors = {
-  // Primary colors
-  primary: "#6366F1", // Indigo
-  primaryDark: "#4F46E5",
+  // Primary colors (updated to match HTML mock)
+  primary: "#6C5DD3", // Vibrant purple/indigo
+  primaryDark: "#5A4FC0",
   primaryLight: "#818CF8",
 
-  // Background colors
-  background: "#0A0A0F",
-  backgroundSecondary: "#141420",
-  backgroundTertiary: "#1E1E2E",
-
-  // Surface colors
-  surface: "#1A1A2E",
-  surfaceElevated: "#252538",
-  surfaceHover: "#2A2A3E",
-
-  // Text colors
-  text: "#FFFFFF",
-  textSecondary: "#A0A0B0",
-  textTertiary: "#6B6B7F",
-  textInverse: "#0A0A0F",
-
-  // Accent colors
-  accent: "#EC4899", // Pink
-  accentDark: "#DB2777",
-  accentLight: "#F472B6",
+  // Secondary/Accent colors (for like button)
+  secondary: "#FF5B84", // Pink for like button
+  accent: "#FF5B84", // Alias for secondary
+  accentDark: "#FF3D6B",
+  accentLight: "#FF8FA9",
   
   // Gradient colors
-  accentGradientStart: "#EC4899",
-  accentGradientEnd: "#F472B6",
+  accentGradientStart: "#FF5B84",
+  accentGradientEnd: "#FF8FA9",
+
+  // Background colors (Light mode support)
+  background: "#F3F4F6", // Light mode background
+  backgroundDark: "#111422", // Dark mode background
+  backgroundSecondary: "#FFFFFF", // Light mode card background
+  backgroundSecondaryDark: "#1C2033", // Dark mode card background
+  backgroundTertiary: "#F9FAFB",
+
+  // Surface colors
+  surface: "#FFFFFF",
+  surfaceDark: "#1C2033",
+  surfaceElevated: "#FFFFFF",
+  surfaceHover: "#F3F4F6",
+
+  // Text colors (Light mode support)
+  text: "#1F2937", // Light mode text
+  textDark: "#E5E7EB", // Dark mode text
+  textSecondary: "#6B7280", // Light mode muted
+  textSecondaryDark: "#9CA3AF", // Dark mode muted
+  textTertiary: "#9CA3AF",
+  textInverse: "#FFFFFF",
 
   // Status colors
   success: "#10B981",
@@ -38,14 +44,19 @@ export const colors = {
   error: "#EF4444",
   info: "#3B82F6",
 
-  // Border colors
-  border: "#2A2A3E",
-  borderLight: "#3A3A4E",
-  borderDark: "#1A1A2E",
+  // Border colors (Light mode support)
+  border: "#E5E7EB", // Light mode border
+  borderDark: "#374151", // Dark mode border
+  borderLight: "#D1D5DB",
+  borderMuted: "#F3F4F6",
 
   // Overlay
   overlay: "rgba(0, 0, 0, 0.7)",
   overlayLight: "rgba(0, 0, 0, 0.4)",
+  
+  // Card specific
+  cardBackground: "#FFFFFF",
+  cardBackgroundDark: "#1C2033",
 } as const;
 
 export type ColorKey = keyof typeof colors;

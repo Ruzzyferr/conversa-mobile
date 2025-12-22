@@ -9,6 +9,8 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -75,8 +77,21 @@ export default function HomeScreen() {
     likesUsed: number;
     likesLimit: number;
   } | null>(null);
+  const [favoriteInfo, setFavoriteInfo] = useState<{
+    favoritesUsed: number;
+    favoritesRemaining: number;
+    favoritesLimit: number;
+  } | null>(null);
   
-  const { premiumEnabled } = usePremium();
+  const { premiumEnabled, refreshPremiumStatus } = usePremium();
+  
+  // Use both premiumEnabled from context and local isPremium state
+  const isUserPremium = premiumEnabled || isPremium;
+  
+  // Debug: Log premium status
+  useEffect(() => {
+    console.log("Premium status - Context:", premiumEnabled, "Local:", isPremium, "Combined:", isUserPremium);
+  }, [premiumEnabled, isPremium, isUserPremium]);
   
   // Animation refs
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -105,7 +120,14 @@ export default function HomeScreen() {
       }
 
       const me = await api.getMe();
-      setIsPremium(me.user.isPremium || false);
+      const userPremiumStatus = me.user.isPremium || false;
+      setIsPremium(userPremiumStatus);
+      
+      console.log("Premium status from API:", userPremiumStatus);
+      
+      // Also refresh premium status from context to ensure consistency
+      await refreshPremiumStatus();
+      
       if (!me.profileExists) {
         router.replace("/(auth)/profile-setup");
         return;
@@ -123,7 +145,7 @@ export default function HomeScreen() {
         console.error("Failed to load profile:", error);
       }
 
-      // Load like limit info (only for non-premium users)
+      // Load usage limits (only for non-premium users)
       if (!me.user.isPremium) {
         try {
           const usage = await api.getUsage();
@@ -132,6 +154,13 @@ export default function HomeScreen() {
               likesUsed: usage.usage.likesUsed || 0,
               likesLimit: usage.usage.likesLimit || 15,
             });
+            if (usage.usage.favoritesLimit !== undefined) {
+              setFavoriteInfo({
+                favoritesUsed: usage.usage.favoritesUsed || 0,
+                favoritesRemaining: usage.usage.favoritesRemaining || 0,
+                favoritesLimit: usage.usage.favoritesLimit || 5,
+              });
+            }
           }
         } catch (error) {
           // Ignore errors, will be set when limit is reached
@@ -198,15 +227,20 @@ export default function HomeScreen() {
     if (feed.length === 0 || currentIndex >= feed.length) return;
 
     const currentCard = feed[currentIndex];
+    
+    // Move to next card immediately for better UX
+    const hasMoreCards = currentIndex < feed.length - 1;
+    if (hasMoreCards) {
+      moveToNext();
+    }
+    
+    // Make API call in background
     try {
       const result = await api.like(currentCard.userId);
 
       if (result.matched) {
         setMatchData({ conversationId: result.conversationId });
         setShowMatchModal(true);
-      } else {
-        // Move to next card
-        moveToNext();
       }
       
       // Refresh like limit info after successful like
@@ -225,7 +259,10 @@ export default function HomeScreen() {
       }
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 429) {
-        // Like limit reached
+        // Like limit reached - rollback if needed
+        if (hasMoreCards) {
+          setCurrentIndex(currentIndex);
+        }
         const errorData = error.response.data?.error;
         const details = errorData?.details;
         
@@ -239,6 +276,10 @@ export default function HomeScreen() {
           Alert.alert("Like Limit", "Daily like limit reached. Watch an ad for more likes or upgrade to Premium.");
         }
       } else {
+        // On error, rollback if we moved forward
+        if (hasMoreCards) {
+          setCurrentIndex(currentIndex);
+        }
         const errorMessage =
           error instanceof Error ? error.message : "Failed to like";
         Alert.alert("Error", errorMessage);
@@ -300,53 +341,113 @@ export default function HomeScreen() {
     if (feed.length === 0 || currentIndex >= feed.length) return;
 
     const currentCard = feed[currentIndex];
+    
+    // Move to next card immediately for better UX
+    const hasMoreCards = currentIndex < feed.length - 1;
+    const previousIndex = currentIndex;
+    
+    if (hasMoreCards) {
+      moveToNext();
+    }
+    
+    // Make API call in background
     try {
       await api.pass(currentCard.userId);
-      moveToNext();
     } catch (error) {
+      // On error, rollback if we moved forward
+      if (hasMoreCards) {
+        setCurrentIndex(previousIndex);
+      }
       const errorMessage =
         error instanceof Error ? error.message : "Failed to pass";
       Alert.alert("Error", errorMessage);
     }
   };
 
+  const handleFavorite = async () => {
+    if (feed.length === 0 || currentIndex >= feed.length) return;
+
+    const currentCard = feed[currentIndex];
+    
+    // Check if user has favorites remaining
+    if (!isUserPremium && favoriteInfo && favoriteInfo.favoritesRemaining <= 0) {
+      // Show premium paywall
+      Alert.alert(
+        "Favorites Limit Reached",
+        "Get 5 favorites per day with Premium! Upgrade now to favorite unlimited profiles.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Go Premium",
+            onPress: () => router.push("/premium"),
+          },
+        ]
+      );
+      return;
+    }
+
+    try {
+      const result = await api.favorite(currentCard.userId);
+      
+      // Update favorite info
+      if (result.favoritesRemaining !== undefined) {
+        setFavoriteInfo({
+          favoritesUsed: (favoriteInfo?.favoritesUsed || 0) + 1,
+          favoritesRemaining: result.favoritesRemaining,
+          favoritesLimit: result.favoritesLimit || favoriteInfo?.favoritesLimit || 5,
+        });
+      }
+      
+      // Show success (simple alert for now)
+      // TODO: Use toast library in production
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.status === 429) {
+        // Favorite limit reached
+        Alert.alert(
+          "Favorites Limit Reached",
+          "Get 5 favorites per day with Premium! Upgrade now to favorite unlimited profiles.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Go Premium",
+              onPress: () => router.push("/premium"),
+            },
+          ]
+        );
+      } else {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to favorite";
+        Alert.alert("Error", errorMessage);
+      }
+    }
+  };
+
   const moveToNext = () => {
-    if (currentIndex < feed.length - 1) {
-      // Animate card out
-      Animated.parallel([
-        Animated.timing(cardOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cardTranslateY, {
-          toValue: -20,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        // Update index
-        setCurrentIndex(currentIndex + 1);
-        // Reset and animate in
+    setCurrentIndex((prevIndex) => {
+      if (prevIndex < feed.length - 1) {
+        // Quick fade in animation
         cardOpacity.setValue(0);
-        cardTranslateY.setValue(20);
+        cardTranslateY.setValue(10);
         Animated.parallel([
           Animated.timing(cardOpacity, {
             toValue: 1,
-            duration: 300,
+            duration: 150,
             useNativeDriver: true,
           }),
           Animated.timing(cardTranslateY, {
             toValue: 0,
-            duration: 300,
+            duration: 150,
             useNativeDriver: true,
           }),
         ]).start();
-      });
-    } else {
-      // Load more or show empty state
-      loadFeed();
-    }
+        
+        return prevIndex + 1;
+      } else {
+        // Load more or show empty state
+        loadFeed();
+        return prevIndex;
+      }
+    });
   };
 
   const handleMatchModalClose = () => {
@@ -420,7 +521,20 @@ export default function HomeScreen() {
       <SafeAreaView>
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Swiip</Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.title}>Swiip</Text>
+              {isUserPremium && (
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryLight]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.premiumBadge}
+                >
+                  <Text style={styles.premiumBadgeIcon}>✨</Text>
+                  <Text style={styles.premiumBadgeText}>Premium</Text>
+                </LinearGradient>
+              )}
+            </View>
             {boostStatus?.active && (
               <TouchableOpacity
                 style={styles.boostPill}
@@ -457,7 +571,27 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Compact Premium Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Swiip</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Swiip</Text>
+            {isUserPremium && (
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.premiumBadge}
+              >
+                <Text style={styles.premiumBadgeIcon}>✨</Text>
+                <Text style={styles.premiumBadgeText}>Premium</Text>
+              </LinearGradient>
+            )}
+            {!isUserPremium && favoriteInfo && (
+              <View style={styles.favoriteCounter}>
+                <Text style={styles.favoriteCounterText}>
+                  Favorites: {favoriteInfo.favoritesRemaining}/{favoriteInfo.favoritesLimit}
+                </Text>
+              </View>
+            )}
+          </View>
           <View style={styles.headerRight}>
             {boostStatus?.active && (
               <TouchableOpacity
@@ -481,15 +615,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Scrollable Card Container */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 120 },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
+        {/* Card Container */}
+        <View style={styles.scrollView}>
           <View style={styles.cardContainer}>
             <Animated.View
               style={[
@@ -500,24 +627,16 @@ export default function HomeScreen() {
                 },
               ]}
             >
-              <DiscoveryCard card={currentCard} />
+              <DiscoveryCard 
+                card={currentCard} 
+                onSwipeLeft={handlePass}
+                onSwipeRight={handleLike}
+                onFavorite={handleFavorite}
+              />
             </Animated.View>
           </View>
-        </ScrollView>
-
-        {/* Floating Action Buttons */}
-        <View
-          style={[
-            styles.actionButtonsContainer,
-            { bottom: insets.bottom + 8 },
-          ]}
-        >
-          <ActionButtons
-            onLike={handleLike}
-            onPass={handlePass}
-            disabled={loading}
-          />
         </View>
+
 
       {/* Filter Modal */}
       <FilterSheet
@@ -635,6 +754,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
+    backgroundColor: colors.backgroundDark,
   },
   header: {
     flexDirection: "row",
@@ -644,12 +764,56 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     paddingBottom: spacing.xs,
     minHeight: 40,
+    marginBottom: spacing.xs,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
   },
   title: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primaryLight,
+  },
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: 12,
+    gap: spacing.xs / 2,
+    shadowColor: colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  premiumBadgeIcon: {
+    fontSize: typography.fontSize.sm,
+  },
+  premiumBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
     color: colors.text,
-    opacity: 0.85,
+    letterSpacing: 0.5,
+  },
+  favoriteCounter: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  favoriteCounterText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textSecondary,
   },
   headerRight: {
     flexDirection: "row",
@@ -662,8 +826,7 @@ const styles = StyleSheet.create({
   },
   filterButtonText: {
     fontSize: typography.fontSize.lg,
-    color: colors.text,
-    opacity: 0.85,
+    color: colors.textDark,
   },
   boostPill: {
     paddingHorizontal: spacing.sm,
@@ -674,26 +837,21 @@ const styles = StyleSheet.create({
     borderColor: colors.accent + "50",
   },
   boostPillText: {
-    color: colors.text,
+    color: colors.textDark,
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.semibold,
   },
   scrollView: {
     flex: 1,
-  },
-  scrollContent: {
+    justifyContent: "flex-start",
+    alignItems: "center",
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
-  actionButtonsContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
   cardContainer: {
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: spacing.xs,
   },
   animatedCard: {
     width: "100%",

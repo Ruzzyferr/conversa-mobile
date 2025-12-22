@@ -1,24 +1,31 @@
 import React, { useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
 
 type ActionButtonsProps = {
   onLike: () => void;
   onPass: () => void;
+  onFavorite?: () => void;
   disabled?: boolean;
 };
 
-export function ActionButtons({ onLike, onPass, disabled = false }: ActionButtonsProps) {
+export function ActionButtons({ 
+  onLike, 
+  onPass, 
+  onFavorite,
+  disabled = false 
+}: ActionButtonsProps) {
   const likeScale = useRef(new Animated.Value(1)).current;
   const passScale = useRef(new Animated.Value(1)).current;
+  const favoriteScale = useRef(new Animated.Value(1)).current;
 
   const animatePress = (scale: Animated.Value, callback: () => void) => {
     Animated.sequence([
       Animated.timing(scale, {
-        toValue: 0.96,
+        toValue: 0.9,
         duration: 100,
         useNativeDriver: true,
       }),
@@ -39,36 +46,57 @@ export function ActionButtons({ onLike, onPass, disabled = false }: ActionButton
     animatePress(passScale, onPass);
   };
 
+  const handleFavorite = () => {
+    if (onFavorite) {
+      animatePress(favoriteScale, onFavorite);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Pass Button */}
+      {/* Pass Button (X) - Larger */}
       <TouchableOpacity
         onPress={handlePass}
         disabled={disabled}
         activeOpacity={0.8}
-        style={styles.buttonWrapper}
       >
         <Animated.View
           style={[
-            styles.button,
             styles.passButton,
             { transform: [{ scale: passScale }] },
           ]}
         >
-          <Text style={styles.passIcon}>✕</Text>
+          <MaterialIcons name="close" size={32} color={colors.textSecondary} />
         </Animated.View>
       </TouchableOpacity>
 
-      {/* Like Button */}
+      {/* Favorite Button (Star) - Smaller, higher */}
+      {onFavorite && (
+        <TouchableOpacity
+          onPress={handleFavorite}
+          disabled={disabled}
+          activeOpacity={0.8}
+          style={styles.favoriteWrapper}
+        >
+          <Animated.View
+            style={[
+              styles.favoriteButton,
+              { transform: [{ scale: favoriteScale }] },
+            ]}
+          >
+            <MaterialIcons name="star" size={24} color="#60A5FA" />
+          </Animated.View>
+        </TouchableOpacity>
+      )}
+
+      {/* Like Button (Heart) - Primary pink gradient */}
       <TouchableOpacity
         onPress={handleLike}
         disabled={disabled}
         activeOpacity={0.8}
-        style={styles.buttonWrapper}
       >
         <Animated.View
           style={[
-            styles.button,
             styles.likeButton,
             { transform: [{ scale: likeScale }] },
           ]}
@@ -79,7 +107,7 @@ export function ActionButtons({ onLike, onPass, disabled = false }: ActionButton
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.likeIcon}>♥</Text>
+            <MaterialIcons name="favorite" size={36} color="#FFFFFF" />
           </LinearGradient>
         </Animated.View>
       </TouchableOpacity>
@@ -87,55 +115,67 @@ export function ActionButtons({ onLike, onPass, disabled = false }: ActionButton
   );
 }
 
-const BUTTON_SIZE = 64;
+const PASS_SIZE = 64;
+const FAVORITE_SIZE = 48;
+const LIKE_SIZE = 80;
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: spacing.xxl,
+    alignItems: "flex-end",
+    gap: spacing.xl,
     paddingVertical: spacing.md,
   },
-  buttonWrapper: {
-    // Wrapper for proper touch handling
-  },
-  button: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
+  passButton: {
+    width: PASS_SIZE,
+    height: PASS_SIZE,
+    borderRadius: PASS_SIZE / 2,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 8,
   },
-  passButton: {
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 2,
+  favoriteWrapper: {
+    marginTop: -spacing.lg, // Sits slightly higher
+  },
+  favoriteButton: {
+    width: FAVORITE_SIZE,
+    height: FAVORITE_SIZE,
+    borderRadius: FAVORITE_SIZE / 2,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
   likeButton: {
+    width: LIKE_SIZE,
+    height: LIKE_SIZE,
+    borderRadius: LIKE_SIZE / 2,
     overflow: "hidden",
-    shadowColor: colors.accent,
-    shadowOpacity: 0.5,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
   },
   likeButtonGradient: {
     width: "100%",
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-  },
-  passIcon: {
-    fontSize: typography.fontSize["3xl"],
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.bold,
-  },
-  likeIcon: {
-    fontSize: typography.fontSize["3xl"],
-    color: colors.text,
-    fontWeight: typography.fontWeight.bold,
   },
 });
 

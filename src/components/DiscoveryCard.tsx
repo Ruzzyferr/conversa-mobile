@@ -1,18 +1,22 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, Dimensions } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, FlatList, PanResponder, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
+import { Chip } from "./ui/Chip";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = spacing.md;
 const CARD_WIDTH = SCREEN_WIDTH - CARD_PADDING * 2;
-const PHOTO_HEIGHT = CARD_WIDTH * 0.95; // 0.95 aspect ratio for better text breathing room
+const MAX_CARD_HEIGHT = 650; // Card height
+const IMAGE_HEIGHT_PERCENT = 0.6; // 60% of card height
 
 type DiscoveryCardProps = {
   card: {
     userId: string;
+    distanceKm?: number;
     profile: {
       displayName: string;
       birthYear: number | null;
@@ -24,253 +28,545 @@ type DiscoveryCardProps = {
       languagesPractice: string[];
     };
   };
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+  onFavorite?: () => void;
 };
 
-export function DiscoveryCard({ card }: DiscoveryCardProps) {
-  const { profile } = card;
+export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite }: DiscoveryCardProps) {
+  const { profile, distanceKm } = card;
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  
+  // Swipe gesture handlers with rotation and opacity
+  const position = useRef(new Animated.ValueXY()).current;
+  const SWIPE_THRESHOLD = CARD_WIDTH * 0.3; // 30% of card width
+  const ROTATION_DEG = 10; // Max rotation in degrees
+  
+  // Calculate rotation based on x position
+  const getRotate = (x: Animated.AnimatedAddition) => {
+    return x.interpolate({
+      inputRange: [-CARD_WIDTH, 0, CARD_WIDTH],
+      outputRange: [`-${ROTATION_DEG}deg`, "0deg", `${ROTATION_DEG}deg`],
+      extrapolate: "clamp",
+    });
+  };
+  
+  // Calculate opacity based on x position (fade out slightly as you swipe)
+  const getOpacity = (x: Animated.AnimatedAddition) => {
+    return x.interpolate({
+      inputRange: [-SCREEN_WIDTH, -SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD, SCREEN_WIDTH],
+      outputRange: [0.3, 0.7, 1, 0.7, 0.3],
+      extrapolate: "clamp",
+    });
+  };
+  
+  // Calculate opacity for Like/Pass labels
+  // Like shows on LEFT when swiping RIGHT (positive dx)
+  const likeOpacity = position.x.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+  
+  // Pass shows on RIGHT when swiping LEFT (negative dx)
+  const passOpacity = position.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Only allow horizontal movement
+        position.setValue({ x: gestureState.dx, y: 0 });
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        
+        // Calculate if swipe was fast enough (velocity) or far enough (distance)
+        const swipeVelocity = Math.abs(gestureState.vx);
+        const swipeDistance = Math.abs(gestureState.dx);
+        const isFastSwipe = swipeVelocity > 0.5;
+        const isLongSwipe = swipeDistance > SWIPE_THRESHOLD;
+        
+        if (gestureState.dx > 0 && (isFastSwipe || isLongSwipe)) {
+          // Swipe right - Like
+          Animated.timing(position, {
+            toValue: { x: SCREEN_WIDTH + 100, y: 0 },
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            position.setValue({ x: 0, y: 0 });
+            onSwipeRight?.();
+          });
+        } else if (gestureState.dx < 0 && (isFastSwipe || isLongSwipe)) {
+          // Swipe left - Pass
+          Animated.timing(position, {
+            toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            position.setValue({ x: 0, y: 0 });
+            onSwipeLeft?.();
+          });
+        } else {
+          // Return to center with spring animation
+          Animated.spring(position, {
+            toValue: { x: 0, y: 0 },
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+  
   const age = profile.birthYear
     ? new Date().getFullYear() - profile.birthYear
     : null;
 
-  const purposeLabels = {
-    CONVERSATION: "💬 Sohbet",
-    PRACTICE: "📚 Pratik",
-    COFFEE: "☕ Kahve",
+  const formatDistance = (km?: number) => {
+    if (!km) return null;
+    if (km < 1) return `${Math.round(km * 1000)}m away`;
+    return `${Math.round(km)} km away`;
   };
 
+  const getLanguageFlag = (lang: string) => {
+    const flags: Record<string, string> = {
+      English: "🇺🇸",
+      Turkish: "🇹🇷",
+      German: "🇩🇪",
+      Spanish: "🇪🇸",
+      French: "🇫🇷",
+      Italian: "🇮🇹",
+      Portuguese: "🇵🇹",
+      Russian: "🇷🇺",
+      Chinese: "🇨🇳",
+      Japanese: "🇯🇵",
+      Korean: "🇰🇷",
+    };
+    return flags[lang] || "";
+  };
+
+  const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
+  
+  const rotate = getRotate(position.x);
+  const opacity = getOpacity(position.x);
+
   return (
-    <View style={styles.container}>
-      {/* Hero Image with Gradient Overlay */}
-      <View style={styles.photoContainer}>
-        {profile.photos && profile.photos.length > 0 ? (
-          <Image
-            source={{ uri: profile.photos[0] }}
-            style={styles.photo}
-            resizeMode="cover"
-          />
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          transform: [
+            { translateX: position.x },
+            { rotate: rotate },
+          ],
+          opacity: opacity,
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {/* Like Label - Shows on LEFT when swiping RIGHT */}
+      <Animated.View
+        style={[
+          styles.swipeLabel,
+          styles.likeLabel,
+          { opacity: likeOpacity },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={styles.swipeLabelText}>LIKE</Text>
+      </Animated.View>
+      
+      {/* Pass Label - Shows on RIGHT when swiping LEFT */}
+      <Animated.View
+        style={[
+          styles.swipeLabel,
+          styles.passLabel,
+          { opacity: passOpacity },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={styles.swipeLabelText}>PASS</Text>
+      </Animated.View>
+      {/* Hero Image Section - 60% height with Carousel */}
+      <View style={styles.imageContainer}>
+        {photos.length > 0 ? (
+          <>
+            <FlatList
+              data={photos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => `photo-${index}`}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / CARD_WIDTH);
+                setCurrentPhotoIndex(index);
+              }}
+              renderItem={({ item }) => (
+                <Image
+                  source={{ uri: item }}
+                  style={styles.image}
+                  resizeMode="cover"
+                />
+              )}
+            />
+            {/* Photo Indicators */}
+            {photos.length > 1 && (
+              <View style={styles.photoIndicators}>
+                {photos.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.photoIndicator,
+                      index === currentPhotoIndex && styles.photoIndicatorActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+          </>
         ) : (
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoPlaceholderText}>
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.imagePlaceholderText}>
               {profile.displayName.charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
-        {/* Stronger bottom gradient overlay for depth */}
+        
+        {/* Gradient Overlay */}
         <LinearGradient
-          colors={["transparent", "rgba(0, 0, 0, 0.4)", "rgba(0, 0, 0, 0.9)"]}
-          locations={[0, 0.5, 1]}
+          colors={["transparent", "rgba(0, 0, 0, 0.1)", "rgba(0, 0, 0, 0.4)"]}
+          locations={[0, 0.6, 1]}
           style={styles.gradientOverlay}
         />
-        {/* Purpose badge on image */}
-        <View style={styles.purposeBadge}>
-          <Text style={styles.purposeBadgeText}>
-            {purposeLabels[profile.purpose]}
-          </Text>
-        </View>
+
+        {/* Top-right "Sohbet" Button */}
+        <TouchableOpacity style={styles.chatButton}>
+          <MaterialIcons name="chat-bubble-outline" size={16} color="#FFFFFF" />
+          <Text style={styles.chatButtonText}>Sohbet</Text>
+        </TouchableOpacity>
+
+        {/* Name, Age, Location Overlay */}
+        <LinearGradient
+          colors={[colors.backgroundSecondaryDark, colors.backgroundSecondaryDark + "00"]}
+          style={styles.nameGradient}
+        >
+          <View style={styles.nameContainer}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{profile.displayName}</Text>
+              {age && <Text style={styles.age}>{age}</Text>}
+            </View>
+            {(profile.city || distanceKm) && (
+              <View style={styles.locationRow}>
+                <MaterialIcons name="location-on" size={14} color={colors.textSecondaryDark} />
+                <Text style={styles.locationText}>
+                  {profile.city || ""}
+                  {profile.city && distanceKm && ", "}
+                  {distanceKm && formatDistance(distanceKm)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
       </View>
 
-      {/* Profile Info with Premium Footer */}
-      <LinearGradient
-        colors={[colors.surface, colors.surfaceElevated]}
-        style={styles.profileInfo}
+      {/* Scrollable Content Section */}
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Single line: Name · Age • City */}
-        <View style={styles.nameRow}>
-          <Text style={styles.displayName}>{profile.displayName}</Text>
-          {age && (
-            <>
-              <Text style={styles.separator}>·</Text>
-              <Text style={styles.age}>{age}</Text>
-            </>
-          )}
-          {profile.city && (
-            <>
-              <Text style={styles.separator}>•</Text>
-              <Text style={styles.city}>{profile.city}</Text>
-            </>
-          )}
-        </View>
-
         {/* Bio */}
         {profile.bio && (
-          <Text style={styles.bio} numberOfLines={3}>
-            {profile.bio}
-          </Text>
+          <View style={styles.bioContainer}>
+            <Text 
+              style={styles.bio}
+              numberOfLines={bioExpanded ? undefined : 2}
+            >
+              {profile.bio}
+            </Text>
+            {profile.bio.length > 100 && (
+              <TouchableOpacity 
+                onPress={() => setBioExpanded(!bioExpanded)}
+                style={styles.readMoreButton}
+              >
+                <Text style={styles.readMoreText}>
+                  {bioExpanded ? "Read less" : "Read more"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
-        {/* Languages - Glass chips with minimal captions */}
-        {(profile.languagesNative.length > 0 ||
-          profile.languagesPractice.length > 0) && (
-          <View style={styles.languagesContainer}>
+        {/* Languages Section */}
+        {(profile.languagesNative.length > 0 || profile.languagesPractice.length > 0) && (
+          <View style={styles.section}>
             {profile.languagesNative.length > 0 && (
-              <View style={styles.languageSection}>
-                <Text style={styles.languageCaption}>Native</Text>
-                <View style={styles.languageChips}>
+              <View style={styles.languageGroup}>
+                <Text style={styles.sectionTitle}>SPEAKS</Text>
+                <View style={styles.chipsContainer}>
                   {profile.languagesNative.map((lang, index) => (
-                    <View key={index} style={styles.languageChip}>
-                      <Text style={styles.languageChipText}>{lang}</Text>
-                    </View>
+                    <Chip
+                      key={index}
+                      label={lang}
+                      icon={getLanguageFlag(lang)}
+                      variant="primary"
+                    />
                   ))}
                 </View>
               </View>
             )}
             {profile.languagesPractice.length > 0 && (
-              <View style={styles.languageSection}>
-                <Text style={styles.languageCaption}>Practice</Text>
-                <View style={styles.languageChips}>
+              <View style={styles.languageGroup}>
+                <Text style={styles.sectionTitle}>LEARNING</Text>
+                <View style={styles.chipsContainer}>
                   {profile.languagesPractice.map((lang, index) => (
-                    <View
+                    <Chip
                       key={index}
-                      style={[styles.languageChip, styles.languageChipPractice]}
-                    >
-                      <Text style={styles.languageChipText}>{lang}</Text>
-                    </View>
+                      label={lang}
+                      icon={getLanguageFlag(lang)}
+                      variant="default"
+                    />
                   ))}
                 </View>
               </View>
             )}
           </View>
         )}
-      </LinearGradient>
-    </View>
+      </ScrollView>
+
+      {/* Favorite Button - Bottom Right */}
+      {onFavorite && (
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={onFavorite}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="star" size={24} color="#3B82F6" />
+        </TouchableOpacity>
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     width: CARD_WIDTH,
-    borderRadius: 32,
+    height: MAX_CARD_HEIGHT,
+    borderRadius: 24, // 3xl
+    backgroundColor: colors.backgroundSecondaryDark,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 20,
-    elevation: 4,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    marginTop: 0, // Remove top margin to start photo from top
   },
-  photoContainer: {
+  imageContainer: {
     width: "100%",
-    height: PHOTO_HEIGHT,
+    height: MAX_CARD_HEIGHT * IMAGE_HEIGHT_PERCENT,
     position: "relative",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
     overflow: "hidden",
+    flexShrink: 0, // Prevent shrinking
   },
-  photo: {
+  image: {
+    width: CARD_WIDTH,
+    height: MAX_CARD_HEIGHT * IMAGE_HEIGHT_PERCENT,
+  },
+  imagePlaceholder: {
     width: "100%",
     height: "100%",
-  },
-  photoPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary + "20",
     justifyContent: "center",
     alignItems: "center",
   },
-  photoPlaceholderText: {
+  imagePlaceholderText: {
     fontSize: typography.fontSize["5xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.primary,
   },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: 150, // Stronger gradient for more depth
+    height: "100%",
   },
-  purposeBadge: {
+  chatButton: {
     position: "absolute",
     top: spacing.md,
     right: spacing.md,
-    backgroundColor: "rgba(10, 10, 15, 0.75)",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
-    borderRadius: 16,
-    borderWidth: 0.5,
-    borderColor: colors.border + "80",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs / 2,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
-  purposeBadgeText: {
+  chatButtonText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    opacity: 0.9,
+    color: "#FFFFFF",
   },
-  profileInfo: {
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
+  nameGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg + 4,
+  },
+  nameContainer: {
+    paddingBottom: spacing.xs,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-    flexWrap: "wrap",
     gap: spacing.xs,
+    marginBottom: spacing.xs / 2,
   },
-  displayName: {
+  name: {
     fontSize: typography.fontSize["3xl"],
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  separator: {
-    fontSize: typography.fontSize.base,
-    color: colors.textTertiary,
-    opacity: 0.5,
-    marginHorizontal: spacing.xs / 2,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
+    lineHeight: typography.fontSize["3xl"] * 1.2,
   },
   age: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    opacity: 0.6,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.medium,
+    color: colors.textSecondaryDark,
+    marginBottom: 2,
   },
-  city: {
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs / 2,
+  },
+  locationText: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    opacity: 0.6,
-    fontWeight: typography.fontWeight.medium,
+    color: colors.textSecondaryDark,
+  },
+  content: {
+    flex: 1, // Take remaining space after image
+    minHeight: 200, // Minimum height for content
+  },
+  contentContainer: {
+    padding: spacing.lg + 4,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl * 3, // Extra padding for action buttons
+  },
+  bioContainer: {
+    marginBottom: spacing.lg,
   },
   bio: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    lineHeight: 26,
-    marginBottom: spacing.lg,
-    opacity: 0.85,
+    color: colors.textDark,
+    lineHeight: 24,
   },
-  languagesContainer: {
-    marginTop: spacing.md,
+  readMoreButton: {
+    marginTop: spacing.xs,
   },
-  languageSection: {
-    marginBottom: spacing.md,
-  },
-  languageCaption: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textTertiary,
-    opacity: 0.5,
-    marginBottom: spacing.xs,
+  readMoreText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
     fontWeight: typography.fontWeight.medium,
   },
-  languageChips: {
+  section: {
+    marginBottom: spacing.lg,
+  },
+  languageGroup: {
+    marginBottom: spacing.md + 4,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textSecondaryDark,
+    letterSpacing: 1.2,
+    marginBottom: spacing.sm,
+    textTransform: "uppercase",
+  },
+  chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: spacing.xs + 2,
+  },
+  photoIndicators: {
+    position: "absolute",
+    bottom: spacing.md,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
     gap: spacing.xs,
   },
-  languageChip: {
-    backgroundColor: "transparent",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
-    borderRadius: 12,
+  photoIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+  },
+  photoIndicatorActive: {
+    backgroundColor: "#FFFFFF",
+    width: 20,
+  },
+  swipeLabel: {
+    position: "absolute",
+    top: 80,
+    zIndex: 1000,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  likeLabel: {
+    left: 20, // Like shows on LEFT when swiping RIGHT
+    borderColor: "#00FF00",
+    backgroundColor: "rgba(0, 255, 0, 0.15)",
+  },
+  passLabel: {
+    right: 20, // Pass shows on RIGHT when swiping LEFT
+    borderColor: "#FF4444",
+    backgroundColor: "rgba(255, 68, 68, 0.15)",
+  },
+  swipeLabelText: {
+    fontSize: 28,
+    fontWeight: "bold",
+    letterSpacing: 3,
+    color: "#FFFFFF",
+  },
+  favoriteButton: {
+    position: "absolute",
+    bottom: spacing.md,
+    right: spacing.md,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundSecondaryDark,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
     borderWidth: 1,
-    borderColor: colors.border,
-  },
-  languageChipPractice: {
-    borderColor: colors.border,
-  },
-  languageChipText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    opacity: 0.9,
+    borderColor: colors.borderDark,
   },
 });
-

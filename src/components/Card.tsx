@@ -25,14 +25,14 @@ export function Card({ children, style, elevated = false }: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 16,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   cardElevated: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondaryDark,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,

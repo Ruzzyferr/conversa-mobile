@@ -1,18 +1,17 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Image,
+  RefreshControl,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
-import { Card } from "@/src/components/Card";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
+import { ScreenHeader } from "@/src/components/ui/ScreenHeader";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { ChatListItem } from "@/src/components/chat/ChatListItem";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 
@@ -63,70 +62,26 @@ export default function ChatScreen() {
     router.push(`/conversation/${conversationId}`);
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => {
-    const { otherUser, conversationId } = item;
-
-    if (!conversationId) return null;
-
-    return (
-      <TouchableOpacity
-        onPress={() => handleConversationPress(conversationId)}
-        activeOpacity={0.7}
-      >
-        <Card style={styles.conversationCard}>
-          <View style={styles.conversationContent}>
-            {otherUser.photos && otherUser.photos.length > 0 ? (
-              <Image
-                source={{ uri: otherUser.photos[0] }}
-                style={styles.avatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {otherUser.displayName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={styles.conversationInfo}>
-              <Text style={styles.conversationName}>
-                {otherUser.displayName}
-              </Text>
-              {otherUser.city && (
-                <Text style={styles.conversationCity}>{otherUser.city}</Text>
-              )}
-            </View>
-          </View>
-        </Card>
-      </TouchableOpacity>
-    );
+  const handleDiscoverPress = () => {
+    router.push("/(tabs)/home");
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView>
-        <View style={styles.content}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const subtitle = conversations.length > 0 
+    ? `${conversations.length} ${conversations.length === 1 ? "conversation" : "conversations"}`
+    : undefined;
 
-  if (conversations.length === 0) {
+  if (loading && conversations.length === 0) {
     return (
       <SafeAreaView>
-        <View style={styles.content}>
-          <Text style={styles.title}>Chat</Text>
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>💬</Text>
-            <Text style={styles.emptyTitle}>Henüz konuşma yok</Text>
-            <Text style={styles.emptyText}>
-              Eşleştiğin kişilerle burada{"\n"}
-              sohbet edebilirsin!{"\n\n"}
-              Keşfet sayfasına gidip{"\n"}
-              beğenmeye başla ✨
-            </Text>
-          </Card>
+        <View style={styles.container}>
+          <ScreenHeader title="Chat" />
+          <View style={styles.loadingContainer}>
+            <EmptyState
+              icon="💬"
+              title="Loading..."
+              description=""
+            />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -134,101 +89,57 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView>
-      <View style={styles.content}>
-        <Text style={styles.title}>Chat</Text>
-        <FlatList
-        data={conversations}
-        renderItem={renderConversation}
-        keyExtractor={(item) => item.matchId}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.container}>
+        <ScreenHeader 
+          title="Chat" 
+          subtitle={subtitle}
+        />
+        {conversations.length === 0 ? (
+          <EmptyState
+            icon="💬"
+            title="No conversations yet"
+            description="Start swiping and match with people to begin chatting!"
+            ctaText="Discover people"
+            onCtaPress={handleDiscoverPress}
+          />
+        ) : (
+          <FlatList
+            data={conversations}
+            renderItem={({ item }) => (
+              <ChatListItem
+                conversationId={item.conversationId!}
+                otherUser={item.otherUser}
+                onPress={handleConversationPress}
+              />
+            )}
+            keyExtractor={(item) => item.matchId}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading}
+                onRefresh={loadConversations}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        )}
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  container: {
     flex: 1,
-    padding: spacing.md,
-  },
-  title: {
-    fontSize: typography.fontSize["3xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: spacing.md,
-    paddingTop: spacing.md,
-  },
-  loadingText: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: spacing.xl,
+    backgroundColor: colors.backgroundDark,
   },
   listContent: {
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xl,
   },
-  conversationCard: {
-    marginBottom: spacing.sm,
-  },
-  conversationContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: spacing.md,
-  },
-  avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.md,
-  },
-  avatarText: {
-    color: colors.text,
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-  },
-  conversationInfo: {
+  loadingContainer: {
     flex: 1,
-  },
-  conversationName: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  conversationCity: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  emptyCard: {
-    marginTop: spacing.xl,
-    alignItems: "center",
-    paddingVertical: spacing.xl,
-  },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: spacing.md,
-  },
-  emptyTitle: {
-    fontSize: typography.fontSize["2xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    textAlign: "center",
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 24,
   },
 });
