@@ -9,6 +9,8 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { getToken, clearToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
+import { usePremium } from "@/src/state/premium";
+import { LinearGradient } from "expo-linear-gradient";
 // Lazy import Clipboard to avoid errors
 let Clipboard: any = null;
 async function getClipboard() {
@@ -41,10 +43,15 @@ export default function ProfileScreen() {
   const [codeInput, setCodeInput] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [premiumStatus, setPremiumStatus] = useState<{
+    isPremium: boolean;
+    premiumExpiresAt: string | null;
+  } | null>(null);
+  const { premiumEnabled } = usePremium();
 
   useEffect(() => {
     loadUserData();
-    loadReferralCode();
+    loadPremiumStatus();
   }, []);
 
   const loadUserData = async () => {
@@ -74,12 +81,15 @@ export default function ProfileScreen() {
     }
   };
 
-  const loadReferralCode = async () => {
+  const loadPremiumStatus = async () => {
     try {
-      const data = await api.getReferralCode();
-      setReferralCode(data.referralCode);
+      const billing = await api.getBillingStatus();
+      setPremiumStatus({
+        isPremium: billing.isPremium,
+        premiumExpiresAt: billing.premiumExpiresAt,
+      });
     } catch (error) {
-      console.error("Failed to load referral code:", error);
+      console.error("Failed to load premium status:", error);
     }
   };
 
@@ -104,26 +114,23 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleApplyCode = async () => {
-    if (!codeInput || codeInput.trim().length === 0) {
-      Alert.alert("Error", "Please enter a valid referral code");
-      return;
-    }
-
-    try {
-      setApplyingCode(true);
-      await api.applyReferralCode(codeInput.trim().toUpperCase());
-      Alert.alert("Success", "Referral code applied successfully!");
-      setCodeInput("");
-      setShowCodeInput(false);
-    } catch (error: any) {
-      const message =
-        error.response?.data?.error?.message ||
-        error.message ||
-        "Failed to apply referral code";
-      Alert.alert("Error", message);
-    } finally {
-      setApplyingCode(false);
+  const getTimeRemaining = (expiresAt: string): string => {
+    const now = new Date();
+    const expires = new Date(expiresAt);
+    const diff = expires.getTime() - now.getTime();
+    
+    if (diff <= 0) return "Süresi dolmuş";
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days} gün ${hours} saat`;
+    } else if (hours > 0) {
+      return `${hours} saat ${minutes} dakika`;
+    } else {
+      return `${minutes} dakika`;
     }
   };
 
@@ -271,79 +278,97 @@ export default function ProfileScreen() {
         </Card>
       )}
 
-      {/* Referral Section */}
-      <Card style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>👥 Invite a Friend</Text>
-        </View>
-        <Text style={styles.cardDescription}>
-          Share Swiip with friends and explore shared conversations together
-        </Text>
+      {/* Premium Status Section */}
+      {premiumStatus && (
+        <Card style={styles.card}>
+          {premiumStatus.isPremium ? (
+            <>
+              <View style={styles.premiumHeader}>
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryLight]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.premiumBadge}
+                >
+                  <Text style={styles.premiumBadgeIcon}>✨</Text>
+                  <Text style={styles.premiumBadgeText}>Premium Aktif</Text>
+                </LinearGradient>
+              </View>
+              
+              {premiumStatus.premiumExpiresAt && (
+                <View style={styles.premiumExpiryContainer}>
+                  <Text style={styles.premiumExpiryLabel}>Kalan Süre</Text>
+                  <Text style={styles.premiumExpiryValue}>
+                    {getTimeRemaining(premiumStatus.premiumExpiresAt)}
+                  </Text>
+                </View>
+              )}
 
-        {referralCode && (
-          <View style={styles.referralCodeContainer}>
-            <Text style={styles.referralCodeLabel}>Your Referral Code</Text>
-            <View style={styles.referralCodeBox}>
-              <Text style={styles.referralCodeText}>{referralCode}</Text>
-            </View>
-            <View style={styles.referralActions}>
-              <TouchableOpacity
-                style={[styles.referralButton, styles.copyButton]}
-                onPress={handleCopyCode}
-              >
-                <Text style={styles.referralButtonText}>Copy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.referralButton, styles.shareButton]}
-                onPress={handleShare}
-              >
-                <Text style={styles.referralButtonText}>Share</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {!showCodeInput ? (
-          <TouchableOpacity
-            style={styles.applyCodeButton}
-            onPress={() => setShowCodeInput(true)}
-          >
-            <Text style={styles.applyCodeText}>Apply Referral Code</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.codeInputContainer}>
-            <TextInput
-              style={styles.codeInput}
-              placeholder="Enter referral code"
-              placeholderTextColor={colors.textSecondaryDark}
-              value={codeInput}
-              onChangeText={setCodeInput}
-              autoCapitalize="characters"
-              maxLength={20}
-            />
-            <View style={styles.codeInputActions}>
-              <TouchableOpacity
-                style={[styles.codeInputButton, styles.cancelButton]}
-                onPress={() => {
-                  setShowCodeInput(false);
-                  setCodeInput("");
-                }}
-              >
-                <Text style={styles.codeInputButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.codeInputButton, styles.submitButton]}
-                onPress={handleApplyCode}
-                disabled={applyingCode || !codeInput.trim()}
-              >
-                <Text style={styles.codeInputButtonText}>
-                  {applyingCode ? "Applying..." : "Apply"}
+              <View style={styles.premiumBenefitsContainer}>
+                <Text style={styles.premiumBenefitsTitle}>Avantajlarınız</Text>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>🤖</Text>
+                  <Text style={styles.premiumBenefitText}>Sınırsız AI Polish</Text>
+                </View>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>💬</Text>
+                  <Text style={styles.premiumBenefitText}>Sınırsız Mesaj</Text>
+                </View>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>👀</Text>
+                  <Text style={styles.premiumBenefitText}>Kim Beğendi</Text>
+                </View>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>🚀</Text>
+                  <Text style={styles.premiumBenefitText}>Boost</Text>
+                </View>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>⚙️</Text>
+                  <Text style={styles.premiumBenefitText}>Gelişmiş Filtreler</Text>
+                </View>
+                <View style={styles.premiumBenefitItem}>
+                  <Text style={styles.premiumBenefitIcon}>💎</Text>
+                  <Text style={styles.premiumBenefitText}>Haftada 5 Direkt Mesaj</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.premiumUpgradeHeader}>
+                <Text style={styles.premiumUpgradeTitle}>✨ Premium'a Geç</Text>
+                <Text style={styles.premiumUpgradeSubtitle}>
+                  Sınırsız özellikler ve daha iyi deneyim
                 </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </Card>
+              </View>
+
+              <View style={styles.premiumUpgradeBenefits}>
+                <View style={styles.premiumUpgradeBenefitItem}>
+                  <Text style={styles.premiumUpgradeBenefitIcon}>🤖</Text>
+                  <Text style={styles.premiumUpgradeBenefitText}>Sınırsız AI Polish</Text>
+                </View>
+                <View style={styles.premiumUpgradeBenefitItem}>
+                  <Text style={styles.premiumUpgradeBenefitIcon}>💬</Text>
+                  <Text style={styles.premiumUpgradeBenefitText}>Sınırsız Mesaj</Text>
+                </View>
+                <View style={styles.premiumUpgradeBenefitItem}>
+                  <Text style={styles.premiumUpgradeBenefitIcon}>🚀</Text>
+                  <Text style={styles.premiumUpgradeBenefitText}>Boost</Text>
+                </View>
+                <View style={styles.premiumUpgradeBenefitItem}>
+                  <Text style={styles.premiumUpgradeBenefitIcon}>💎</Text>
+                  <Text style={styles.premiumUpgradeBenefitText}>Haftada 5 Direkt Mesaj</Text>
+                </View>
+              </View>
+
+              <PrimaryButton
+                title="Premium'a Geç"
+                onPress={() => router.push("/premium")}
+                style={styles.premiumUpgradeButton}
+              />
+            </>
+          )}
+        </Card>
+      )}
 
       <View style={styles.logoutSection}>
         <PrimaryButton
@@ -744,5 +769,106 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
     color: "#FFFFFF",
+  },
+  premiumHeader: {
+    marginBottom: spacing.md,
+  },
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 12,
+    gap: spacing.xs,
+    alignSelf: "flex-start",
+    shadowColor: colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  premiumBadgeIcon: {
+    fontSize: typography.fontSize.base,
+  },
+  premiumBadgeText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  premiumExpiryContainer: {
+    backgroundColor: colors.backgroundDark,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  premiumExpiryLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryDark,
+    marginBottom: spacing.xs,
+  },
+  premiumExpiryValue: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primaryLight,
+  },
+  premiumBenefitsContainer: {
+    marginTop: spacing.sm,
+  },
+  premiumBenefitsTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.textDark,
+    marginBottom: spacing.md,
+  },
+  premiumBenefitItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  premiumBenefitIcon: {
+    fontSize: typography.fontSize.base,
+  },
+  premiumBenefitText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryDark,
+  },
+  premiumUpgradeHeader: {
+    marginBottom: spacing.md,
+  },
+  premiumUpgradeTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
+    marginBottom: spacing.xs,
+  },
+  premiumUpgradeSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryDark,
+  },
+  premiumUpgradeBenefits: {
+    marginBottom: spacing.md,
+  },
+  premiumUpgradeBenefitItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  premiumUpgradeBenefitIcon: {
+    fontSize: typography.fontSize.base,
+  },
+  premiumUpgradeBenefitText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryDark,
+  },
+  premiumUpgradeButton: {
+    marginTop: spacing.sm,
   },
 });

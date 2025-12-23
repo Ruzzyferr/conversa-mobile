@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { Tabs, useFocusEffect } from 'expo-router';
 import { colors } from '@/src/theme/colors';
 import { spacing } from '@/src/theme/spacing';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api } from '@/src/services/api';
+import { getToken } from '@/src/services/authStore';
+import { badgeUpdater } from '@/src/utils/badgeUpdater';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -23,11 +24,50 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
   const baseTabBarHeight = 28;
   const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom - 12, spacing.xs) : spacing.xs;
   const totalTabBarHeight = baseTabBarHeight + bottomPadding;
   const paddingTop = Math.max(bottomPadding / 5, spacing.xs);
   const paddingBottom = bottomPadding - paddingTop;
+
+  // Load incoming requests count for badge
+  const loadIncomingRequestsCount = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      
+      const incoming = await api.getIncomingRequests();
+      setIncomingRequestsCount(incoming.length);
+    } catch (error) {
+      // Silently fail - user might not be logged in or API might be unavailable
+      setIncomingRequestsCount(0);
+    }
+  };
+
+  // Load count when tab layout is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      loadIncomingRequestsCount();
+    }, [])
+  );
+
+  // Also reload periodically when on likes tab
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadIncomingRequestsCount();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for badge updates from likes page
+  useEffect(() => {
+    const unsubscribe = badgeUpdater.subscribe(() => {
+      loadIncomingRequestsCount();
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <Tabs
@@ -93,6 +133,17 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="heart" color={color} focused={focused} />
           ),
+          tabBarBadge: incomingRequestsCount > 0 ? incomingRequestsCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: 'bold',
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            paddingHorizontal: 4,
+          },
         }}
       />
       <Tabs.Screen

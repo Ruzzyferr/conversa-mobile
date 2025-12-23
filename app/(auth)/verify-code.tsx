@@ -7,6 +7,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -15,6 +17,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { Card } from "@/src/components/Card";
+import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 
@@ -33,6 +36,8 @@ export default function VerifyCodeScreen() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -87,9 +92,21 @@ export default function VerifyCodeScreen() {
       await setToken(result.token);
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Invalid verification code";
-      Alert.alert("Error", errorMessage);
+      let message = "Geçersiz doğrulama kodu. Lütfen tekrar deneyin.";
+      
+      if (error instanceof Error) {
+        // Try to extract a user-friendly message
+        if (error.message.includes("400") || error.message.includes("Invalid")) {
+          message = "Geçersiz doğrulama kodu. Lütfen tekrar deneyin.";
+        } else if (error.message.includes("expired") || error.message.includes("Expired")) {
+          message = "Doğrulama kodu süresi dolmuş. Lütfen yeni bir kod isteyin.";
+        } else {
+          message = error.message;
+        }
+      }
+      
+      setErrorMessage(message);
+      setShowErrorModal(true);
       // Clear code on error
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -119,6 +136,7 @@ export default function VerifyCodeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <RainBackground />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -173,6 +191,32 @@ export default function VerifyCodeScreen() {
         </Card>
       </View>
       </KeyboardAvoidingView>
+
+      {/* Error Modal */}
+      <Modal
+        visible={showErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Hata</Text>
+            <Text style={styles.modalMessage}>
+              {errorMessage || "Bir hata oluştu. Lütfen tekrar deneyin."}
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                setShowErrorModal(false);
+                setErrorMessage(null);
+              }}
+            >
+              <Text style={styles.modalButtonText}>Tamam</Text>
+            </TouchableOpacity>
+          </Card>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -193,20 +237,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.fontSize["3xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.sm,
     textAlign: "center",
   },
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.xl,
     textAlign: "center",
     lineHeight: 24,
   },
   identifier: {
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.textDark,
   },
   card: {
     marginTop: spacing.md,
@@ -219,14 +263,14 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 12,
     padding: spacing.md,
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     textAlign: "center",
     minHeight: 60,
   },
@@ -235,13 +279,55 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginTop: spacing.md,
   },
   resendLink: {
     color: colors.primary,
     fontWeight: typography.fontWeight.semibold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 20,
+    padding: spacing.xl,
+    width: "100%",
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondaryDark,
+    marginBottom: spacing.xl,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  modalButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+  },
+  modalButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: "#FFFFFF",
   },
 });
 

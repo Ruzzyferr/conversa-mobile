@@ -3,6 +3,9 @@ import Purchases, {
   PurchasesOffering,
   PurchasesPackage,
 } from "react-native-purchases";
+
+// Re-export types for use in other modules
+export type { PurchasesOffering, PurchasesPackage };
 import { Platform } from "react-native";
 import { api } from "./api";
 

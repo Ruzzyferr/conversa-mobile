@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, FlatList, PanResponder, Animated } from "react-native";
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, FlatList, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
@@ -31,101 +31,15 @@ type DiscoveryCardProps = {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onFavorite?: () => void;
+  favoritesRemaining?: number;
+  isPremium?: boolean;
 };
 
-export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite }: DiscoveryCardProps) {
+export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite, favoritesRemaining, isPremium }: DiscoveryCardProps) {
   const { profile, distanceKm } = card;
   const [bioExpanded, setBioExpanded] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  
-  // Swipe gesture handlers with rotation and opacity
-  const position = useRef(new Animated.ValueXY()).current;
-  const SWIPE_THRESHOLD = CARD_WIDTH * 0.3; // 30% of card width
-  const ROTATION_DEG = 10; // Max rotation in degrees
-  
-  // Calculate rotation based on x position
-  const getRotate = (x: Animated.AnimatedAddition) => {
-    return x.interpolate({
-      inputRange: [-CARD_WIDTH, 0, CARD_WIDTH],
-      outputRange: [`-${ROTATION_DEG}deg`, "0deg", `${ROTATION_DEG}deg`],
-      extrapolate: "clamp",
-    });
-  };
-  
-  // Calculate opacity based on x position (fade out slightly as you swipe)
-  const getOpacity = (x: Animated.AnimatedAddition) => {
-    return x.interpolate({
-      inputRange: [-SCREEN_WIDTH, -SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD, SCREEN_WIDTH],
-      outputRange: [0.3, 0.7, 1, 0.7, 0.3],
-      extrapolate: "clamp",
-    });
-  };
-  
-  // Calculate opacity for Like/Pass labels
-  // Like shows on LEFT when swiping RIGHT (positive dx)
-  const likeOpacity = position.x.interpolate({
-    inputRange: [0, SWIPE_THRESHOLD],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
-  
-  // Pass shows on RIGHT when swiping LEFT (negative dx)
-  const passOpacity = position.x.interpolate({
-    inputRange: [-SWIPE_THRESHOLD, 0],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-  
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        // Only allow horizontal movement
-        position.setValue({ x: gestureState.dx, y: 0 });
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        
-        // Calculate if swipe was fast enough (velocity) or far enough (distance)
-        const swipeVelocity = Math.abs(gestureState.vx);
-        const swipeDistance = Math.abs(gestureState.dx);
-        const isFastSwipe = swipeVelocity > 0.5;
-        const isLongSwipe = swipeDistance > SWIPE_THRESHOLD;
-        
-        if (gestureState.dx > 0 && (isFastSwipe || isLongSwipe)) {
-          // Swipe right - Like
-          Animated.timing(position, {
-            toValue: { x: SCREEN_WIDTH + 100, y: 0 },
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            position.setValue({ x: 0, y: 0 });
-            onSwipeRight?.();
-          });
-        } else if (gestureState.dx < 0 && (isFastSwipe || isLongSwipe)) {
-          // Swipe left - Pass
-          Animated.timing(position, {
-            toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            position.setValue({ x: 0, y: 0 });
-            onSwipeLeft?.();
-          });
-        } else {
-          // Return to center with spring animation
-          Animated.spring(position, {
-            toValue: { x: 0, y: 0 },
-            friction: 8,
-            tension: 40,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const favoriteScale = useRef(new Animated.Value(1)).current;
   
   const age = profile.birthYear
     ? new Date().getFullYear() - profile.birthYear
@@ -155,47 +69,28 @@ export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite }: D
   };
 
   const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
-  
-  const rotate = getRotate(position.x);
-  const opacity = getOpacity(position.x);
+
+  const handleFavoritePress = () => {
+    if (onFavorite) {
+      // Scale animation
+      Animated.sequence([
+        Animated.timing(favoriteScale, {
+          toValue: 0.85,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(favoriteScale, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      onFavorite();
+    }
+  };
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          transform: [
-            { translateX: position.x },
-            { rotate: rotate },
-          ],
-          opacity: opacity,
-        },
-      ]}
-      {...panResponder.panHandlers}
-    >
-      {/* Like Label - Shows on LEFT when swiping RIGHT */}
-      <Animated.View
-        style={[
-          styles.swipeLabel,
-          styles.likeLabel,
-          { opacity: likeOpacity },
-        ]}
-        pointerEvents="none"
-      >
-        <Text style={styles.swipeLabelText}>LIKE</Text>
-      </Animated.View>
-      
-      {/* Pass Label - Shows on RIGHT when swiping LEFT */}
-      <Animated.View
-        style={[
-          styles.swipeLabel,
-          styles.passLabel,
-          { opacity: passOpacity },
-        ]}
-        pointerEvents="none"
-      >
-        <Text style={styles.swipeLabelText}>PASS</Text>
-      </Animated.View>
+    <View style={styles.container}>
       {/* Hero Image Section - 60% height with Carousel */}
       <View style={styles.imageContainer}>
         {photos.length > 0 ? (
@@ -247,12 +142,6 @@ export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite }: D
           locations={[0, 0.6, 1]}
           style={styles.gradientOverlay}
         />
-
-        {/* Top-right "Sohbet" Button */}
-        <TouchableOpacity style={styles.chatButton}>
-          <MaterialIcons name="chat-bubble-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.chatButtonText}>Sohbet</Text>
-        </TouchableOpacity>
 
         {/* Name, Age, Location Overlay */}
         <LinearGradient
@@ -346,14 +235,21 @@ export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite }: D
       {/* Favorite Button - Bottom Right */}
       {onFavorite && (
         <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={onFavorite}
-          activeOpacity={0.7}
+          style={styles.favoriteButtonWrapper}
+          onPress={handleFavoritePress}
+          activeOpacity={0.8}
         >
-          <MaterialIcons name="star" size={24} color="#3B82F6" />
+          <Animated.View
+            style={[
+              styles.favoriteButton,
+              { transform: [{ scale: favoriteScale }] },
+            ]}
+          >
+            <MaterialIcons name="star" size={24} color="#60A5FA" />
+          </Animated.View>
         </TouchableOpacity>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
@@ -402,25 +298,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: "100%",
-  },
-  chatButton: {
-    position: "absolute",
-    top: spacing.md,
-    right: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs / 2,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  chatButtonText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: "#FFFFFF",
   },
   nameGradient: {
     position: "absolute",
@@ -524,37 +401,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     width: 20,
   },
-  swipeLabel: {
-    position: "absolute",
-    top: 80,
-    zIndex: 1000,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  likeLabel: {
-    left: 20, // Like shows on LEFT when swiping RIGHT
-    borderColor: "#00FF00",
-    backgroundColor: "rgba(0, 255, 0, 0.15)",
-  },
-  passLabel: {
-    right: 20, // Pass shows on RIGHT when swiping LEFT
-    borderColor: "#FF4444",
-    backgroundColor: "rgba(255, 68, 68, 0.15)",
-  },
-  swipeLabelText: {
-    fontSize: 28,
-    fontWeight: "bold",
-    letterSpacing: 3,
-    color: "#FFFFFF",
-  },
-  favoriteButton: {
+  favoriteButtonWrapper: {
     position: "absolute",
     bottom: spacing.md,
     right: spacing.md,
+  },
+  favoriteButton: {
     width: 48,
     height: 48,
     borderRadius: 24,

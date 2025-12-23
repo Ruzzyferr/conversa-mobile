@@ -215,19 +215,11 @@ export default function PremiumScreen() {
 
   if (premiumEnabled) {
     return (
-      <SafeAreaView>
+      <SafeAreaView edges={["bottom"]}>
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
         >
-          <View style={styles.header}>
-            <Text style={styles.emoji}>✨</Text>
-            <Text style={styles.title}>You're Premium!</Text>
-            <Text style={styles.subtitle}>
-              Thank you for supporting Swiip
-            </Text>
-          </View>
-
           <Card style={styles.benefitsCard}>
             <Text style={styles.benefitsTitle}>Your Premium Benefits</Text>
 
@@ -287,19 +279,11 @@ export default function PremiumScreen() {
   }
 
   return (
-    <SafeAreaView>
+    <SafeAreaView edges={["bottom"]}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
       >
-        <View style={styles.header}>
-          <Text style={styles.emoji}>✨</Text>
-          <Text style={styles.title}>Swiip Premium</Text>
-          <Text style={styles.subtitle}>
-            Unlock unlimited features and better experience
-          </Text>
-        </View>
-
         <Card style={styles.benefitsCard}>
           <Text style={styles.benefitsTitle}>Premium Benefits</Text>
 
@@ -367,7 +351,7 @@ export default function PremiumScreen() {
               contentContainerStyle={styles.cardsContainer}
               style={styles.cardsScrollView}
             >
-              {offering.availablePackages.map((pkg) => {
+              {offering.availablePackages.map((pkg: PurchasesPackage) => {
                 const { price, time } = extractPriceAndTime(formatPrice(pkg));
                 return (
                   <PremiumCard
@@ -416,10 +400,11 @@ export default function PremiumScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundDark,
   },
   contentContainer: {
     padding: spacing.lg,
+    paddingTop: 0,
   },
   header: {
     alignItems: "center",
@@ -433,22 +418,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.sm,
     textAlign: "center",
   },
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
   },
   benefitsCard: {
     marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
   benefitsTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.lg,
   },
   benefitItem: {
@@ -466,12 +452,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.xs,
   },
   benefitDescription: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     lineHeight: 20,
   },
   loadingContainer: {
@@ -481,7 +467,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.md,
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
   },
   cardsScrollView: {
     marginBottom: spacing.md,
@@ -506,13 +492,12 @@ const styles = StyleSheet.create({
   },
   restoreButton: {
     marginTop: spacing.md,
-    marginTop: spacing.md,
     padding: spacing.md,
     alignItems: "center",
   },
   restoreText: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textDecorationLine: "underline",
   },
 });

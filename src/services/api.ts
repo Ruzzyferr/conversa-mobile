@@ -165,6 +165,7 @@ class ApiClient {
     city?: string;
     lat?: number;
     lng?: number;
+    gender?: "MALE" | "FEMALE" | "OTHER";
     languagesNative?: string[];
     languagesPractice?: string[];
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
@@ -253,7 +254,9 @@ class ApiClient {
   }
 
   async like(toUserId: string): Promise<{
-    matched: boolean;
+    success: boolean;
+    requestId: string;
+    matched?: boolean;
     matchId?: string;
     conversationId?: string;
   }> {
@@ -267,12 +270,16 @@ class ApiClient {
     await this.client.post("/api/v1/discovery/pass", { toUserId });
   }
 
-  async favorite(toUserId: string): Promise<{
+  async favorite(toUserId: string, text: string): Promise<{
     success: boolean;
-    favoritesRemaining?: number;
-    favoritesLimit?: number;
+    requestId: string;
+    messageId: string;
+    directRemaining: number;
   }> {
-    const response = await this.client.post("/api/v1/discovery/favorite", { toUserId });
+    const response = await this.client.post("/api/v1/discovery/favorite", {
+      toUserId,
+      text,
+    });
     return response.data;
   }
 
@@ -510,6 +517,125 @@ class ApiClient {
     };
   }> {
     const response = await this.client.post("/api/v1/rewards/ad-like");
+    return response.data;
+  }
+
+  // Requests endpoints
+  async getIncomingRequests(): Promise<
+    Array<{
+      requestId: string;
+      fromUserId: string;
+      kind: "LIKE" | "FAVORITE";
+      status: "PENDING" | "ACCEPTED" | "DECLINED";
+      createdAt: string;
+      fromUser: {
+        userId: string;
+        displayName: string;
+        photos: string[];
+        city: string | null;
+        languagesNative: string[];
+        languagesPractice: string[];
+        birthYear: number | null;
+        bio: string | null;
+      };
+      firstMessage: {
+        id: string;
+        text: string;
+        createdAt: string;
+      } | null;
+    }>
+  > {
+    const response = await this.client.get("/api/v1/requests/incoming?status=PENDING");
+    return response.data;
+  }
+
+  async getOutgoingRequests(): Promise<
+    Array<{
+      requestId: string;
+      toUserId: string;
+      kind: "LIKE" | "FAVORITE";
+      status: "PENDING" | "ACCEPTED" | "DECLINED";
+      createdAt: string;
+      toUser: {
+        userId: string;
+        displayName: string;
+        photos: string[];
+        city: string | null;
+        languagesNative: string[];
+        languagesPractice: string[];
+        birthYear: number | null;
+        bio: string | null;
+      };
+      firstMessage: {
+        id: string;
+        text: string;
+        createdAt: string;
+      } | null;
+    }>
+  > {
+    const response = await this.client.get("/api/v1/requests/outgoing?status=PENDING");
+    return response.data;
+  }
+
+  async acceptRequest(fromUserId: string): Promise<{
+    success: boolean;
+    requestId: string;
+    matchId?: string;
+    conversationId?: string;
+  }> {
+    const response = await this.client.post("/api/v1/requests/accept", {
+      fromUserId,
+    });
+    return response.data;
+  }
+
+  async declineRequest(fromUserId: string): Promise<{
+    success: boolean;
+    requestId: string;
+  }> {
+    const response = await this.client.post("/api/v1/requests/decline", {
+      fromUserId,
+    });
+    return response.data;
+  }
+
+  // Chat requests endpoints
+  async getChatRequests(): Promise<
+    Array<{
+      requestId: string;
+      fromUserId: string;
+      createdAt: string;
+      fromUser: {
+        userId: string;
+        displayName: string;
+        photos: string[];
+        city: string | null;
+      };
+      firstMessage: {
+        id: string;
+        text: string;
+        createdAt: string;
+      } | null;
+    }>
+  > {
+    const response = await this.client.get("/api/v1/chat/requests");
+    return response.data;
+  }
+
+  async replyToRequest(requestId: string, text: string): Promise<{
+    success: boolean;
+    conversationId: string;
+    message: {
+      id: string;
+      conversationId: string;
+      senderUserId: string;
+      text: string;
+      createdAt: string;
+    };
+  }> {
+    const response = await this.client.post(`/api/v1/chat/requests/${requestId}/reply`, {
+      text,
+    });
     return response.data;
   }
 }

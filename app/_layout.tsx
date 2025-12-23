@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -62,43 +63,45 @@ function RootLayoutNav() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <PremiumProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack
-            screenOptions={{
-              headerStyle: {
-                backgroundColor: colors.backgroundSecondaryDark,
-              },
-              headerTintColor: colors.textDark,
-              headerTitleStyle: {
-                fontWeight: typography.fontWeight.semibold,
-                fontSize: typography.fontSize.lg,
-              },
-              contentStyle: {
-                backgroundColor: colors.backgroundDark,
-              },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="premium"
-              options={{
-                title: "Premium",
-                presentation: "modal",
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PremiumProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack
+              screenOptions={{
+                headerStyle: {
+                  backgroundColor: colors.backgroundSecondaryDark,
+                },
+                headerTintColor: colors.textDark,
+                headerTitleStyle: {
+                  fontWeight: typography.fontWeight.semibold,
+                  fontSize: typography.fontSize.lg,
+                },
+                contentStyle: {
+                  backgroundColor: colors.backgroundDark,
+                },
               }}
-            />
-            <Stack.Screen
-              name="conversation/[id]"
-              options={{
-                title: "Chat",
-              }}
-            />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-          </Stack>
-        </ThemeProvider>
-      </PremiumProvider>
-    </SafeAreaProvider>
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="premium"
+                options={{
+                  title: "Premium",
+                  presentation: "modal",
+                }}
+              />
+              <Stack.Screen
+                name="conversation/[id]"
+                options={{
+                  title: "Chat",
+                }}
+              />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            </Stack>
+          </ThemeProvider>
+        </PremiumProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

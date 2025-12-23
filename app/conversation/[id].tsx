@@ -279,6 +279,13 @@ export default function ConversationScreen() {
             ]
           );
           setMessageText(text); // Restore text
+        } else if (code === "FIRST_MESSAGE_RESTRICTED" || code === "MALE_CANNOT_SEND_FIRST_MESSAGE" || message.toLowerCase().includes("kadın") || message.toLowerCase().includes("first message")) {
+          Alert.alert(
+            "İlk Mesaj Kuralı",
+            "Bu eşleşmede ilk mesajı kadın tarafı göndermelidir. Lütfen karşı tarafın ilk mesajı göndermesini bekleyin.",
+            [{ text: "Tamam" }]
+          );
+          setMessageText(text); // Restore text
         } else {
           Alert.alert("Hata", message);
           setMessageText(text); // Restore text on error
@@ -744,11 +751,15 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundDark,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: colors.backgroundDark,
   },
   loadingText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginTop: spacing.xl,
   },
@@ -773,23 +784,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   otherMessageCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.backgroundSecondaryDark,
   },
   messageText: {
     fontSize: typography.fontSize.base,
   },
   myMessageText: {
-    color: colors.text,
+    color: "#FFFFFF",
   },
   otherMessageText: {
-    color: colors.text,
+    color: colors.textDark,
   },
   hintContainer: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.warning + "20",
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderDark,
   },
   hintText: {
     fontSize: typography.fontSize.sm,
@@ -801,14 +812,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundSecondaryDark,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderDark,
     gap: spacing.sm,
   },
   toneLabel: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
   },
   toneChips: {
@@ -819,9 +830,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   toneChipActive: {
     backgroundColor: colors.primary,
@@ -829,31 +840,31 @@ const styles = StyleSheet.create({
   },
   toneChipText: {
     fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
   },
   toneChipTextActive: {
-    color: colors.text,
+    color: "#FFFFFF",
   },
   inputContainer: {
     flexDirection: "row",
     padding: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.backgroundSecondary,
+    borderTopColor: colors.borderDark,
+    backgroundColor: colors.backgroundSecondaryDark,
     gap: spacing.sm,
     alignItems: "flex-end",
   },
   input: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundDark,
     borderRadius: 20,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     maxHeight: 100,
     minHeight: 40,
   },
@@ -888,25 +899,25 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.md,
     textAlign: "center",
   },
   usageInfo: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundSecondaryDark,
     padding: spacing.md,
     borderRadius: 8,
     marginBottom: spacing.md,
   },
   usageText: {
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     textAlign: "center",
     fontWeight: typography.fontWeight.medium,
   },
   modalText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginBottom: spacing.lg,
     lineHeight: 24,
@@ -922,7 +933,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalCloseText: {
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontSize: typography.fontSize.sm,
   },
   headerRightContainer: {
@@ -939,7 +950,7 @@ const styles = StyleSheet.create({
   },
   headerMenuText: {
     fontSize: typography.fontSize["2xl"],
-    color: colors.text,
+    color: colors.textDark,
     fontWeight: typography.fontWeight.bold,
   },
   headerRight: {
@@ -956,7 +967,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerAvatarText: {
-    color: colors.text,
+    color: "#FFFFFF",
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
   },
@@ -972,10 +983,10 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     height: "90%",
     maxHeight: 600,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     overflow: "hidden",
   },
   profileLoadingContainer: {
@@ -984,7 +995,7 @@ const styles = StyleSheet.create({
   },
   profileLoadingText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
   },
   profileScrollView: {
     flex: 1,
@@ -997,14 +1008,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: spacing.md,
   },
   profileCloseText: {
     fontSize: typography.fontSize.lg,
-    color: colors.text,
+    color: colors.textDark,
     fontWeight: typography.fontWeight.bold,
   },
   profilePhoto: {
@@ -1017,13 +1028,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 300,
     borderRadius: 12,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: spacing.md,
   },
   profilePhotoPlaceholderText: {
-    color: colors.textTertiary,
+    color: colors.textSecondaryDark,
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
   },
@@ -1033,12 +1044,12 @@ const styles = StyleSheet.create({
   profileDisplayName: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.xs,
   },
   profileCity: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.xs,
   },
   profilePurpose: {
@@ -1049,7 +1060,7 @@ const styles = StyleSheet.create({
   },
   profileBio: {
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     lineHeight: 24,
     marginBottom: spacing.md,
   },
@@ -1062,12 +1073,12 @@ const styles = StyleSheet.create({
   profileLanguageLabel: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.xs,
   },
   profileLanguages: {
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
   },
   profileErrorContainer: {
     padding: spacing.xl,
@@ -1075,7 +1086,7 @@ const styles = StyleSheet.create({
   },
   profileErrorText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     marginBottom: spacing.md,
     textAlign: "center",
   },
@@ -1092,9 +1103,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: 12,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   reportReasonChipActive: {
     backgroundColor: colors.primary,
@@ -1102,20 +1113,20 @@ const styles = StyleSheet.create({
   },
   reportReasonText: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
   },
   reportReasonTextActive: {
-    color: colors.text,
+    color: "#FFFFFF",
   },
   reportDetailsInput: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundDark,
     borderRadius: 12,
     padding: spacing.md,
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: colors.textDark,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
     minHeight: 100,
     maxHeight: 150,
     marginBottom: spacing.md,
