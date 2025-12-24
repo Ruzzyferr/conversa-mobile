@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  StyleProp,
   ViewStyle,
   TextStyle,
 } from "react-native";
@@ -16,7 +17,7 @@ interface PrimaryButtonProps {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
 }
 
@@ -32,7 +33,7 @@ export function PrimaryButton({
     <TouchableOpacity
       style={[
         styles.button,
-        (disabled || loading) && styles.buttonDisabled,
+        (disabled || loading) ? styles.buttonDisabled : undefined,
         style,
       ]}
       onPress={onPress}

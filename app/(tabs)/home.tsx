@@ -722,7 +722,6 @@ export default function HomeScreen() {
                 onFavorite={() => handleFavorite(card)}
                 favoritesRemaining={favoriteInfo?.favoritesRemaining}
                 isPremium={isUserPremium}
-                disablePan={true}
               />
             )}
           />

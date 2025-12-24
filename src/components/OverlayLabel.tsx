@@ -4,13 +4,14 @@ import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  SharedValue,
 } from 'react-native-reanimated';
 
 type Props = PropsWithChildren<{
   inputRange?: number[];
   outputRange?: number[];
   Component: () => React.ReactElement;
-  opacityValue: Animated.SharedValue<number>;
+  opacityValue: SharedValue<number>;
 }>;
 
 const OverlayLabel = ({

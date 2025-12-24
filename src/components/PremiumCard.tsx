@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -14,7 +14,7 @@ type PremiumCardProps = {
   buttonText: string;
   onPress: () => void;
   isSelected?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function PremiumCard({
@@ -30,7 +30,7 @@ export function PremiumCard({
 }: PremiumCardProps) {
   return (
     <TouchableOpacity
-      style={[styles.container, style, isSelected && styles.containerSelected]}
+      style={[styles.container, style, isSelected ? styles.containerSelected : undefined]}
       onPress={onPress}
       activeOpacity={0.9}
     >

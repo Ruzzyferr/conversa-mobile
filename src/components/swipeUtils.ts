@@ -1,5 +1,5 @@
 import { Dimensions } from 'react-native';
-import Animated, { runOnJS, withSpring } from 'react-native-reanimated';
+import Animated, { runOnJS, withSpring, SharedValue } from 'react-native-reanimated';
 
 const { width: windowWidth, height: windowHeight } = Dimensions.get('screen');
 
@@ -13,8 +13,8 @@ const userConfig = {
 };
 
 function resetPosition(
-  x: Animated.SharedValue<number>,
-  y: Animated.SharedValue<number>
+  x: SharedValue<number>,
+  y: SharedValue<number>
 ): void {
   'worklet';
   x.value = withSpring(0, userConfig);
@@ -23,8 +23,8 @@ function resetPosition(
 
 function updatePosition(
   destX: number,
-  translateX: Animated.SharedValue<number>,
-  translateY: Animated.SharedValue<number>,
+  translateX: SharedValue<number>,
+  translateY: SharedValue<number>,
   cardWidth?: number,
   velocityX?: number,
   disableRightSwipe?: boolean,

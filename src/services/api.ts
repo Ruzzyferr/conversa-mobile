@@ -134,6 +134,7 @@ class ApiClient {
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
     bio: string | null;
     photos: string[];
+    interests?: string[];
     createdAt: string;
     updatedAt: string;
   }> {

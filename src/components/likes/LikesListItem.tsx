@@ -27,7 +27,7 @@ export function LikesListItem({
 
   return (
     <Component {...pressProps}>
-      <Card style={[styles.card, blurred && styles.blurredCard]}>
+      <Card style={[styles.card, blurred ? styles.blurredCard : undefined]}>
         <View style={styles.content}>
           {/* Avatar */}
           {photos && photos.length > 0 && !blurred ? (
@@ -37,7 +37,7 @@ export function LikesListItem({
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.avatarPlaceholder, blurred && styles.blurredAvatar]}>
+            <View style={[styles.avatarPlaceholder, blurred ? styles.blurredAvatar : undefined]}>
               <Text style={styles.avatarText}>
                 {blurred ? "?" : displayName.charAt(0).toUpperCase()}
               </Text>
@@ -47,7 +47,7 @@ export function LikesListItem({
           {/* Info */}
           <View style={styles.info}>
             <View style={styles.headerRow}>
-              <Text style={[styles.name, blurred && styles.blurredText]} numberOfLines={1}>
+              <Text style={[styles.name, blurred ? styles.blurredText : undefined]} numberOfLines={1}>
                 {blurred ? "Someone liked you" : displayName}
               </Text>
               {!blurred && (
