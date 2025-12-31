@@ -73,9 +73,9 @@ class ApiClient {
     return response.data;
   }
 
-  async loginEmail(email: string): Promise<{ 
-    userId: string; 
-    token?: string; 
+  async loginEmail(email: string): Promise<{
+    userId: string;
+    token?: string;
     requiresCode?: boolean;
     message?: string;
   }> {
@@ -83,9 +83,9 @@ class ApiClient {
     return response.data;
   }
 
-  async loginPhone(phone: string): Promise<{ 
-    userId: string; 
-    token?: string; 
+  async loginPhone(phone: string): Promise<{
+    userId: string;
+    token?: string;
     requiresCode?: boolean;
     message?: string;
   }> {
@@ -203,6 +203,13 @@ class ApiClient {
       verifiedOnly?: boolean;
       recentlyActive?: boolean;
       minPhotos?: number;
+      // New filters
+      nativeLanguages?: string[];
+      targetLanguages?: string[];
+      countries?: string[];
+      gender?: "ALL" | "FEMALE" | "MALE";
+      ageRange?: [number, number];
+      forceReshuffle?: boolean;
     }
   ): Promise<
     Array<{
@@ -221,7 +228,7 @@ class ApiClient {
     }>
   > {
     const params: any = { limit };
-    
+
     // Only include filters that are explicitly set
     if (filters) {
       if (filters.maxDistanceKm !== undefined) {
@@ -247,6 +254,25 @@ class ApiClient {
       }
       if (filters.minPhotos !== undefined) {
         params.minPhotos = filters.minPhotos;
+      }
+      // New filter params
+      if (filters.nativeLanguages && filters.nativeLanguages.length > 0) {
+        params.nativeLanguages = filters.nativeLanguages;
+      }
+      if (filters.targetLanguages && filters.targetLanguages.length > 0) {
+        params.targetLanguages = filters.targetLanguages;
+      }
+      if (filters.countries && filters.countries.length > 0) {
+        params.countries = filters.countries;
+      }
+      if (filters.gender && filters.gender !== "ALL") {
+        params.gender = filters.gender;
+      }
+      if (filters.ageRange) {
+        params.ageRange = filters.ageRange;
+      }
+      if (filters.forceReshuffle) {
+        params.forceReshuffle = filters.forceReshuffle;
       }
     }
 

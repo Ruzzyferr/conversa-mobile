@@ -62,11 +62,13 @@ export default function HomeScreen() {
   } | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState<FilterParams>({
-    maxDistanceKm: null,
-    languages: [],
+    ageRange: [18, 60],
+    gender: "ALL",
+    distanceRange: [0, 100],
+    nativeLanguages: [],
+    targetLanguages: [],
+    countries: [],
     purpose: undefined,
-    culturalPreference: undefined,
-    excludeCountries: [],
     verifiedOnly: false,
     recentlyActive: false,
     minPhotos: 0,
@@ -184,36 +186,56 @@ export default function HomeScreen() {
     }
   };
 
-  const loadFeed = async () => {
+  const loadFeed = async (forceReshuffle: boolean = false, filtersOverride?: typeof filters) => {
     try {
       setLoading(true);
+      // Use override filters if provided, otherwise use state
+      const activeFilters = filtersOverride || filters;
+
       // Build filter params - only include explicitly set filters
       const filterParams: any = {};
-      if (filters.maxDistanceKm !== null) {
-        filterParams.maxDistanceKm = filters.maxDistanceKm;
+      // Distance filter (use max of range if not default)
+      if (activeFilters.distanceRange[1] < 100) {
+        filterParams.maxDistanceKm = activeFilters.distanceRange[1];
       }
-      if (filters.languages.length > 0) {
-        filterParams.languages = filters.languages;
+      // Language filters
+      if (activeFilters.nativeLanguages.length > 0) {
+        filterParams.nativeLanguages = activeFilters.nativeLanguages;
       }
-      if (filters.purpose) {
-        filterParams.purpose = filters.purpose;
+      if (activeFilters.targetLanguages.length > 0) {
+        filterParams.targetLanguages = activeFilters.targetLanguages;
       }
-      if (filters.culturalPreference) {
-        filterParams.culturalPreference = filters.culturalPreference;
+      // Purpose
+      if (activeFilters.purpose) {
+        filterParams.purpose = activeFilters.purpose;
       }
+      // Country filter
+      if (activeFilters.countries.length > 0) {
+        filterParams.countries = activeFilters.countries;
+      }
+      // Gender filter
+      if (activeFilters.gender !== "ALL") {
+        filterParams.gender = activeFilters.gender;
+      }
+      // Age range
+      if (activeFilters.ageRange[0] > 18 || activeFilters.ageRange[1] < 60) {
+        filterParams.ageRange = activeFilters.ageRange;
+      }
+      // Premium filters
       if (isPremium) {
-        if (filters.excludeCountries.length > 0) {
-          filterParams.excludeCountries = filters.excludeCountries;
+        if (activeFilters.verifiedOnly) {
+          filterParams.verifiedOnly = activeFilters.verifiedOnly;
         }
-        if (filters.verifiedOnly) {
-          filterParams.verifiedOnly = filters.verifiedOnly;
+        if (activeFilters.recentlyActive) {
+          filterParams.recentlyActive = activeFilters.recentlyActive;
         }
-        if (filters.recentlyActive) {
-          filterParams.recentlyActive = filters.recentlyActive;
+        if (activeFilters.minPhotos > 0) {
+          filterParams.minPhotos = activeFilters.minPhotos;
         }
-        if (filters.minPhotos > 0) {
-          filterParams.minPhotos = filters.minPhotos;
-        }
+      }
+      // Force reshuffle when filters are applied
+      if (forceReshuffle) {
+        filterParams.forceReshuffle = true;
       }
 
       const cards = await api.getFeed(20, Object.keys(filterParams).length > 0 ? filterParams : undefined);
@@ -769,11 +791,10 @@ export default function HomeScreen() {
           onClose={() => setShowFilterModal(false)}
           onApply={(newFilters) => {
             setFilters(newFilters);
-            loadFeed();
+            loadFeed(true, newFilters); // Pass newFilters directly to avoid stale state
           }}
           initialFilters={filters}
-          userLanguages={userLanguages}
-          isPremium={isPremium}
+          isPremium={isUserPremium}
         />
 
         {/* Match Modal */}

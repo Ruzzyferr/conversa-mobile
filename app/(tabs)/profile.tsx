@@ -1,47 +1,30 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { getToken, clearToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { usePremium } from "@/src/state/premium";
 import { LinearGradient } from "expo-linear-gradient";
-// Lazy import Clipboard to avoid errors
-let Clipboard: any = null;
-async function getClipboard() {
-  if (!Clipboard) {
-    try {
-      Clipboard = await import("expo-clipboard");
-    } catch (error) {
-      console.warn("Clipboard not available:", error);
-      // Fallback: return a mock that does nothing
-      Clipboard = {
-        setStringAsync: async () => {},
-        getStringAsync: async () => "",
-      };
-    }
-  }
-  return Clipboard;
-}
-import { TextInput } from "react-native";
+import { BlurView } from "expo-blur";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<{
     user: { id: string; email: string | null; phone: string | null; createdAt: string };
     profileExists: boolean;
   } | null>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [applyingCode, setApplyingCode] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [showCodeInput, setShowCodeInput] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [premiumStatus, setPremiumStatus] = useState<{
     isPremium: boolean;
@@ -93,38 +76,17 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleCopyCode = async () => {
-    if (referralCode) {
-      const clipboard = await getClipboard();
-      await clipboard.setStringAsync(referralCode);
-      Alert.alert("Copied!", "Referral code copied to clipboard");
-    }
-  };
-
-  const handleShare = async () => {
-    if (referralCode) {
-      try {
-        await Share.share({
-          message: `Join me on Swiip! Use my referral code: ${referralCode}\n\nShared conversations and language practice await!`,
-          title: "Invite to Swiip",
-        });
-      } catch (error) {
-        console.error("Failed to share:", error);
-      }
-    }
-  };
-
   const getTimeRemaining = (expiresAt: string): string => {
     const now = new Date();
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
-    
+
     if (diff <= 0) return "Süresi dolmuş";
-    
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (days > 0) {
       return `${days} gün ${hours} saat`;
     } else if (hours > 0) {
@@ -141,13 +103,10 @@ export default function ProfileScreen() {
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     try {
-      // Try to logout from server
       await api.logout();
     } catch (error) {
-      // Even if server logout fails, clear local token
       console.error("Logout error:", error);
     } finally {
-      // Always clear local token
       await clearToken();
       router.replace("/(auth)/welcome");
     }
@@ -155,229 +114,238 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView>
-        <View style={styles.content}>
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <LinearGradient
+          colors={[colors.primary + '20', colors.backgroundDark]}
+          style={StyleSheet.absoluteFill}
+        />
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
+      </View>
     );
   }
 
+  const age = profile?.birthYear ? new Date().getFullYear() - profile.birthYear : null;
+
   return (
-    <SafeAreaView>
+    <View style={styles.container}>
       <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          {profile?.photos && profile.photos.length > 0 ? (
-            <Image
-              source={{ uri: profile.photos[0] }}
-              style={styles.profileImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.profileImagePlaceholder}>
-              <Text style={styles.profileImageText}>
-                {profile?.displayName?.charAt(0).toUpperCase() || "U"}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.title}>
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+
+          {/* Profile Photo with Glow */}
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatarGlow} />
+            {profile?.photos && profile.photos.length > 0 ? (
+              <Image
+                source={{ uri: profile.photos[0] }}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>
+                  {profile?.displayName?.charAt(0).toUpperCase() || "U"}
+                </Text>
+              </View>
+            )}
+            {premiumStatus?.isPremium && (
+              <View style={styles.premiumBadgeSmall}>
+                <Text style={styles.premiumBadgeSmallText}>✨</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Name and Location */}
+          <Text style={styles.displayName}>
             {profile?.displayName || "Profil"}
+            {age && <Text style={styles.age}>, {age}</Text>}
           </Text>
           {profile?.city && (
-            <Text style={styles.subtitle}>📍 {profile.city}</Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location" size={16} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.location}>{profile.city}</Text>
+            </View>
+          )}
+
+          {/* Edit Button */}
+          {userInfo?.profileExists && (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => router.push("/profile-edit")}
+            >
+              <Ionicons name="pencil" size={16} color="#FFF" />
+              <Text style={styles.editButtonText}>Düzenle</Text>
+            </TouchableOpacity>
           )}
         </View>
 
-      {profile && (
-        <Card style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>👤 Profil Bilgileri</Text>
-          </View>
-          
-          {profile.birthYear && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Doğum Yılı</Text>
-              <Text style={styles.infoValue}>{profile.birthYear}</Text>
+        {/* Quick Stats */}
+        {profile && (
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{profile.languagesNative?.length || 0}</Text>
+              <Text style={styles.statLabel}>Ana Dil</Text>
             </View>
-          )}
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Amaç</Text>
-            <View style={styles.purposeBadge}>
-              <Text style={styles.purposeText}>
-                {profile.purpose === "CONVERSATION"
-                  ? "💬 Sohbet"
-                  : profile.purpose === "PRACTICE"
-                  ? "📚 Pratik"
-                  : "☕ Kahve"}
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{profile.languagesPractice?.length || 0}</Text>
+              <Text style={styles.statLabel}>Öğreniyor</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {profile.purpose === "CONVERSATION" ? "💬" : profile.purpose === "PRACTICE" ? "📚" : "☕"}
               </Text>
+              <Text style={styles.statLabel}>Amaç</Text>
             </View>
           </View>
+        )}
 
-          {profile.languagesNative.length > 0 && (
-            <View style={styles.languageSection}>
-              <Text style={styles.languageLabel}>🌍 Ana Diller</Text>
-              <View style={styles.languageTags}>
-                {profile.languagesNative.map((lang: string, index: number) => (
-                  <View key={index} style={styles.languageTag}>
-                    <Text style={styles.languageTagText}>{lang}</Text>
-                  </View>
-                ))}
+        {/* Languages Card */}
+        {profile && (profile.languagesNative?.length > 0 || profile.languagesPractice?.length > 0) && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="globe-outline" size={20} color={colors.primary} />
+              <Text style={styles.cardTitle}>Diller</Text>
+            </View>
+
+            {profile.languagesNative?.length > 0 && (
+              <View style={styles.languageSection}>
+                <Text style={styles.languageSectionTitle}>Ana Diller</Text>
+                <View style={styles.languageTags}>
+                  {profile.languagesNative.map((lang: string, index: number) => (
+                    <LinearGradient
+                      key={index}
+                      colors={[colors.primary + '30', colors.primary + '10']}
+                      style={styles.languageTag}
+                    >
+                      <Text style={styles.languageTagText}>{lang}</Text>
+                    </LinearGradient>
+                  ))}
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
-          {profile.languagesPractice.length > 0 && (
-            <View style={styles.languageSection}>
-              <Text style={styles.languageLabel}>📖 Pratik Diller</Text>
-              <View style={styles.languageTags}>
-                {profile.languagesPractice.map((lang: string, index: number) => (
-                  <View key={index} style={[styles.languageTag, styles.languageTagPractice]}>
-                    <Text style={styles.languageTagText}>{lang}</Text>
-                  </View>
-                ))}
+            {profile.languagesPractice?.length > 0 && (
+              <View style={styles.languageSection}>
+                <Text style={styles.languageSectionTitle}>Öğreniyor</Text>
+                <View style={styles.languageTags}>
+                  {profile.languagesPractice.map((lang: string, index: number) => (
+                    <LinearGradient
+                      key={index}
+                      colors={[colors.accent + '30', colors.accent + '10']}
+                      style={styles.languageTag}
+                    >
+                      <Text style={[styles.languageTagText, { color: colors.accent }]}>{lang}</Text>
+                    </LinearGradient>
+                  ))}
+                </View>
               </View>
+            )}
+          </View>
+        )}
+
+        {/* Bio Card */}
+        {profile?.bio && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+              <Text style={styles.cardTitle}>Hakkında</Text>
             </View>
-          )}
+            <Text style={styles.bioText}>{profile.bio}</Text>
+          </View>
+        )}
 
-          {profile.bio && (
-            <View style={styles.bioSection}>
-              <Text style={styles.bioLabel}>✍️ Hakkında</Text>
-              <Text style={styles.bioText}>{profile.bio}</Text>
-            </View>
-          )}
-        </Card>
-      )}
-
-      {userInfo?.profileExists && (
-        <Card style={styles.card}>
-          <PrimaryButton
-            title="Profili Düzenle"
-            onPress={() => router.push("/profile-edit")}
-            style={styles.editButton}
-          />
-        </Card>
-      )}
-
-      {!userInfo?.profileExists && (
-        <Card style={[styles.card, styles.incompleteCard]}>
-          <Text style={styles.cardTitle}>⚠️ Profilini Tamamla</Text>
-          <Text style={styles.cardDescription}>
-            Profilini tamamlamak için ayarlar sayfasına git
-          </Text>
-          <PrimaryButton
-            title="Profili Düzenle"
-            onPress={() => router.push("/(auth)/profile-setup")}
-            style={styles.editButton}
-          />
-        </Card>
-      )}
-
-      {/* Premium Status Section */}
-      {premiumStatus && (
-        <Card style={styles.card}>
-          {premiumStatus.isPremium ? (
-            <>
-              <View style={styles.premiumHeader}>
+        {/* Premium Card */}
+        {premiumStatus && (
+          <View style={styles.card}>
+            {premiumStatus.isPremium ? (
+              <>
                 <LinearGradient
                   colors={[colors.primary, colors.primaryLight]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={styles.premiumBadge}
+                  style={styles.premiumActiveBadge}
                 >
-                  <Text style={styles.premiumBadgeIcon}>✨</Text>
-                  <Text style={styles.premiumBadgeText}>Premium Aktif</Text>
+                  <Text style={styles.premiumActiveIcon}>✨</Text>
+                  <Text style={styles.premiumActiveText}>Premium Aktif</Text>
                 </LinearGradient>
-              </View>
-              
-              {premiumStatus.premiumExpiresAt && (
-                <View style={styles.premiumExpiryContainer}>
-                  <Text style={styles.premiumExpiryLabel}>Kalan Süre</Text>
-                  <Text style={styles.premiumExpiryValue}>
-                    {getTimeRemaining(premiumStatus.premiumExpiresAt)}
+
+                {premiumStatus.premiumExpiresAt && (
+                  <View style={styles.premiumExpiryRow}>
+                    <Ionicons name="time-outline" size={18} color={colors.textSecondaryDark} />
+                    <Text style={styles.premiumExpiryText}>
+                      Kalan: {getTimeRemaining(premiumStatus.premiumExpiresAt)}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.premiumBenefits}>
+                  {[
+                    { icon: "infinite", text: "Sınırsız Mesaj" },
+                    { icon: "eye", text: "Kim Beğendi" },
+                    { icon: "rocket", text: "Boost" },
+                    { icon: "diamond", text: "Direkt Mesaj" },
+                  ].map((benefit, index) => (
+                    <View key={index} style={styles.premiumBenefitItem}>
+                      <Ionicons name={benefit.icon as any} size={16} color={colors.primary} />
+                      <Text style={styles.premiumBenefitText}>{benefit.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.premiumUpgradeHeader}>
+                  <Text style={styles.premiumUpgradeTitle}>✨ Premium'a Geç</Text>
+                  <Text style={styles.premiumUpgradeSubtitle}>
+                    Tüm özelliklerin kilidini aç
                   </Text>
                 </View>
-              )}
+                <TouchableOpacity
+                  style={styles.premiumUpgradeButton}
+                  onPress={() => router.push("/premium")}
+                >
+                  <LinearGradient
+                    colors={[colors.primary, colors.primaryLight]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.premiumUpgradeButtonGradient}
+                  >
+                    <Text style={styles.premiumUpgradeButtonText}>Premium'a Yükselt</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
 
-              <View style={styles.premiumBenefitsContainer}>
-                <Text style={styles.premiumBenefitsTitle}>Avantajlarınız</Text>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>🤖</Text>
-                  <Text style={styles.premiumBenefitText}>Sınırsız AI Polish</Text>
-                </View>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>💬</Text>
-                  <Text style={styles.premiumBenefitText}>Sınırsız Mesaj</Text>
-                </View>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>👀</Text>
-                  <Text style={styles.premiumBenefitText}>Kim Beğendi</Text>
-                </View>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>🚀</Text>
-                  <Text style={styles.premiumBenefitText}>Boost</Text>
-                </View>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>⚙️</Text>
-                  <Text style={styles.premiumBenefitText}>Gelişmiş Filtreler</Text>
-                </View>
-                <View style={styles.premiumBenefitItem}>
-                  <Text style={styles.premiumBenefitIcon}>💎</Text>
-                  <Text style={styles.premiumBenefitText}>Haftada 5 Direkt Mesaj</Text>
-                </View>
+        {/* Settings Section */}
+        <View style={styles.settingsSection}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => router.push("/profile-edit")}>
+            <View style={styles.settingsItemLeft}>
+              <View style={[styles.settingsIcon, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="person-outline" size={20} color={colors.primary} />
               </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.premiumUpgradeHeader}>
-                <Text style={styles.premiumUpgradeTitle}>✨ Premium'a Geç</Text>
-                <Text style={styles.premiumUpgradeSubtitle}>
-                  Sınırsız özellikler ve daha iyi deneyim
-                </Text>
+              <Text style={styles.settingsItemText}>Profili Düzenle</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
+            <View style={styles.settingsItemLeft}>
+              <View style={[styles.settingsIcon, { backgroundColor: colors.error + '20' }]}>
+                <Ionicons name="log-out-outline" size={20} color={colors.error} />
               </View>
-
-              <View style={styles.premiumUpgradeBenefits}>
-                <View style={styles.premiumUpgradeBenefitItem}>
-                  <Text style={styles.premiumUpgradeBenefitIcon}>🤖</Text>
-                  <Text style={styles.premiumUpgradeBenefitText}>Sınırsız AI Polish</Text>
-                </View>
-                <View style={styles.premiumUpgradeBenefitItem}>
-                  <Text style={styles.premiumUpgradeBenefitIcon}>💬</Text>
-                  <Text style={styles.premiumUpgradeBenefitText}>Sınırsız Mesaj</Text>
-                </View>
-                <View style={styles.premiumUpgradeBenefitItem}>
-                  <Text style={styles.premiumUpgradeBenefitIcon}>🚀</Text>
-                  <Text style={styles.premiumUpgradeBenefitText}>Boost</Text>
-                </View>
-                <View style={styles.premiumUpgradeBenefitItem}>
-                  <Text style={styles.premiumUpgradeBenefitIcon}>💎</Text>
-                  <Text style={styles.premiumUpgradeBenefitText}>Haftada 5 Direkt Mesaj</Text>
-                </View>
-              </View>
-
-              <PrimaryButton
-                title="Premium'a Geç"
-                onPress={() => router.push("/premium")}
-                style={styles.premiumUpgradeButton}
-              />
-            </>
-          )}
-        </Card>
-      )}
-
-      <View style={styles.logoutSection}>
-        <PrimaryButton
-          title="Çıkış Yap"
-          onPress={handleLogout}
-          style={styles.logoutButton}
-          textStyle={styles.logoutButtonText}
-        />
-      </View>
+              <Text style={[styles.settingsItemText, { color: colors.error }]}>Çıkış Yap</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
@@ -389,6 +357,9 @@ export default function ProfileScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="log-out-outline" size={32} color={colors.error} />
+            </View>
             <Text style={styles.modalTitle}>Çıkış Yap</Text>
             <Text style={styles.modalMessage}>
               Hesabından çıkış yapmak istediğine emin misin?
@@ -410,307 +381,348 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  container: {
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  contentContainer: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  headerSection: {
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    paddingTop: spacing.md,
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: spacing.md,
-    borderWidth: 3,
-    borderColor: colors.primary,
-  },
-  profileImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.primary,
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.md,
-    borderWidth: 3,
-    borderColor: colors.primaryLight,
-  },
-  profileImageText: {
-    fontSize: typography.fontSize["4xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-  },
-  title: {
-    fontSize: typography.fontSize["4xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-    marginBottom: spacing.xs,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondaryDark,
-    textAlign: "center",
+    backgroundColor: colors.backgroundDark,
   },
   loadingText: {
     fontSize: typography.fontSize.base,
     color: colors.textSecondaryDark,
-    textAlign: "center",
-    marginTop: spacing.xl,
   },
-  card: {
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
+  scrollView: {
+    flex: 1,
   },
-  incompleteCard: {
-    borderColor: colors.warning,
+  scrollContent: {
+    paddingBottom: 100,
+  },
+
+  // Hero Section
+  heroSection: {
+    alignItems: "center",
+    paddingTop: 60,
+    paddingBottom: 30,
+    position: "relative",
+  },
+  heroGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+  },
+  heroOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    backgroundColor: colors.backgroundDark,
+    opacity: 0.5,
+  },
+
+  // Avatar
+  avatarContainer: {
+    position: "relative",
+    marginBottom: spacing.md,
+  },
+  avatarGlow: {
+    position: "absolute",
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: 70,
+    backgroundColor: colors.primary,
+    opacity: 0.3,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: "#FFF",
+  },
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "#FFF",
+  },
+  avatarPlaceholderText: {
+    fontSize: 48,
+    fontWeight: "bold",
+    color: "#FFF",
+  },
+  premiumBadgeSmall: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: colors.backgroundDark,
+  },
+  premiumBadgeSmallText: {
+    fontSize: 14,
+  },
+
+  // Name & Location
+  displayName: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: colors.textDark,
+    marginBottom: 4,
+  },
+  age: {
+    fontWeight: "400",
+    color: colors.textSecondaryDark,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: spacing.md,
+  },
+  location: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+  },
+
+  // Edit Button
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  editButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  // Stats
+  statsContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.backgroundSecondaryDark,
+    marginHorizontal: spacing.lg,
+    marginTop: -15,
+    borderRadius: 16,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: colors.textDark,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondaryDark,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.borderDark,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: 16,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
   },
   cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginBottom: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
   },
   cardTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.textDark,
   },
-  cardDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    marginBottom: spacing.md,
-    lineHeight: 20,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  lastInfoRow: {
-    marginBottom: 0,
-  },
-  infoLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondaryDark,
-    fontWeight: typography.fontWeight.medium,
-    flex: 1,
-  },
-  infoValue: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textDark,
-    fontWeight: typography.fontWeight.medium,
-    flex: 1,
-    textAlign: "right",
-    flexShrink: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 12,
-  },
-  statusBadgeSuccess: {
-    backgroundColor: colors.success + "20",
-  },
-  statusBadgeWarning: {
-    backgroundColor: colors.warning + "20",
-  },
-  statusText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
-  },
-  purposeBadge: {
-    backgroundColor: colors.primary + "20",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 12,
-  },
-  purposeText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.primaryLight,
-  },
+
+  // Languages
   languageSection: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
-  languageLabel: {
-    fontSize: typography.fontSize.base,
+  languageSectionTitle: {
+    fontSize: 12,
     color: colors.textSecondaryDark,
-    fontWeight: typography.fontWeight.medium,
-    marginBottom: spacing.sm,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   languageTags: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: 8,
   },
   languageTag: {
-    backgroundColor: colors.primary + "20",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  languageTagPractice: {
-    backgroundColor: colors.accent + "20",
-    borderColor: colors.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   languageTagText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.textDark,
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.primary,
   },
-  bioSection: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
-  },
-  bioLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondaryDark,
-    fontWeight: typography.fontWeight.medium,
-    marginBottom: spacing.sm,
-  },
+
+  // Bio
   bioText: {
-    fontSize: typography.fontSize.base,
+    fontSize: 15,
     color: colors.textDark,
     lineHeight: 24,
   },
-  editButton: {
-    marginTop: spacing.md,
+
+  // Premium Active
+  premiumActiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: spacing.md,
   },
-  logoutSection: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
+  premiumActiveIcon: {
+    fontSize: 14,
   },
-  logoutButton: {
-    backgroundColor: colors.error,
+  premiumActiveText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFF",
   },
-  logoutButtonText: {
-    color: colors.textDark,
-    fontWeight: typography.fontWeight.semibold,
+  premiumExpiryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: spacing.md,
   },
-  referralCodeContainer: {
-    marginTop: spacing.md,
-  },
-  referralCodeLabel: {
-    fontSize: typography.fontSize.sm,
+  premiumExpiryText: {
+    fontSize: 14,
     color: colors.textSecondaryDark,
-    marginBottom: spacing.sm,
   },
-  referralCodeBox: {
-    backgroundColor: colors.backgroundDark,
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    marginBottom: spacing.md,
-  },
-  referralCodeText: {
-    fontSize: typography.fontSize["2xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
-    textAlign: "center",
-    letterSpacing: 4,
-  },
-  referralActions: {
+  premiumBenefits: {
     flexDirection: "row",
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    flexWrap: "wrap",
+    gap: 12,
   },
-  referralButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  copyButton: {
-    backgroundColor: colors.backgroundDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-  },
-  shareButton: {
-    backgroundColor: colors.primary,
-  },
-  referralButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
-  },
-  applyCodeButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
-    paddingTop: spacing.md,
-  },
-  applyCodeText: {
-    fontSize: typography.fontSize.base,
-    color: colors.primary,
-    fontWeight: typography.fontWeight.semibold,
-    textDecorationLine: "underline",
-  },
-  codeInputContainer: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
-  },
-  codeInput: {
-    backgroundColor: colors.backgroundDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    borderRadius: 12,
-    padding: spacing.md,
-    fontSize: typography.fontSize.base,
-    color: colors.textDark,
-    marginBottom: spacing.md,
-    textAlign: "center",
-    letterSpacing: 2,
-  },
-  codeInputActions: {
+  premiumBenefitItem: {
     flexDirection: "row",
-    gap: spacing.md,
-  },
-  codeInputButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: 12,
     alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  cancelButton: {
-    backgroundColor: colors.backgroundDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-  },
-  codeInputButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+  premiumBenefitText: {
+    fontSize: 12,
     color: colors.textDark,
   },
+
+  // Premium Upgrade
+  premiumUpgradeHeader: {
+    marginBottom: spacing.md,
+  },
+  premiumUpgradeTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: colors.textDark,
+    marginBottom: 4,
+  },
+  premiumUpgradeSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondaryDark,
+  },
+  premiumUpgradeButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  premiumUpgradeButtonGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  premiumUpgradeButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+
+  // Settings Section
+  settingsSection: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    overflow: "hidden",
+  },
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  settingsItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingsItemText: {
+    fontSize: 15,
+    color: colors.textDark,
+  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -720,37 +732,46 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.backgroundSecondaryDark,
-    borderRadius: 20,
+    borderRadius: 24,
     padding: spacing.xl,
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 340,
+    alignItems: "center",
     borderWidth: 1,
     borderColor: colors.borderDark,
   },
-  modalTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.error + '15',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: spacing.md,
-    textAlign: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: colors.textDark,
+    marginBottom: spacing.sm,
   },
   modalMessage: {
-    fontSize: typography.fontSize.base,
+    fontSize: 15,
     color: colors.textSecondaryDark,
-    marginBottom: spacing.xl,
     textAlign: "center",
+    marginBottom: spacing.xl,
     lineHeight: 22,
   },
   modalButtons: {
     flexDirection: "row",
     gap: spacing.md,
+    width: "100%",
   },
   modalButton: {
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
   },
   modalButtonCancel: {
     backgroundColor: colors.backgroundDark,
@@ -761,114 +782,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error,
   },
   modalButtonCancelText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: 15,
+    fontWeight: "600",
     color: colors.textDark,
   },
   modalButtonConfirmText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: "#FFFFFF",
-  },
-  premiumHeader: {
-    marginBottom: spacing.md,
-  },
-  premiumBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 12,
-    gap: spacing.xs,
-    alignSelf: "flex-start",
-    shadowColor: colors.primary,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  premiumBadgeIcon: {
-    fontSize: typography.fontSize.base,
-  },
-  premiumBadgeText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  premiumExpiryContainer: {
-    backgroundColor: colors.backgroundDark,
-    padding: spacing.md,
-    borderRadius: 12,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-  },
-  premiumExpiryLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    marginBottom: spacing.xs,
-  },
-  premiumExpiryValue: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primaryLight,
-  },
-  premiumBenefitsContainer: {
-    marginTop: spacing.sm,
-  },
-  premiumBenefitsTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
-    marginBottom: spacing.md,
-  },
-  premiumBenefitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  premiumBenefitIcon: {
-    fontSize: typography.fontSize.base,
-  },
-  premiumBenefitText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-  },
-  premiumUpgradeHeader: {
-    marginBottom: spacing.md,
-  },
-  premiumUpgradeTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-    marginBottom: spacing.xs,
-  },
-  premiumUpgradeSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-  },
-  premiumUpgradeBenefits: {
-    marginBottom: spacing.md,
-  },
-  premiumUpgradeBenefitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  premiumUpgradeBenefitIcon: {
-    fontSize: typography.fontSize.base,
-  },
-  premiumUpgradeBenefitText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-  },
-  premiumUpgradeButton: {
-    marginTop: spacing.sm,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFF",
   },
 });

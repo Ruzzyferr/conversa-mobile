@@ -176,12 +176,6 @@ export function SwipeDeck<T extends { userId?: string }>({
           );
         })}
       </View>
-      {/* Favorite Button Overlay - Rendered on top of cards */}
-      {FavoriteButton && items.length > 0 && (
-        <View style={styles.favoriteButtonContainer} pointerEvents="box-none">
-          {FavoriteButton()}
-        </View>
-      )}
     </View>
   );
 }

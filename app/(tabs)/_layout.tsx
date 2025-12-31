@@ -1,160 +1,238 @@
 import React, { useState, useEffect } from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Tabs, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/src/theme/colors';
-import { spacing } from '@/src/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/src/services/api';
 import { getToken } from '@/src/services/authStore';
 import { badgeUpdater } from '@/src/utils/badgeUpdater';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-  focused?: boolean;
-}) {
+const TAB_COUNT = 4;
+
+// Custom Tab Bar with sliding indicator
+function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin }: any) {
+  const [tabWidth, setTabWidth] = useState(0);
+
+  // Animated indicator position
+  const indicatorPosition = useSharedValue(0);
+
+  useEffect(() => {
+    if (tabWidth > 0) {
+      indicatorPosition.value = withSpring(state.index * tabWidth, {
+        damping: 20,
+        stiffness: 200,
+      });
+    }
+  }, [state.index, tabWidth]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorPosition.value }],
+    width: tabWidth,
+  }));
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setTabWidth(width / TAB_COUNT);
+  };
+
+  const tabs = [
+    { name: 'home', icon: 'home', outlineIcon: 'home-outline', label: 'Home' },
+    { name: 'chat', icon: 'chatbubbles', outlineIcon: 'chatbubbles-outline', label: 'Chat' },
+    { name: 'likes', icon: 'heart', outlineIcon: 'heart-outline', label: 'Likes' },
+    { name: 'profile', icon: 'person', outlineIcon: 'person-outline', label: 'Profile' },
+  ];
+
   return (
-    <FontAwesome
-      size={props.focused ? 24 : 22}
-      style={{ marginBottom: -3 }}
-      {...props}
-    />
+    <View style={[styles.tabBarContainer, { bottom: bottomMargin }]} onLayout={handleLayout}>
+      {/* Sliding Indicator */}
+      {tabWidth > 0 && (
+        <Animated.View style={[styles.indicatorWrapper, indicatorStyle]}>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryLight]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.indicator}
+          />
+        </Animated.View>
+      )}
+
+      {/* Tab Buttons */}
+      {state.routes.map((route: any, index: number) => {
+        const isFocused = state.index === index;
+        const tab = tabs[index];
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            onPress={onPress}
+            style={styles.tabButton}
+            activeOpacity={0.7}
+          >
+            <View style={styles.tabContent}>
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name={isFocused ? tab.icon as any : tab.outlineIcon as any}
+                  size={22}
+                  color={isFocused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)'}
+                />
+                {tab.name === 'likes' && incomingRequestsCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {incomingRequestsCount > 99 ? '99+' : incomingRequestsCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[
+                styles.label,
+                { color: isFocused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)' }
+              ]}>
+                {tab.label}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
-  const baseTabBarHeight = 28;
-  const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom - 12, spacing.xs) : spacing.xs;
-  const totalTabBarHeight = baseTabBarHeight + bottomPadding;
-  const paddingTop = Math.max(bottomPadding / 5, spacing.xs);
-  const paddingBottom = bottomPadding - paddingTop;
+  const bottomMargin = Math.max(insets.bottom, 16);
 
-  // Load incoming requests count for badge
   const loadIncomingRequestsCount = async () => {
     try {
       const token = await getToken();
       if (!token) return;
-      
       const incoming = await api.getIncomingRequests();
       setIncomingRequestsCount(incoming.length);
     } catch (error) {
-      // Silently fail - user might not be logged in or API might be unavailable
       setIncomingRequestsCount(0);
     }
   };
 
-  // Load count when tab layout is focused
   useFocusEffect(
     React.useCallback(() => {
       loadIncomingRequestsCount();
     }, [])
   );
 
-  // Also reload periodically when on likes tab
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadIncomingRequestsCount();
-    }, 30000); // Refresh every 30 seconds
-
+    const interval = setInterval(loadIncomingRequestsCount, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Listen for badge updates from likes page
   useEffect(() => {
-    const unsubscribe = badgeUpdater.subscribe(() => {
-      loadIncomingRequestsCount();
-    });
+    const unsubscribe = badgeUpdater.subscribe(loadIncomingRequestsCount);
     return unsubscribe;
   }, []);
 
   return (
     <Tabs
+      tabBar={(props) => (
+        <CustomTabBar
+          {...props}
+          incomingRequestsCount={incomingRequestsCount}
+          bottomMargin={bottomMargin}
+        />
+      )}
       screenOptions={{
-        tabBarActiveTintColor: colors.primaryLight,
-        tabBarInactiveTintColor: colors.textSecondaryDark,
-        tabBarStyle: {
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          marginBottom: 0,
-          backgroundColor: colors.backgroundSecondaryDark,
-          borderTopWidth: 1,
-          borderTopColor: colors.borderDark,
-          borderWidth: 0,
-          height: totalTabBarHeight + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: paddingTop,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 5,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          marginTop: 0,
-        },
-        tabBarIconStyle: {
-          marginTop: 0,
-        },
-        headerStyle: {
-          backgroundColor: colors.backgroundSecondaryDark,
-        },
-        headerTintColor: colors.textDark,
         headerShown: false,
-      }}>
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          headerShown: false,
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="home" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: 'Chat',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="comments" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="likes"
-        options={{
-          title: 'Likes',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="heart" color={color} focused={focused} />
-          ),
-          tabBarBadge: incomingRequestsCount > 0 ? incomingRequestsCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.primary,
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: 'bold',
-            minWidth: 18,
-            height: 18,
-            borderRadius: 9,
-            paddingHorizontal: 4,
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="user" color={color} focused={focused} />
-          ),
-        }}
-      />
+        animation: 'fade',
+      }}
+    >
+      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+      <Tabs.Screen name="likes" options={{ title: 'Likes' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    height: 64,
+    backgroundColor: 'rgba(25, 25, 40, 0.98)',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  indicatorWrapper: {
+    position: 'absolute',
+    top: 8,
+    left: 0,
+    height: 48,
+    paddingHorizontal: 8,
+  },
+  indicator: {
+    flex: 1,
+    borderRadius: 24,
+  },
+  tabButton: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  iconContainer: {
+    position: 'relative',
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    backgroundColor: '#FF3B6B',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+});
