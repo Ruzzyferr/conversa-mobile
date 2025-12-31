@@ -52,7 +52,7 @@ function StackCard<T extends { userId?: string }>({
     if (isFirst) {
       return {};
     }
-    
+
     // Cards behind should scale up slightly when top card is swiped
     const scaleMultiplier = interpolate(
       Math.abs(topCardTranslateX.value),
@@ -72,11 +72,11 @@ function StackCard<T extends { userId?: string }>({
 
   const cardStyle = isFirst
     ? {
-        zIndex: 10 - index,
-      }
+      zIndex: 10 - index,
+    }
     : {
-        zIndex: 10 - index - 1,
-      };
+      zIndex: 10 - index - 1,
+    };
 
   return (
     <Animated.View
@@ -89,7 +89,7 @@ function StackCard<T extends { userId?: string }>({
     >
       <SwipeableCard
         cardWidth={CARD_WIDTH}
-        cardHeight={650}
+        cardHeight={720}
         translateXRange={[-windowWidth / 2, 0, windowWidth / 2]}
         inputRotationRange={[-windowWidth, 0, windowWidth]}
         outputRotationRange={[-10, 0, 10]}
@@ -117,6 +117,7 @@ type SwipeDeckProps<T> = {
   onSwipeRight: (item: T) => void;
   OverlayLabelRight?: () => React.ReactElement;
   OverlayLabelLeft?: () => React.ReactElement;
+  FavoriteButton?: () => React.ReactElement;
 };
 
 export function SwipeDeck<T extends { userId?: string }>({
@@ -126,6 +127,7 @@ export function SwipeDeck<T extends { userId?: string }>({
   onSwipeRight,
   OverlayLabelRight,
   OverlayLabelLeft,
+  FavoriteButton,
 }: SwipeDeckProps<T>) {
   // Get the first 3 items to display in stack
   const stackItems = useMemo(() => items.slice(0, 3), [items]);
@@ -174,6 +176,12 @@ export function SwipeDeck<T extends { userId?: string }>({
           );
         })}
       </View>
+      {/* Favorite Button Overlay - Rendered on top of cards */}
+      {FavoriteButton && items.length > 0 && (
+        <View style={styles.favoriteButtonContainer} pointerEvents="box-none">
+          {FavoriteButton()}
+        </View>
+      )}
     </View>
   );
 }
@@ -192,6 +200,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     position: "relative",
     minHeight: 650,
+  },
+  favoriteButtonContainer: {
+    position: "absolute",
+    bottom: 16,
+    right: 16 + 16, // padding + margin
+    zIndex: 1000,
+    width: 48,
+    height: 48,
   },
   cardWrapper: {
     position: "absolute",

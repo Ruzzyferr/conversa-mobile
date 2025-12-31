@@ -1,5 +1,6 @@
-import React, { useState, useRef } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, FlatList, Animated } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from "react-native";
+import { ScrollView, RectButton } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
@@ -10,8 +11,8 @@ import { Chip } from "./ui/Chip";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = spacing.md;
 const CARD_WIDTH = SCREEN_WIDTH - CARD_PADDING * 2;
-const MAX_CARD_HEIGHT = 650; // Card height
-const IMAGE_HEIGHT_PERCENT = 0.6; // 60% of card height
+// MAX_CARD_HEIGHT is no longer strictly enforced for the scroll content,
+// but the container size is determined by the parent SwipeableCard.
 
 type DiscoveryCardProps = {
   card: {
@@ -35,12 +36,10 @@ type DiscoveryCardProps = {
   isPremium?: boolean;
 };
 
-export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite, favoritesRemaining, isPremium }: DiscoveryCardProps) {
+export function DiscoveryCard({ card, onFavorite, favoritesRemaining, isPremium }: DiscoveryCardProps) {
   const { profile, distanceKm } = card;
   const [bioExpanded, setBioExpanded] = useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const favoriteScale = useRef(new Animated.Value(1)).current;
-  
+
   const age = profile.birthYear
     ? new Date().getFullYear() - profile.birthYear
     : null;
@@ -70,215 +69,211 @@ export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite, fav
 
   const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
 
-  const handleFavoritePress = () => {
-    if (onFavorite) {
-      // Scale animation
-      Animated.sequence([
-        Animated.timing(favoriteScale, {
-          toValue: 0.85,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(favoriteScale, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      onFavorite();
-    }
-  };
+  // Helper to render basic info overlay
+  const renderBasicInfo = () => (
+    <LinearGradient
+      colors={["transparent", "rgba(0,0,0,0.6)", "rgba(0,0,0,0.9)"]}
+      style={styles.nameGradient}
+    >
+      <View style={styles.nameContainer}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>{profile.displayName}</Text>
+          {age && <Text style={styles.age}>{age}</Text>}
+        </View>
+        {(profile.city || distanceKm) && (
+          <View style={styles.locationRow}>
+            <MaterialIcons name="location-on" size={16} color={colors.textSecondaryDark} />
+            <Text style={styles.locationText}>
+              {profile.city || ""}
+              {profile.city && distanceKm && ", "}
+              {distanceKm && formatDistance(distanceKm)}
+            </Text>
+          </View>
+        )}
+      </View>
+    </LinearGradient>
+  );
 
-  return (
-    <View style={styles.container}>
-      {/* Hero Image Section - 60% height with Carousel */}
-      <View style={styles.imageContainer}>
-        {photos.length > 0 ? (
-          <>
-            <FlatList
-              data={photos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item, index) => `photo-${index}`}
-              onMomentumScrollEnd={(event) => {
-                const index = Math.round(event.nativeEvent.contentOffset.x / CARD_WIDTH);
-                setCurrentPhotoIndex(index);
-              }}
-              renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item }}
-                  style={styles.image}
-                  resizeMode="cover"
-                />
-              )}
-            />
-            {/* Photo Indicators */}
-            {photos.length > 1 && (
-              <View style={styles.photoIndicators}>
-                {photos.map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.photoIndicator,
-                      index === currentPhotoIndex && styles.photoIndicatorActive,
-                    ]}
+  // Helper to render languages
+  const renderLanguages = () => (
+    (profile.languagesNative.length > 0 || profile.languagesPractice.length > 0) && (
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>My Languages</Text>
+        <View style={styles.sectionContent}>
+          {profile.languagesNative.length > 0 && (
+            <View style={styles.languageGroup}>
+              <Text style={styles.subSectionTitle}>SPEAKS</Text>
+              <View style={styles.chipsContainer}>
+                {profile.languagesNative.map((lang, index) => (
+                  <Chip
+                    key={`native-${index}`}
+                    label={lang}
+                    icon={getLanguageFlag(lang)}
+                    variant="primary"
                   />
                 ))}
               </View>
-            )}
-          </>
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.imagePlaceholderText}>
-              {profile.displayName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        
-        {/* Gradient Overlay */}
-        <LinearGradient
-          colors={["transparent", "rgba(0, 0, 0, 0.1)", "rgba(0, 0, 0, 0.4)"]}
-          locations={[0, 0.6, 1]}
-          style={styles.gradientOverlay}
-        />
-
-        {/* Name, Age, Location Overlay */}
-        <LinearGradient
-          colors={[colors.backgroundSecondaryDark, colors.backgroundSecondaryDark + "00"]}
-          style={styles.nameGradient}
-        >
-          <View style={styles.nameContainer}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>{profile.displayName}</Text>
-              {age && <Text style={styles.age}>{age}</Text>}
             </View>
-            {(profile.city || distanceKm) && (
-              <View style={styles.locationRow}>
-                <MaterialIcons name="location-on" size={14} color={colors.textSecondaryDark} />
-                <Text style={styles.locationText}>
-                  {profile.city || ""}
-                  {profile.city && distanceKm && ", "}
-                  {distanceKm && formatDistance(distanceKm)}
-                </Text>
+          )}
+          {profile.languagesPractice.length > 0 && (
+            <View style={styles.languageGroup}>
+              <Text style={styles.subSectionTitle}>LEARNING</Text>
+              <View style={styles.chipsContainer}>
+                {profile.languagesPractice.map((lang, index) => (
+                  <Chip
+                    key={`practice-${index}`}
+                    label={lang}
+                    icon={getLanguageFlag(lang)}
+                    variant="default"
+                  />
+                ))}
               </View>
-            )}
-          </View>
-        </LinearGradient>
+            </View>
+          )}
+        </View>
       </View>
+    )
+  );
 
-      {/* Scrollable Content Section */}
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Bio */}
-        {profile.bio && (
-          <View style={styles.bioContainer}>
-            <Text 
-              style={styles.bio}
-              numberOfLines={bioExpanded ? undefined : 2}
-            >
-              {profile.bio}
-            </Text>
-            {profile.bio.length > 100 && (
-              <TouchableOpacity 
-                onPress={() => setBioExpanded(!bioExpanded)}
-                style={styles.readMoreButton}
-              >
-                <Text style={styles.readMoreText}>
-                  {bioExpanded ? "Read less" : "Read more"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Languages Section */}
-        {(profile.languagesNative.length > 0 || profile.languagesPractice.length > 0) && (
-          <View style={styles.section}>
-            {profile.languagesNative.length > 0 && (
-              <View style={styles.languageGroup}>
-                <Text style={styles.sectionTitle}>SPEAKS</Text>
-                <View style={styles.chipsContainer}>
-                  {profile.languagesNative.map((lang, index) => (
-                    <Chip
-                      key={index}
-                      label={lang}
-                      icon={getLanguageFlag(lang)}
-                      variant="primary"
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-            {profile.languagesPractice.length > 0 && (
-              <View style={styles.languageGroup}>
-                <Text style={styles.sectionTitle}>LEARNING</Text>
-                <View style={styles.chipsContainer}>
-                  {profile.languagesPractice.map((lang, index) => (
-                    <Chip
-                      key={index}
-                      label={lang}
-                      icon={getLanguageFlag(lang)}
-                      variant="default"
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Favorite Button - Bottom Right */}
-      {onFavorite && (
-        <TouchableOpacity
-          style={styles.favoriteButtonWrapper}
-          onPress={handleFavoritePress}
-          activeOpacity={0.8}
-        >
-          <Animated.View
-            style={[
-              styles.favoriteButton,
-              { transform: [{ scale: favoriteScale }] },
-            ]}
+  // Helper to render Bio
+  const renderBio = () => (
+    profile.bio && (
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>About Me</Text>
+        <View style={styles.sectionContent}>
+          <Text
+            style={styles.bio}
+            numberOfLines={bioExpanded ? undefined : 4}
           >
-            <MaterialIcons name="star" size={24} color="#60A5FA" />
-          </Animated.View>
-        </TouchableOpacity>
-      )}
+            {profile.bio}
+          </Text>
+          {profile.bio.length > 150 && (
+            <TouchableOpacity
+              onPress={() => setBioExpanded(!bioExpanded)}
+              style={styles.readMoreButton}
+            >
+              <Text style={styles.readMoreText}>
+                {bioExpanded ? "Read less" : "Read more"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    )
+  );
+
+  // Dynamic Content rendering strategy:
+  // 1. Photo 1 (Main) + Basic Info Overlay
+  // 2. Bio
+  // 3. Languages
+  // 4. Photo 2
+  // 5. Photo 3+
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* First Photo with Info Overlay */}
+        <View style={styles.mainImageContainer}>
+          {photos.length > 0 ? (
+            <Image
+              source={{ uri: photos[0] }}
+              style={styles.mainImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.imagePlaceholderText}>
+                {profile.displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          {renderBasicInfo()}
+
+          {/* Favorite Button - Inside photo area */}
+          {onFavorite && (
+            <RectButton
+              style={styles.favoriteButtonOnPhoto}
+              onPress={onFavorite}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.favoriteButtonGradient}
+              >
+                <MaterialIcons name="star" size={24} color="#FFFFFF" />
+              </LinearGradient>
+              {!isPremium && favoritesRemaining !== undefined && (
+                <View style={styles.favoriteBadge}>
+                  <Text style={styles.favoriteBadgeText}>{favoritesRemaining}</Text>
+                </View>
+              )}
+            </RectButton>
+          )}
+
+          {/* Scroll Indicator */}
+          <View style={styles.scrollIndicator}>
+            <MaterialIcons name="keyboard-arrow-up" size={20} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.scrollIndicatorText}>Kaydır</Text>
+          </View>
+        </View>
+
+        {/* Content Body */}
+        <View style={styles.bodyContainer}>
+
+          {/* About Me Section */}
+          {renderBio()}
+
+          {/* Languages Section */}
+          {renderLanguages()}
+
+          {/* Remaining Photos */}
+          {photos.slice(1).map((photoUri, index) => (
+            <View key={`photo-extra-${index}`} style={styles.extraPhotoContainer}>
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.extraImage}
+                resizeMode="cover"
+              />
+            </View>
+          ))}
+
+          {/* Bottom padding for safe scrolling */}
+          <View style={{ height: spacing.xl * 3 }} />
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: CARD_WIDTH,
-    height: MAX_CARD_HEIGHT,
-    borderRadius: 24, // 3xl
+    flex: 1, // Fill the parent SwipeableCard
     backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 8,
     borderWidth: 1,
     borderColor: colors.borderDark,
-    marginTop: 0, // Remove top margin to start photo from top
   },
-  imageContainer: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  mainImageContainer: {
     width: "100%",
-    height: MAX_CARD_HEIGHT * IMAGE_HEIGHT_PERCENT,
+    height: 500, // Large main photo
     position: "relative",
-    overflow: "hidden",
-    flexShrink: 0, // Prevent shrinking
   },
-  image: {
-    width: CARD_WIDTH,
-    height: MAX_CARD_HEIGHT * IMAGE_HEIGHT_PERCENT,
+  mainImage: {
+    width: "100%",
+    height: "100%",
   },
   imagePlaceholder: {
     width: "100%",
@@ -292,133 +287,195 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.primary,
   },
-  gradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "100%",
-  },
   nameGradient: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.lg + 4,
+    paddingTop: 80,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   nameContainer: {
-    paddingBottom: spacing.xs,
+    gap: spacing.xs,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: spacing.xs,
-    marginBottom: spacing.xs / 2,
+    gap: 8,
   },
   name: {
-    fontSize: typography.fontSize["3xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-    lineHeight: typography.fontSize["3xl"] * 1.2,
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   age: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.textSecondaryDark,
-    marginBottom: 2,
+    fontSize: 26,
+    fontWeight: "400",
+    color: "rgba(255, 255, 255, 0.9)",
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs / 2,
+    gap: 4,
   },
   locationText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: 16,
+    color: colors.textSecondaryDark, // Might need to be lighter if on gradient
+    fontWeight: "500",
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  bodyContainer: {
+    padding: spacing.md,
+    gap: spacing.xl,
+  },
+  section: {
+    gap: spacing.sm,
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.textSecondaryDark,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-  content: {
-    flex: 1, // Take remaining space after image
-    minHeight: 200, // Minimum height for content
-  },
-  contentContainer: {
-    padding: spacing.lg + 4,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl * 3, // Extra padding for action buttons
-  },
-  bioContainer: {
-    marginBottom: spacing.lg,
+  sectionContent: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: spacing.md,
+    borderRadius: 20,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   bio: {
-    fontSize: typography.fontSize.base,
-    color: colors.textDark,
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
     lineHeight: 24,
   },
   readMoreButton: {
-    marginTop: spacing.xs,
+    alignSelf: "flex-start",
   },
   readMoreText: {
-    fontSize: typography.fontSize.sm,
     color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  section: {
-    marginBottom: spacing.lg,
+    fontWeight: "bold",
   },
   languageGroup: {
-    marginBottom: spacing.md + 4,
+    gap: 8,
   },
-  sectionTitle: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
+  subSectionTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
     color: colors.textSecondaryDark,
-    letterSpacing: 1.2,
-    marginBottom: spacing.sm,
     textTransform: "uppercase",
   },
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.xs + 2,
+    gap: 8,
   },
-  photoIndicators: {
-    position: "absolute",
-    bottom: spacing.md,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: spacing.xs,
+  extraPhotoContainer: {
+    width: "100%",
+    height: 400,
+    borderRadius: 16,
+    overflow: "hidden",
   },
-  photoIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
-  },
-  photoIndicatorActive: {
-    backgroundColor: "#FFFFFF",
-    width: 20,
-  },
-  favoriteButtonWrapper: {
-    position: "absolute",
-    bottom: spacing.md,
-    right: spacing.md,
+  extraImage: {
+    width: "100%",
+    height: "100%",
   },
   favoriteButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.backgroundSecondaryDark,
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  favoriteButtonFloating: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    zIndex: 100,
+  },
+  favoriteButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(108, 93, 211, 0.85)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 2,
+    borderColor: colors.primaryLight,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  favoriteButtonGradient: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    // Modern shadow
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  favoriteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  favoriteButtonOnPhoto: {
+    position: "absolute",
+    bottom: 20,
+    right: 16,
+    zIndex: 20,
+  },
+  scrollIndicator: {
+    position: "absolute",
+    top: 16,
+    alignSelf: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  scrollIndicatorText: {
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  favoriteBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: "#FFFFFF",
+  },
+  favoriteBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
   },
 });

@@ -320,13 +320,21 @@ class ApiClient {
 
   async getConversationDetails(conversationId: string): Promise<{
     conversationId: string;
-    matchId: string;
+    matchId: string | null;
     otherUser: {
       userId: string;
       displayName: string;
       photos: string[];
       city: string | null;
+      gender?: "MALE" | "FEMALE" | "OTHER" | null;
     };
+    currentUserGender?: "MALE" | "FEMALE" | "OTHER" | null;
+    firstMessage: {
+      id: string;
+      text: string;
+      createdAt: string;
+    } | null;
+    hasMessages?: boolean;
     createdAt: string;
   }> {
     const response = await this.client.get(`/api/v1/chat/conversations/${conversationId}`);
@@ -362,6 +370,7 @@ class ApiClient {
     conversationId: string;
     senderUserId: string;
     text: string;
+    audioUrl?: string;
     createdAt: string;
   }> {
     const response = await this.client.post(
@@ -369,6 +378,40 @@ class ApiClient {
       { text }
     );
     return response.data;
+  }
+
+  async sendAudioMessage(
+    conversationId: string,
+    audioUri: string
+  ): Promise<{
+    id: string;
+    conversationId: string;
+    senderUserId: string;
+    text?: string;
+    audioUrl: string;
+    createdAt: string;
+  }> {
+    const formData = new FormData();
+    formData.append("audio", {
+      uri: audioUri,
+      type: "audio/m4a",
+      name: "audio.m4a",
+    } as any);
+
+    const response = await this.client.post(
+      `/api/v1/chat/conversations/${conversationId}/messages/audio`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this.client.delete(`/api/v1/chat/conversations/${conversationId}`);
   }
 
   async polishMessage(

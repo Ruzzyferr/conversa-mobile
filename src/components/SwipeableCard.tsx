@@ -79,10 +79,10 @@ const SwipeableCard = forwardRef<SwipeableCardHandle, SwipeableCardOptions>(
             translateYRange = [-windowHeight / 2, 0, windowHeight / 2],
             cardStyle = {},
             scaleValue = 1,
-            onSwipedLeft = () => {},
-            onSwipedRight = () => {},
-            onSwipedTop = () => {},
-            onSwipedBottom = () => {},
+            onSwipedLeft = () => { },
+            onSwipedRight = () => { },
+            onSwipedTop = () => { },
+            onSwipedBottom = () => { },
             disableRightSwipe = false,
             disableTopSwipe = false,
             disableLeftSwipe = false,
@@ -124,10 +124,12 @@ const SwipeableCard = forwardRef<SwipeableCardHandle, SwipeableCardOptions>(
         const startY = useSharedValue(0);
 
         const panGesture = Gesture.Pan()
+            .activeOffsetX([-10, 10]) // Only activate if moved horizontally significantly
+            .failOffsetY([-5, 5])     // Fail IMMEDIATELY if moved vertically (lets ScrollView take over)
             .onStart(() => {
                 'worklet';
                 startX.value = translateX.value;
-                startY.value = translateY.value;
+                // startY.value = translateY.value; // Disable vertical start tracking
 
                 if (scaleValue !== 1)
                     scale.value = withTiming(Number(scaleValue), {
@@ -136,41 +138,27 @@ const SwipeableCard = forwardRef<SwipeableCardHandle, SwipeableCardOptions>(
             })
             .onUpdate((event) => {
                 'worklet';
-                // Card'ı direkt olarak hareket ettir - hiç gecikme olmasın
                 translateX.value = event.translationX + startX.value;
-                translateY.value = event.translationY + startY.value;
+                // translateY.value = event.translationY + startY.value; // Disable vertical movement
             })
             .onEnd((event) => {
                 'worklet';
                 const absTranslationX = Math.abs(event.translationX);
-                const absTranslationY = Math.abs(event.translationY);
+                // const absTranslationY = Math.abs(event.translationY);
 
-                // Swipe için gereken minimum mesafe (%50 daha güvenli)
-                const swipeThresholdX = (cardWidth ?? windowWidth) * 0.5;
-                const swipeThresholdY = (cardHeight ?? windowHeight) * 0.5;
+                // Swipe için gereken minimum mesafe (%40)
+                const swipeThresholdX = (cardWidth ?? windowWidth) * 0.4;
 
-                // Hızlı swipe için velocity kontrolü (daha yüksek threshold)
-                const hasHighVelocityX = Math.abs(event.velocityX) > 1500;
-                const hasHighVelocityY = Math.abs(event.velocityY) > 1500;
+                // Hızlı swipe için velocity kontrolü
+                const hasHighVelocityX = Math.abs(event.velocityX) > 1000;
 
-                // Swipe olup olmadığını kontrol et
                 const isHorizontalSwipe = absTranslationX > swipeThresholdX || hasHighVelocityX;
-                const isVerticalSwipe = absTranslationY > swipeThresholdY || hasHighVelocityY;
 
                 // Snap point hesapla
-                const destX = snapPoint(
-                    translateX.value,
-                    event.velocityX,
-                    translateXRange
-                );
-                const destY = snapPoint(
-                    translateY.value,
-                    event.velocityY,
-                    translateYRange
-                );
+                // const destX = snapPoint(...) - removed unused calculation if logic is simplified
 
                 // Yatay swipe (sağ/sol)
-                if (isHorizontalSwipe && absTranslationX >= absTranslationY) {
+                if (isHorizontalSwipe) {
                     if (event.translationX > 0 && !disableRightSwipe) {
                         // Sağa swipe
                         translateX.value = withSpring(windowWidth + (cardWidth ?? windowWidth), {
@@ -183,25 +171,6 @@ const SwipeableCard = forwardRef<SwipeableCardHandle, SwipeableCardOptions>(
                             velocity: event.velocityX,
                         });
                         onSwipedLeft && runOnJS(onSwipedLeft)();
-                    } else {
-                        // Disabled ise merkeze dön
-                        resetPosition(translateX, translateY);
-                    }
-                }
-                // Dikey swipe (yukarı/aşağı)
-                else if (isVerticalSwipe && absTranslationY > absTranslationX) {
-                    if (event.translationY < 0 && !disableTopSwipe) {
-                        // Yukarı swipe
-                        translateY.value = withSpring(-windowHeight, {
-                            velocity: event.velocityY,
-                        });
-                        onSwipedTop && runOnJS(onSwipedTop)();
-                    } else if (event.translationY > 0 && !disableBottomSwipe) {
-                        // Aşağı swipe
-                        translateY.value = withSpring(windowHeight, {
-                            velocity: event.velocityY,
-                        });
-                        onSwipedBottom && runOnJS(onSwipedBottom)();
                     } else {
                         // Disabled ise merkeze dön
                         resetPosition(translateX, translateY);

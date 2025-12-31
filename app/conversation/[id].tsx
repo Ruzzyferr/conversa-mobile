@@ -13,8 +13,12 @@ import {
   Image,
   ScrollView,
   ActionSheetIOS,
+  Animated,
+  Pressable,
 } from "react-native";
+import * as Audio from "expo-av";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { spacing } from "@/src/theme/spacing";
@@ -24,12 +28,14 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
+import { MaterialIcons } from "@expo/vector-icons";
 
 type Message = {
   id: string;
   conversationId: string;
   senderUserId: string;
   text: string;
+  audioUrl?: string;
   createdAt: string;
 };
 
@@ -47,15 +53,37 @@ export default function ConversationScreen() {
   const [polishing, setPolishing] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [tone, setTone] = useState<Tone>("neutral");
+  const [showToneSelector, setShowToneSelector] = useState(false);
+  const toneSelectorAnim = useRef(new Animated.Value(0)).current;
+  const toneButtonAnims = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingDurationInterval = useRef<NodeJS.Timeout | null>(null);
+  const recordingAnim = useRef(new Animated.Value(1)).current;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserGender, setCurrentUserGender] = useState<"MALE" | "FEMALE" | "OTHER" | null>(null);
   const [otherUser, setOtherUser] = useState<{
     userId: string;
     displayName: string;
     photos: string[];
     city: string | null;
+    gender?: "MALE" | "FEMALE" | "OTHER" | null;
   } | null>(null);
+  const [firstMessage, setFirstMessage] = useState<{
+    id: string;
+    text: string;
+    createdAt: string;
+  } | null>(null);
+  const [hasMessages, setHasMessages] = useState(false);
+  const insets = useSafeAreaInsets();
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLeaveConversationModal, setShowLeaveConversationModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<
@@ -86,6 +114,28 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     checkAuthAndLoadMessages();
+    
+    // Request audio permissions
+    (async () => {
+      try {
+        const { status } = await Audio.Recording.requestPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("İzin Gerekli", "Ses kaydetmek için mikrofon izni gereklidir.");
+        }
+      } catch (error) {
+        console.error("Failed to request audio permissions:", error);
+      }
+    })();
+
+    return () => {
+      // Cleanup
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync();
+      }
+      if (recordingDurationInterval.current) {
+        clearInterval(recordingDurationInterval.current);
+      }
+    };
   }, [conversationId]);
 
   const handleAvatarPress = async () => {
@@ -125,52 +175,70 @@ export default function ConversationScreen() {
     }
   };
 
+  // Check if we should show waiting screen (male user in male-female match with no messages)
+  const isMaleFemaleMatch = 
+    currentUserGender === "MALE" && 
+    otherUser?.gender === "FEMALE";
+  const shouldShowWaitingScreen = 
+    isMaleFemaleMatch && 
+    !hasMessages && 
+    messages.length === 0 &&
+    !firstMessage; // Only for LIKE matches, not FAVORITE (which already has firstMessage)
+
   // Update header when otherUser is loaded
   useLayoutEffect(() => {
     if (otherUser) {
-      navigation.setOptions({
-        title: otherUser.displayName,
-        headerStyle: {
-          backgroundColor: colors.backgroundSecondary,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: typography.fontWeight.semibold,
-          fontSize: typography.fontSize.lg,
-        },
-        headerRight: () => (
-          <View style={styles.headerRightContainer}>
-            <TouchableOpacity
-              onPress={() => setShowSafetyModal(true)}
-              style={styles.headerMenuButton}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.headerMenuText}>⋯</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleAvatarPress}
-              style={styles.headerRight}
-              activeOpacity={0.7}
-            >
-              {otherUser.photos && otherUser.photos.length > 0 ? (
-                <Image
-                  source={{ uri: otherUser.photos[0] }}
-                  style={styles.headerAvatar}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-                  <Text style={styles.headerAvatarText}>
-                    {otherUser.displayName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        ),
-      });
+      // Hide header if showing waiting screen
+      if (shouldShowWaitingScreen) {
+        navigation.setOptions({
+          headerShown: false,
+        });
+      } else {
+        navigation.setOptions({
+          title: otherUser.displayName,
+          headerStyle: {
+            backgroundColor: colors.backgroundSecondaryDark,
+          },
+          headerTintColor: colors.textDark,
+          headerTitleStyle: {
+            fontWeight: typography.fontWeight.semibold,
+            fontSize: typography.fontSize.lg,
+            color: colors.textDark,
+          },
+          headerRight: () => (
+            <View style={styles.headerRightContainer}>
+              <TouchableOpacity
+                onPress={() => setShowSafetyModal(true)}
+                style={styles.headerMenuButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerMenuText}>⋯</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleAvatarPress}
+                style={styles.headerRight}
+                activeOpacity={0.7}
+              >
+                {otherUser.photos && otherUser.photos.length > 0 ? (
+                  <Image
+                    source={{ uri: otherUser.photos[0] }}
+                    style={styles.headerAvatar}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+                    <Text style={styles.headerAvatarText}>
+                      {otherUser.displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          ),
+        });
+      }
     }
-  }, [otherUser, navigation]);
+  }, [otherUser, navigation, shouldShowWaitingScreen, currentUserGender, hasMessages, messages.length, firstMessage]);
 
   const checkAuthAndLoadMessages = async () => {
     try {
@@ -186,6 +254,9 @@ export default function ConversationScreen() {
       // Load conversation details to get other user info
       const conversationDetails = await api.getConversationDetails(conversationId);
       setOtherUser(conversationDetails.otherUser);
+      setFirstMessage(conversationDetails.firstMessage || null);
+      setCurrentUserGender(conversationDetails.currentUserGender || null);
+      setHasMessages(conversationDetails.hasMessages || false);
       
       await loadMessages();
     } catch (error) {
@@ -198,10 +269,97 @@ export default function ConversationScreen() {
       setLoading(true);
       const data = await api.getMessages(conversationId, 50);
       setMessages(data);
+      setHasMessages(data.length > 0);
     } catch (error) {
       console.error("Failed to load messages:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAIPress = () => {
+    if (showToneSelector) {
+      // Close tone selector
+      Animated.parallel([
+        Animated.timing(toneSelectorAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        ...toneButtonAnims.map((anim) =>
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          })
+        ),
+      ]).start(() => {
+        setShowToneSelector(false);
+      });
+    } else {
+      // Open tone selector
+      setShowToneSelector(true);
+      Animated.parallel([
+        Animated.timing(toneSelectorAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        ...toneButtonAnims.map((anim, index) =>
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 300,
+            delay: index * 50,
+            useNativeDriver: true,
+          })
+        ),
+      ]).start();
+    }
+  };
+
+  const handleToneSelect = async (selectedTone: Tone) => {
+    if (!messageText.trim() || polishing) return;
+
+    // Close tone selector first
+    Animated.parallel([
+      Animated.timing(toneSelectorAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      ...toneButtonAnims.map((anim) =>
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ),
+    ]).start(() => {
+      setShowToneSelector(false);
+    });
+
+    setTone(selectedTone);
+    setPolishing(true);
+    
+    try {
+      const result = await api.polishMessage(messageText, selectedTone);
+      setMessageText(result.polishedText);
+    } catch (error) {
+      if (error instanceof AxiosError && (error.response?.status === 429 || error.response?.status === 402)) {
+        const errorData = error.response.data?.error;
+        if (errorData?.code === "AI_LIMIT_REACHED") {
+          setUsageInfo(errorData.details?.usage || null);
+          setShowPremiumModal(true);
+        } else {
+          Alert.alert("Limit Aşıldı", "Günlük AI kullanım limitine ulaştın.");
+        }
+      } else {
+        const errorMessage =
+          error instanceof Error ? error.message : "AI polish failed";
+        Alert.alert("Hata", errorMessage);
+      }
+    } finally {
+      setPolishing(false);
     }
   };
 
@@ -228,6 +386,86 @@ export default function ConversationScreen() {
       }
     } finally {
       setPolishing(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      // Start pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(recordingAnim, {
+            toValue: 1.2,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(recordingAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Start duration counter
+      recordingDurationInterval.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      Alert.alert("Hata", "Ses kaydı başlatılamadı");
+    }
+  };
+
+  const handleStopRecording = async () => {
+    if (!recordingRef.current) return;
+
+    try {
+      setIsRecording(false);
+      recordingAnim.stopAnimation();
+      recordingAnim.setValue(1);
+
+      if (recordingDurationInterval.current) {
+        clearInterval(recordingDurationInterval.current);
+        recordingDurationInterval.current = null;
+      }
+
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      
+      if (!uri) {
+        Alert.alert("Hata", "Ses kaydı oluşturulamadı");
+        return;
+      }
+
+      // Send audio message
+      setSending(true);
+      const newMessage = await api.sendAudioMessage(conversationId, uri);
+      setMessages((prev) => [...prev, newMessage]);
+
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      Alert.alert("Hata", "Ses gönderilemedi");
+    } finally {
+      setSending(false);
+      recordingRef.current = null;
+      setRecordingDuration(0);
     }
   };
 
@@ -352,6 +590,35 @@ export default function ConversationScreen() {
     }
   };
 
+  const handleLeaveConversation = async () => {
+    if (!otherUser) return;
+    
+    Alert.alert(
+      "Konuşmadan Ayrıl",
+      `Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de ${otherUser.displayName}'den silecektir.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Ayrıl",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteConversation(conversationId);
+              Alert.alert("Başarılı", "Konuşmadan ayrıldınız.");
+              router.replace("/(tabs)/chat");
+            } catch (error) {
+              const errorMessage =
+                error instanceof AxiosError && error.response?.data?.error?.message
+                  ? error.response.data.error.message
+                  : "Konuşmadan ayrılma başarısız oldu";
+              Alert.alert("Hata", errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMyMessage = item.senderUserId === currentUserId;
 
@@ -368,17 +635,132 @@ export default function ConversationScreen() {
             isMyMessage ? styles.myMessageCard : styles.otherMessageCard,
           ]}
         >
-          <Text
-            style={[
-              styles.messageText,
-              isMyMessage ? styles.myMessageText : styles.otherMessageText,
-            ]}
-          >
-            {item.text}
-          </Text>
+          {item.audioUrl ? (
+            <AudioPlayer audioUrl={item.audioUrl} isMyMessage={isMyMessage} />
+          ) : (
+            <Text
+              style={[
+                styles.messageText,
+                isMyMessage ? styles.myMessageText : styles.otherMessageText,
+              ]}
+            >
+              {item.text}
+            </Text>
+          )}
         </Card>
       </View>
     );
+  };
+
+  // Audio Player Component
+  const AudioPlayer = ({ audioUrl, isMyMessage }: { audioUrl: string; isMyMessage: boolean }) => {
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [position, setPosition] = useState(0);
+
+    useEffect(() => {
+      return () => {
+        if (sound) {
+          sound.unloadAsync();
+        }
+      };
+    }, [sound]);
+
+    const loadAudio = async () => {
+      try {
+        // Construct full URL if it's a relative path
+        const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+        const fullUrl = audioUrl.startsWith("http") 
+          ? audioUrl 
+          : `${baseUrl}${audioUrl}`;
+        
+        const { sound: audioSound } = await Audio.Sound.createAsync(
+          { uri: fullUrl },
+          { shouldPlay: false }
+        );
+        setSound(audioSound);
+        
+        const status = await audioSound.getStatusAsync();
+        if (status.isLoaded) {
+          setDuration(status.durationMillis || 0);
+        }
+      } catch (error) {
+        console.error("Failed to load audio:", error);
+      }
+    };
+
+    useEffect(() => {
+      loadAudio();
+    }, [audioUrl]);
+
+    const playPause = async () => {
+      if (!sound) return;
+
+      try {
+        if (isPlaying) {
+          await sound.pauseAsync();
+        } else {
+          await sound.playAsync();
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded) {
+              setIsPlaying(status.isPlaying);
+              setPosition(status.positionMillis || 0);
+              if (status.didJustFinish) {
+                setIsPlaying(false);
+                setPosition(0);
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Failed to play/pause audio:", error);
+      }
+    };
+
+    const formatTime = (ms: number) => {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    };
+
+    return (
+      <View style={styles.audioPlayerContainer}>
+        <TouchableOpacity onPress={playPause} style={styles.audioPlayButton}>
+          <Text style={styles.audioPlayIcon}>{isPlaying ? "⏸" : "▶"}</Text>
+        </TouchableOpacity>
+        <View style={styles.audioInfo}>
+          <View style={styles.audioWaveform}>
+            <View
+              style={[
+                styles.audioProgress,
+                { width: `${duration > 0 ? (position / duration) * 100 : 0}%` },
+              ]}
+            />
+          </View>
+          <Text style={[styles.audioTime, isMyMessage && styles.audioTimeMy]}>
+            {formatTime(position || duration)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  // Render first message from FAVORITE request if it exists and no messages yet
+  const renderFirstMessage = () => {
+    if (firstMessage && messages.length === 0) {
+      return (
+        <View style={styles.messageContainer}>
+          <Card style={styles.otherMessageCard}>
+            <Text style={styles.otherMessageText}>
+              {firstMessage.text}
+            </Text>
+          </Card>
+        </View>
+      );
+    }
+    return null;
   };
 
   if (loading) {
@@ -391,6 +773,222 @@ export default function ConversationScreen() {
 
   const isFirstMessage = messages.length === 0;
 
+  // Render waiting screen for male users in male-female matches
+  if (shouldShowWaitingScreen && otherUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.waitingScreenContainer}>
+          {/* Header */}
+          <View style={styles.waitingScreenHeader}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.waitingScreenHeaderTitle}>Sohbet</Text>
+            <TouchableOpacity
+              onPress={() => setShowLeaveConversationModal(true)}
+              style={styles.backButton}
+            >
+              <MaterialIcons name="more-vert" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
+          <View style={styles.waitingScreenContent}>
+            {/* Profile Photo */}
+            <TouchableOpacity
+              onPress={handleAvatarPress}
+              activeOpacity={0.8}
+              style={styles.waitingScreenPhotoContainer}
+            >
+              {otherUser.photos && otherUser.photos.length > 0 ? (
+                <Image
+                  source={{ uri: otherUser.photos[0] }}
+                  style={styles.waitingScreenPhoto}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.waitingScreenPhotoPlaceholder}>
+                  <Text style={styles.waitingScreenPhotoPlaceholderText}>
+                    {otherUser.displayName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.waitingScreenPhotoRing} />
+            </TouchableOpacity>
+
+            {/* Name */}
+            <Text style={styles.waitingScreenName}>{otherUser.displayName}</Text>
+            {otherUser.city && (
+              <Text style={styles.waitingScreenCity}>📍 {otherUser.city}</Text>
+            )}
+
+            {/* Message */}
+            <View style={styles.waitingScreenMessageBox}>
+              <Text style={styles.waitingScreenMessageText}>
+                💕 Eşleştiniz!
+              </Text>
+              <Text style={styles.waitingScreenMessageSubtext}>
+                İlk mesajı {otherUser.displayName} gönderecek. Biraz sabır... 😊
+              </Text>
+            </View>
+          </View>
+
+          {/* Profile Modal for waiting screen */}
+          {showProfileModal && (
+            <Modal
+              visible={showProfileModal}
+              transparent
+              animationType="slide"
+              onRequestClose={() => {
+                setShowProfileModal(false);
+                setProfileData(null);
+              }}
+            >
+              <View style={styles.modalOverlay}>
+                <Card style={styles.profileModalCard}>
+                  {loadingProfile ? (
+                    <View style={styles.profileLoadingContainer}>
+                      <Text style={styles.profileLoadingText}>Yükleniyor...</Text>
+                    </View>
+                  ) : profileData ? (
+                    <ScrollView
+                      style={styles.profileScrollView}
+                      contentContainerStyle={styles.profileContent}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          setShowProfileModal(false);
+                          setProfileData(null);
+                        }}
+                        style={styles.profileCloseButton}
+                      >
+                        <Text style={styles.profileCloseText}>✕</Text>
+                      </TouchableOpacity>
+
+                      {/* Photo */}
+                      {profileData.photos && profileData.photos.length > 0 ? (
+                        <Image
+                          source={{ uri: profileData.photos[0] }}
+                          style={styles.profilePhoto}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.profilePhotoPlaceholder}>
+                          <Text style={styles.profilePhotoPlaceholderText}>
+                            {profileData.displayName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Profile Info - Same as likes screen */}
+                      <View style={styles.profileInfo}>
+                        <Text style={styles.profileDisplayName}>
+                          {profileData.displayName}
+                          {profileData.birthYear && `, ${new Date().getFullYear() - profileData.birthYear}`}
+                        </Text>
+                        {profileData.city && (
+                          <Text style={styles.profileCity}>📍 {profileData.city}</Text>
+                        )}
+                        <Text style={styles.profilePurpose}>
+                          {profileData.purpose.charAt(0) +
+                            profileData.purpose.slice(1).toLowerCase()}
+                        </Text>
+
+                        {profileData.bio && (
+                          <Text style={styles.profileBio}>{profileData.bio}</Text>
+                        )}
+
+                        {/* Languages */}
+                        {(profileData.languagesNative.length > 0 ||
+                          profileData.languagesPractice.length > 0) && (
+                          <View style={styles.profileLanguagesContainer}>
+                            {profileData.languagesNative.length > 0 && (
+                              <View style={styles.profileLanguageSection}>
+                                <Text style={styles.profileLanguageLabel}>
+                                  SPEAKS:
+                                </Text>
+                                <Text style={styles.profileLanguages}>
+                                  {profileData.languagesNative.join(", ")}
+                                </Text>
+                              </View>
+                            )}
+                            {profileData.languagesPractice.length > 0 && (
+                              <View style={styles.profileLanguageSection}>
+                                <Text style={styles.profileLanguageLabel}>
+                                  LEARNING:
+                                </Text>
+                                <Text style={styles.profileLanguages}>
+                                  {profileData.languagesPractice.join(", ")}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    </ScrollView>
+                  ) : (
+                    <View style={styles.profileErrorContainer}>
+                      <Text style={styles.profileErrorText}>Profil yüklenemedi</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setShowProfileModal(false);
+                          setProfileData(null);
+                        }}
+                        style={styles.modalCloseButton}
+                      >
+                        <Text style={styles.modalCloseText}>Kapat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </Card>
+              </View>
+            </Modal>
+          )}
+
+          {/* Leave Conversation Modal for waiting screen */}
+          <Modal
+            visible={showLeaveConversationModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowLeaveConversationModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <Card style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Konuşmadan Ayrıl</Text>
+                {otherUser && (
+                  <Text style={styles.modalText}>
+                    Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
+                  </Text>
+                )}
+                <View style={styles.modalActions}>
+                  <PrimaryButton
+                    title="Konuşmadan Ayrıl"
+                    onPress={() => {
+                      setShowLeaveConversationModal(false);
+                      handleLeaveConversation();
+                    }}
+                    style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowLeaveConversationModal(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Text style={styles.modalCloseText}>İptal</Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            </View>
+          </Modal>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -402,6 +1000,7 @@ export default function ConversationScreen() {
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderFirstMessage}
         contentContainerStyle={[
           styles.messagesContent,
           { paddingBottom: spacing.lg + 200 },
@@ -420,64 +1019,155 @@ export default function ConversationScreen() {
         </View>
       )}
 
-      {/* Tone Selector - Always visible */}
-      <View style={styles.toneContainer}>
-        <Text style={styles.toneLabel}>Ton:</Text>
-        <View style={styles.toneChips}>
-          {(["neutral", "friendly", "playful"] as Tone[]).map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.toneChip, tone === t && styles.toneChipActive]}
-              onPress={() => setTone(t)}
-              disabled={polishing}
-            >
-              <Text
+      {/* Input Container - iOS style */}
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={messageText}
+            onChangeText={setMessageText}
+            placeholder="Mesaj yaz..."
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            maxLength={2000}
+            editable={!sending && !polishing}
+          />
+        </View>
+        
+        {messageText.trim().length > 0 ? (
+          <>
+            <View style={styles.aiButtonContainer}>
+              <TouchableOpacity
                 style={[
-                  styles.toneChipText,
-                  tone === t && styles.toneChipTextActive,
+                  styles.aiButton,
+                  (polishing || showToneSelector) && styles.aiButtonActive,
                 ]}
+                onPress={handleAIPress}
+                disabled={polishing}
               >
-                {t === "neutral"
-                  ? "Nötr"
-                  : t === "friendly"
-                  ? "Sıcak"
-                  : "Eğlenceli"}
+                <Text style={styles.aiButtonText}>
+                  {polishing ? "..." : "✨"}
+                </Text>
+              </TouchableOpacity>
+              
+              {showToneSelector && (
+                <Animated.View
+                  style={[
+                    styles.toneSelector,
+                    {
+                      opacity: toneSelectorAnim,
+                      transform: [
+                        {
+                          scale: toneSelectorAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.8, 1],
+                          }),
+                        },
+                        {
+                          translateY: toneSelectorAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-10, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  {(["neutral", "friendly", "playful"] as Tone[]).map((t, index) => (
+                    <Animated.View
+                      key={t}
+                      style={{
+                        opacity: toneButtonAnims[index],
+                        transform: [
+                          {
+                            translateX: toneButtonAnims[index].interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [20, 0],
+                            }),
+                          },
+                          {
+                            scale: toneButtonAnims[index].interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.5, 1],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <TouchableOpacity
+                        style={[styles.toneButton, tone === t && styles.toneButtonActive]}
+                        onPress={() => handleToneSelect(t)}
+                        disabled={polishing}
+                      >
+                        <Text
+                          style={[
+                            styles.toneButtonText,
+                            tone === t && styles.toneButtonTextActive,
+                          ]}
+                        >
+                          {t === "neutral" ? "😐" : t === "friendly" ? "😊" : "😄"}
+                        </Text>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  ))}
+                </Animated.View>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!messageText.trim() || sending) && styles.sendButtonDisabled,
+              ]}
+              onPress={handleSendMessage}
+              disabled={!messageText.trim() || sending}
+            >
+              <Text style={styles.sendButtonText}>
+                {sending ? "..." : "➤"}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          value={messageText}
-          onChangeText={setMessageText}
-          placeholder="Mesaj yaz..."
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          maxLength={2000}
-          editable={!sending && !polishing}
-        />
-        <TouchableOpacity
-          style={[
-            styles.aiButton,
-            (!messageText.trim() || polishing) && styles.aiButtonDisabled,
-          ]}
-          onPress={handlePolish}
-          disabled={!messageText.trim() || polishing}
-        >
-          <Text style={styles.aiButtonText}>
-            {polishing ? "..." : "✨"}
-          </Text>
-        </TouchableOpacity>
-        <PrimaryButton
-          title="Gönder"
-          onPress={handleSendMessage}
-          disabled={!messageText.trim() || sending}
-          loading={sending}
-          style={styles.sendButton}
-        />
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.aiButton}
+              onPress={handleAIPress}
+              disabled={polishing}
+            >
+              <Text style={styles.aiButtonText}>✨</Text>
+            </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [
+                styles.voiceButton,
+                isRecording && styles.voiceButtonRecording,
+                pressed && styles.voiceButtonPressed,
+              ]}
+              onPressIn={handleStartRecording}
+              onPressOut={handleStopRecording}
+              disabled={sending || isRecording}
+            >
+              <Animated.View
+                style={[
+                  styles.voiceButtonInner,
+                  {
+                    transform: [{ scale: isRecording ? recordingAnim : 1 }],
+                  },
+                ]}
+              >
+                <Text style={styles.voiceButtonText}>
+                  {isRecording ? "🎤" : "🎙️"}
+                </Text>
+              </Animated.View>
+              {isRecording && (
+                <View style={styles.recordingIndicator}>
+                  <Text style={styles.recordingDuration}>
+                    {Math.floor(recordingDuration / 60)}:
+                    {(recordingDuration % 60).toString().padStart(2, "0")}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </>
+        )}
       </View>
 
       {/* Premium Modal */}
@@ -568,13 +1258,14 @@ export default function ConversationScreen() {
                   </View>
                 )}
 
-                {/* Profile Info */}
+                {/* Profile Info - Same as likes screen */}
                 <View style={styles.profileInfo}>
                   <Text style={styles.profileDisplayName}>
                     {profileData.displayName}
+                    {profileData.birthYear && `, ${new Date().getFullYear() - profileData.birthYear}`}
                   </Text>
                   {profileData.city && (
-                    <Text style={styles.profileCity}>{profileData.city}</Text>
+                    <Text style={styles.profileCity}>📍 {profileData.city}</Text>
                   )}
                   <Text style={styles.profilePurpose}>
                     {profileData.purpose.charAt(0) +
@@ -592,7 +1283,7 @@ export default function ConversationScreen() {
                       {profileData.languagesNative.length > 0 && (
                         <View style={styles.profileLanguageSection}>
                           <Text style={styles.profileLanguageLabel}>
-                            Native:
+                            SPEAKS:
                           </Text>
                           <Text style={styles.profileLanguages}>
                             {profileData.languagesNative.join(", ")}
@@ -602,7 +1293,7 @@ export default function ConversationScreen() {
                       {profileData.languagesPractice.length > 0 && (
                         <View style={styles.profileLanguageSection}>
                           <Text style={styles.profileLanguageLabel}>
-                            Practice:
+                            LEARNING:
                           </Text>
                           <Text style={styles.profileLanguages}>
                             {profileData.languagesPractice.join(", ")}
@@ -744,6 +1435,41 @@ export default function ConversationScreen() {
           </Card>
         </View>
       </Modal>
+
+      {/* Leave Conversation Modal */}
+      <Modal
+        visible={showLeaveConversationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLeaveConversationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Konuşmadan Ayrıl</Text>
+            {otherUser && (
+              <Text style={styles.modalText}>
+                Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
+              </Text>
+            )}
+            <View style={styles.modalActions}>
+              <PrimaryButton
+                title="Konuşmadan Ayrıl"
+                onPress={() => {
+                  setShowLeaveConversationModal(false);
+                  handleLeaveConversation();
+                }}
+                style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
+              />
+              <TouchableOpacity
+                onPress={() => setShowLeaveConversationModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -807,83 +1533,200 @@ const styles = StyleSheet.create({
     color: colors.warning,
     textAlign: "center",
   },
-  toneContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.backgroundSecondaryDark,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
-    gap: spacing.sm,
-  },
-  toneLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    fontWeight: typography.fontWeight.medium,
-  },
-  toneChips: {
-    flexDirection: "row",
-    gap: spacing.xs,
-  },
-  toneChip: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 12,
-    backgroundColor: colors.backgroundDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-  },
-  toneChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  toneChipText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondaryDark,
-    fontWeight: typography.fontWeight.medium,
-  },
-  toneChipTextActive: {
-    color: "#FFFFFF",
-  },
   inputContainer: {
     flexDirection: "row",
-    padding: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.borderDark,
     backgroundColor: colors.backgroundSecondaryDark,
-    gap: spacing.sm,
+    gap: spacing.xs,
     alignItems: "flex-end",
   },
-  input: {
+  inputWrapper: {
     flex: 1,
     backgroundColor: colors.backgroundDark,
     borderRadius: 20,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.fontSize.base,
-    color: colors.textDark,
     borderWidth: 1,
     borderColor: colors.borderDark,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === "ios" ? spacing.xs : spacing.sm,
+    minHeight: 36,
     maxHeight: 100,
-    minHeight: 40,
+  },
+  input: {
+    flex: 1,
+    fontSize: typography.fontSize.base,
+    color: colors.textDark,
+    paddingVertical: 0,
+    textAlignVertical: "center",
+  },
+  aiButtonContainer: {
+    position: "relative",
+    marginLeft: spacing.xs,
   },
   aiButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 10,
   },
-  aiButtonDisabled: {
-    opacity: 0.5,
+  aiButtonActive: {
+    backgroundColor: colors.primary,
   },
   aiButtonText: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.sm,
   },
   sendButton: {
-    minWidth: 80,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: spacing.xs,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  sendButtonText: {
+    fontSize: typography.fontSize.lg,
+    color: "#FFFFFF",
+    fontWeight: typography.fontWeight.bold,
+  },
+  toneSelector: {
+    position: "absolute",
+    right: 44,
+    bottom: 0,
+    flexDirection: "row",
+    gap: spacing.xs,
+    alignItems: "center",
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 20,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 5,
+    minWidth: 120,
+  },
+  toneSelectorStatic: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    alignItems: "center",
+    marginLeft: spacing.xs,
+  },
+  toneButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.backgroundDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  toneButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  toneButtonText: {
+    fontSize: typography.fontSize.base,
+  },
+  toneButtonTextActive: {
+    opacity: 1,
+  },
+  voiceButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: spacing.xs,
+  },
+  voiceButtonRecording: {
+    backgroundColor: colors.error || "#EF4444",
+  },
+  voiceButtonPressed: {
+    opacity: 0.8,
+  },
+  voiceButtonInner: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  voiceButtonText: {
+    fontSize: typography.fontSize.base,
+  },
+  recordingIndicator: {
+    position: "absolute",
+    top: -30,
+    left: -20,
+    right: -20,
+    backgroundColor: colors.error || "#EF4444",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  recordingDuration: {
+    color: "#FFFFFF",
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+  },
+  audioPlayerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minWidth: 150,
+  },
+  audioPlayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  audioPlayIcon: {
+    fontSize: typography.fontSize.base,
+    color: "#FFFFFF",
+  },
+  audioInfo: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  audioWaveform: {
+    height: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  audioProgress: {
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 2,
+  },
+  audioTime: {
+    fontSize: typography.fontSize.xs,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  audioTimeMy: {
+    color: "#FFFFFF",
   },
   modalOverlay: {
     flex: 1,
@@ -1028,53 +1871,53 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 300,
     borderRadius: 12,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.primary + "20",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: spacing.md,
   },
   profilePhotoPlaceholderText: {
-    color: colors.textSecondaryDark,
-    fontSize: typography.fontSize["4xl"],
+    fontSize: typography.fontSize["5xl"],
     fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
   },
   profileInfo: {
-    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   profileDisplayName: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
     color: colors.textDark,
-    marginBottom: spacing.xs,
   },
   profileCity: {
     fontSize: typography.fontSize.base,
     color: colors.textSecondaryDark,
-    marginBottom: spacing.xs,
   },
   profilePurpose: {
     fontSize: typography.fontSize.sm,
     color: colors.primary,
     fontWeight: typography.fontWeight.medium,
-    marginBottom: spacing.sm,
+    textTransform: "capitalize",
   },
   profileBio: {
     fontSize: typography.fontSize.base,
     color: colors.textDark,
     lineHeight: 24,
-    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
   profileLanguagesContainer: {
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   profileLanguageSection: {
-    marginBottom: spacing.sm,
+    gap: spacing.xs / 2,
   },
   profileLanguageLabel: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
     color: colors.textSecondaryDark,
-    marginBottom: spacing.xs,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   profileLanguages: {
     fontSize: typography.fontSize.base,
@@ -1131,5 +1974,150 @@ const styles = StyleSheet.create({
     maxHeight: 150,
     marginBottom: spacing.md,
     textAlignVertical: "top",
+  },
+  waitingScreenContainer: {
+    flex: 1,
+    backgroundColor: colors.backgroundDark,
+  },
+  waitingScreenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  waitingScreenHeaderTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  waitingScreenContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+  },
+  waitingScreenPhotoContainer: {
+    position: "relative",
+    marginBottom: spacing.xl,
+  },
+  waitingScreenPhoto: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 4,
+    borderColor: colors.accent,
+  },
+  waitingScreenPhotoPlaceholder: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: colors.backgroundDark,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: colors.accent,
+  },
+  waitingScreenPhotoPlaceholderText: {
+    fontSize: typography.fontSize["4xl"],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textSecondary,
+  },
+  waitingScreenPhotoRing: {
+    position: "absolute",
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 108,
+    borderWidth: 2,
+    borderColor: colors.accent + "40",
+  },
+  waitingScreenName: {
+    fontSize: typography.fontSize["2xl"],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  waitingScreenCity: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+    textAlign: "center",
+  },
+  waitingScreenMessageBox: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 20,
+    padding: spacing.xl,
+    maxWidth: 320,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.accent + "30",
+  },
+  waitingScreenMessageText: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.sm,
+    textAlign: "center",
+  },
+  waitingScreenMessageSubtext: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  purposeBadge: {
+    backgroundColor: colors.primary + "20",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 12,
+  },
+  purposeText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primaryLight,
+  },
+  languageSection: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  languageLabel: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondaryDark,
+    fontWeight: typography.fontWeight.medium,
+    marginBottom: spacing.sm,
+  },
+  languageTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  languageTag: {
+    backgroundColor: colors.primary + "20",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  languageTagPractice: {
+    backgroundColor: colors.accent + "20",
+    borderColor: colors.accent,
+  },
+  languageTagText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textDark,
   },
 });

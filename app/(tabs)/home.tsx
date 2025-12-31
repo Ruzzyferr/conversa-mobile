@@ -86,20 +86,21 @@ export default function HomeScreen() {
   } | null>(null);
   const [showFavoriteModal, setShowFavoriteModal] = useState(false);
   const [favoriteMessage, setFavoriteMessage] = useState("");
+  const [favoriteCard, setFavoriteCard] = useState<DiscoveryCard | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showDirectLimitModal, setShowDirectLimitModal] = useState(false);
-  
+
   const { premiumEnabled, refreshPremiumStatus } = usePremium();
-  
+
   // Use both premiumEnabled from context and local isPremium state
   const isUserPremium = premiumEnabled || isPremium;
-  
+
   // Debug: Log premium status
   useEffect(() => {
     console.log("Premium status - Context:", premiumEnabled, "Local:", isPremium, "Combined:", isUserPremium);
   }, [premiumEnabled, isPremium, isUserPremium]);
-  
+
 
   useEffect(() => {
     checkAuthAndLoadFeed();
@@ -126,12 +127,12 @@ export default function HomeScreen() {
       const me = await api.getMe();
       const userPremiumStatus = me.user.isPremium || false;
       setIsPremium(userPremiumStatus);
-      
+
       console.log("Premium status from API:", userPremiumStatus);
-      
+
       // Also refresh premium status from context to ensure consistency
       await refreshPremiumStatus();
-      
+
       if (!me.profileExists) {
         router.replace("/(auth)/profile-setup");
         return;
@@ -218,7 +219,7 @@ export default function HomeScreen() {
       const cards = await api.getFeed(20, Object.keys(filterParams).length > 0 ? filterParams : undefined);
       setFeed(cards);
       setCurrentIndex(0);
-      
+
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to load feed";
@@ -234,18 +235,18 @@ export default function HomeScreen() {
   // Remove top card from feed (called after swipe animation completes)
   const removeTopCard = useCallback((cardToRemove: DiscoveryCard) => {
     if (!cardToRemove?.userId) return;
-    
+
     const removedUserId = cardToRemove.userId;
-    
+
     // Check if we're already removing this card
     if (removingCardsRef.current.has(removedUserId)) {
       console.warn(`removeTopCard: Card ${removedUserId} is already being removed, skipping`);
       return;
     }
-    
+
     // Mark this card as being removed
     removingCardsRef.current.add(removedUserId);
-    
+
     // Remove card from feed using functional update to avoid stale closure issues
     setFeed((prevFeed) => {
       // Verify the card is actually in the feed before removing
@@ -256,15 +257,15 @@ export default function HomeScreen() {
         removingCardsRef.current.delete(removedUserId);
         return prevFeed;
       }
-      
+
       // Filter out the card with the matching userId
       const newFeed = prevFeed.filter((card) => card.userId !== removedUserId);
-      
+
       // Clear the removal flag after a short delay
       setTimeout(() => {
         removingCardsRef.current.delete(removedUserId);
       }, 100);
-      
+
       return newFeed;
     });
     // Always keep index at 0 for deck rendering
@@ -278,13 +279,13 @@ export default function HomeScreen() {
       console.warn("handleLike: No cardOverride provided, cannot proceed");
       return;
     }
-    
+
     const currentCard = cardOverride;
     const likedUserId = currentCard.userId;
-    
+
     // Remove card from feed immediately (swipe animation already completed)
     removeTopCard(currentCard);
-    
+
     // Make API call in background (fire-and-forget)
     api.like(likedUserId).then((result) => {
       // Check if we matched
@@ -297,7 +298,7 @@ export default function HomeScreen() {
         });
         setShowMatchModal(true);
       }
-      
+
       // Refresh like limit info
       if (!premiumEnabled) {
         api.getUsage().then((usage) => {
@@ -307,13 +308,13 @@ export default function HomeScreen() {
               likesLimit: usage.usage.likesLimit || 15,
             });
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }).catch((error) => {
       if (error instanceof AxiosError && error.response?.status === 429) {
         const errorData = error.response.data?.error;
         const details = errorData?.details;
-        
+
         if (details && errorData.code === "LIKE_LIMIT_REACHED") {
           setLikeLimitInfo({
             likesUsed: details.likesUsed || 0,
@@ -329,10 +330,10 @@ export default function HomeScreen() {
   const handleWatchAd = async () => {
     try {
       setWatchingAd(true);
-      
+
       // Show rewarded ad
       const adResult = await showRewardedAd();
-      
+
       if (!adResult.success) {
         if (adResult.error?.includes('closed without earning')) {
           Alert.alert("Ad Not Completed", "Please watch the ad completely to earn your reward.");
@@ -345,16 +346,16 @@ export default function HomeScreen() {
 
       // Call backend to grant reward
       const rewardResult = await api.rewardAdLike();
-      
+
       // Update like limit info
       setLikeLimitInfo({
         likesUsed: rewardResult.likesInfo.likesUsed,
         likesLimit: rewardResult.likesInfo.likesLimit,
       });
-      
+
       Alert.alert("Success", `You got +${rewardResult.rewardAmount} likes!`);
       setShowLikeLimitModal(false);
-      
+
       // Refresh usage to get updated limits
       try {
         const usage = await api.getUsage();
@@ -383,13 +384,13 @@ export default function HomeScreen() {
       console.warn("handlePass: No cardOverride provided, cannot proceed");
       return;
     }
-    
+
     const currentCard = cardOverride;
     const passedUserId = currentCard.userId;
-    
+
     // Remove card from feed immediately (swipe animation already completed)
     removeTopCard(currentCard);
-    
+
     // Make API call in background (fire-and-forget)
     api.pass(passedUserId).catch((error) => {
       // Silently handle errors - card already removed
@@ -404,17 +405,32 @@ export default function HomeScreen() {
       console.warn("handleFavorite: No cardOverride provided, cannot proceed");
       return;
     }
-    
+
     const currentCard = cardOverride;
-    
+
     // Check limit before opening modal
     if (!isUserPremium) {
       try {
         const usage = await api.getUsage();
         if (usage.usage && usage.usage.favoritesRemaining !== undefined) {
           if (usage.usage.favoritesRemaining <= 0) {
-            // Show limit modal instead of message modal
-            setShowDirectLimitModal(true);
+            // Show limit modal with purchase option
+            Alert.alert(
+              "Favori Hakkı Yok",
+              "Favori göndermek için hakkınız kalmamış. 5 favori hakkı almak ister misiniz? (5$)",
+              [
+                {
+                  text: "İptal",
+                  style: "cancel",
+                },
+                {
+                  text: "Satın Al",
+                  onPress: () => {
+                    router.push("/premium");
+                  },
+                },
+              ]
+            );
             return;
           }
         }
@@ -423,25 +439,25 @@ export default function HomeScreen() {
         console.error("Failed to check direct message limit:", error);
       }
     }
-    
+
+    // Store the card we're favoriting
+    setFavoriteCard(currentCard);
     setShowFavoriteModal(true);
   };
 
   const handleSendFavorite = async () => {
-    if (feed.length === 0) return;
+    if (!favoriteCard) return;
     if (favoriteMessage.trim().length < 10) {
       Alert.alert("Uyarı", "Mesaj en az 10 karakter olmalıdır");
       return;
     }
 
-    // Use first card since SwipeDeck always shows items[0] as top card
-    const currentCard = feed[0];
-    if (!currentCard) return;
+    const currentCard = favoriteCard;
     setShowFavoriteModal(false);
 
     try {
       const result = await api.favorite(currentCard.userId, favoriteMessage.trim());
-      
+
       // Update favorite info
       if (!isUserPremium && favoriteInfo) {
         setFavoriteInfo({
@@ -450,38 +466,47 @@ export default function HomeScreen() {
           favoritesUsed: favoriteInfo.favoritesUsed + 1,
         });
       }
-      
+
       // Show success modal
       setSuccessMessage("Mesaj isteği gönderildi");
       setShowSuccessModal(true);
-      
-      // Clear message and move to next
+
+      // Clear message and card, remove from feed
       setFavoriteMessage("");
+      setFavoriteCard(null);
       // Don't call moveToNext - just remove card from feed
-      setFeed((prevFeed) => {
-        const newFeed = prevFeed.filter((card) => card.userId !== currentCard.userId);
-        
-        // Only load more if feed is completely empty
-        if (newFeed.length === 0) {
-          setTimeout(() => loadFeed(), 100);
-        }
-        
-        return newFeed;
-      });
-      
+      removeTopCard(currentCard);
+
       // Auto-close success modal after 2 seconds
       setTimeout(() => {
         setShowSuccessModal(false);
       }, 2000);
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 429) {
-        // Direct message limit reached - show modal
-        setShowDirectLimitModal(true);
+        // Direct message limit reached - show purchase option
+        Alert.alert(
+          "Favori Hakkı Yok",
+          "Favori göndermek için hakkınız kalmamış. 5 favori hakkı almak ister misiniz? (5$)",
+          [
+            {
+              text: "İptal",
+              style: "cancel",
+            },
+            {
+              text: "Satın Al",
+              onPress: () => {
+                router.push("/premium");
+              },
+            },
+          ]
+        );
       } else {
         const errorMessage =
           error instanceof Error ? error.message : "Mesaj gönderilemedi";
         Alert.alert("Hata", errorMessage);
       }
+      // Reset favorite card on error
+      setFavoriteCard(null);
     }
   };
 
@@ -724,235 +749,246 @@ export default function HomeScreen() {
                 isPremium={isUserPremium}
               />
             )}
+            FavoriteButton={() => (
+              <TouchableOpacity
+                onPress={() => feed.length > 0 && handleFavorite(feed[0])}
+                activeOpacity={0.8}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                <View style={styles.favoriteButtonOverlayInner}>
+                  <MaterialIcons name="star" size={24} color="#60A5FA" />
+                </View>
+              </TouchableOpacity>
+            )}
           />
         </View>
 
-      {/* Filter Modal */}
-      <FilterSheet
-        visible={showFilterModal}
-        onClose={() => setShowFilterModal(false)}
-        onApply={(newFilters) => {
-          setFilters(newFilters);
-          loadFeed();
-        }}
-        initialFilters={filters}
-        userLanguages={userLanguages}
-        isPremium={isPremium}
-      />
+        {/* Filter Modal */}
+        <FilterSheet
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          onApply={(newFilters) => {
+            setFilters(newFilters);
+            loadFeed();
+          }}
+          initialFilters={filters}
+          userLanguages={userLanguages}
+          isPremium={isPremium}
+        />
 
-      {/* Match Modal */}
-      <Modal
-        visible={showMatchModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMatchModalClose}
-      >
-        <View style={styles.modalOverlay}>
-          <Card style={styles.modalCard}>
-            <Text style={styles.matchTitle}>It's a match!</Text>
-            <Text style={styles.matchSubtitle}>
-              You and {matchData?.matchedUserName || "someone"} liked each other
-            </Text>
-            <View style={styles.modalActions}>
-              <PrimaryButton
-                title="Say hi"
-                onPress={handleGoToChat}
-                style={styles.modalButton}
-              />
+        {/* Match Modal */}
+        <Modal
+          visible={showMatchModal}
+          transparent
+          animationType="fade"
+          onRequestClose={handleMatchModalClose}
+        >
+          <View style={styles.modalOverlay}>
+            <Card style={styles.modalCard}>
+              <Text style={styles.matchTitle}>It's a match!</Text>
+              <Text style={styles.matchSubtitle}>
+                You and {matchData?.matchedUserName || "someone"} liked each other
+              </Text>
+              <View style={styles.modalActions}>
+                <PrimaryButton
+                  title="Say hi"
+                  onPress={handleGoToChat}
+                  style={styles.modalButton}
+                />
+                <TouchableOpacity
+                  onPress={handleMatchModalClose}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>Continue swiping</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          </View>
+        </Modal>
+
+        {/* Boost Modal */}
+        <Modal
+          visible={showBoostModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowBoostModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <Card style={styles.modalCard}>
+              <Text style={styles.boostModalTitle}>Boost Your Profile</Text>
+              <Text style={styles.boostModalText}>
+                Get more visibility and appear at the top of discovery feed
+              </Text>
+              {boostStatus?.active && (
+                <View style={styles.activeBoostInfo}>
+                  <Text style={styles.activeBoostText}>
+                    Active boost ends in: {getTimeRemaining()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.boostOptions}>
+                <TouchableOpacity
+                  style={styles.boostOption}
+                  onPress={() => handleBoost(60)}
+                >
+                  <Text style={styles.boostOptionTitle}>1 Hour</Text>
+                  <Text style={styles.boostOptionSubtitle}>Quick boost</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.boostOption}
+                  onPress={() => handleBoost(180)}
+                >
+                  <Text style={styles.boostOptionTitle}>3 Hours</Text>
+                  <Text style={styles.boostOptionSubtitle}>Popular choice</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.boostOption}
+                  onPress={() => handleBoost(720)}
+                >
+                  <Text style={styles.boostOptionTitle}>12 Hours</Text>
+                  <Text style={styles.boostOptionSubtitle}>Maximum visibility</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                onPress={handleMatchModalClose}
+                onPress={() => setShowBoostModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>Continue swiping</Text>
+                <Text style={styles.modalCloseText}>Cancel</Text>
               </TouchableOpacity>
-            </View>
-          </Card>
-        </View>
-      </Modal>
+            </Card>
+          </View>
+        </Modal>
 
-      {/* Boost Modal */}
-      <Modal
-        visible={showBoostModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowBoostModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Card style={styles.modalCard}>
-            <Text style={styles.boostModalTitle}>Boost Your Profile</Text>
-            <Text style={styles.boostModalText}>
-              Get more visibility and appear at the top of discovery feed
-            </Text>
-            {boostStatus?.active && (
-              <View style={styles.activeBoostInfo}>
-                <Text style={styles.activeBoostText}>
-                  Active boost ends in: {getTimeRemaining()}
-                </Text>
+        {/* Like Limit Modal */}
+        {likeLimitInfo && (
+          <LikeLimitModal
+            visible={showLikeLimitModal}
+            onClose={() => setShowLikeLimitModal(false)}
+            onWatchAd={handleWatchAd}
+            likesUsed={likeLimitInfo.likesUsed}
+            likesLimit={likeLimitInfo.likesLimit}
+            isPremium={premiumEnabled}
+            watchingAd={watchingAd}
+          />
+        )}
+
+        {/* Favorite Modal */}
+        <Modal
+          visible={showFavoriteModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setShowFavoriteModal(false);
+            setFavoriteMessage("");
+          }}
+        >
+          <View style={styles.favoriteModalOverlay}>
+            <View style={styles.favoriteModalContent}>
+              <Text style={styles.favoriteModalTitle}>Direkt Mesaj Gönder</Text>
+              <Text style={styles.favoriteModalSubtitle}>
+                Bu kişiye bir mesaj gönder. Mesaj en az 10 karakter olmalıdır.
+              </Text>
+              <TextInput
+                style={styles.favoriteMessageInput}
+                value={favoriteMessage}
+                onChangeText={setFavoriteMessage}
+                placeholder="Mesajınızı yazın..."
+                placeholderTextColor={colors.textSecondaryDark}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={2000}
+              />
+              <Text style={styles.favoriteCharCount}>
+                {favoriteMessage.length}/2000
+              </Text>
+              <View style={styles.favoriteModalButtons}>
+                <TouchableOpacity
+                  style={[styles.favoriteModalButton, styles.favoriteModalButtonCancel]}
+                  onPress={() => {
+                    setShowFavoriteModal(false);
+                    setFavoriteMessage("");
+                  }}
+                >
+                  <Text style={styles.favoriteModalButtonCancelText}>İptal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.favoriteModalButton,
+                    styles.favoriteModalButtonConfirm,
+                    favoriteMessage.trim().length < 10 && styles.favoriteModalButtonDisabled,
+                  ]}
+                  onPress={handleSendFavorite}
+                  disabled={favoriteMessage.trim().length < 10}
+                >
+                  <Text style={styles.favoriteModalButtonConfirmText}>Gönder</Text>
+                </TouchableOpacity>
               </View>
-            )}
-            <View style={styles.boostOptions}>
-              <TouchableOpacity
-                style={styles.boostOption}
-                onPress={() => handleBoost(60)}
-              >
-                <Text style={styles.boostOptionTitle}>1 Hour</Text>
-                <Text style={styles.boostOptionSubtitle}>Quick boost</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.boostOption}
-                onPress={() => handleBoost(180)}
-              >
-                <Text style={styles.boostOptionTitle}>3 Hours</Text>
-                <Text style={styles.boostOptionSubtitle}>Popular choice</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.boostOption}
-                onPress={() => handleBoost(720)}
-              >
-                <Text style={styles.boostOptionTitle}>12 Hours</Text>
-                <Text style={styles.boostOptionSubtitle}>Maximum visibility</Text>
-              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowBoostModal(false)}
-              style={styles.modalCloseButton}
-            >
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-          </Card>
-        </View>
-      </Modal>
+          </View>
+        </Modal>
 
-      {/* Like Limit Modal */}
-      {likeLimitInfo && (
-        <LikeLimitModal
-          visible={showLikeLimitModal}
-          onClose={() => setShowLikeLimitModal(false)}
-          onWatchAd={handleWatchAd}
-          likesUsed={likeLimitInfo.likesUsed}
-          likesLimit={likeLimitInfo.likesLimit}
-          isPremium={premiumEnabled}
-          watchingAd={watchingAd}
-        />
-      )}
-
-      {/* Favorite Modal */}
-      <Modal
-        visible={showFavoriteModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setShowFavoriteModal(false);
-          setFavoriteMessage("");
-        }}
-      >
-        <View style={styles.favoriteModalOverlay}>
-          <View style={styles.favoriteModalContent}>
-            <Text style={styles.favoriteModalTitle}>Direkt Mesaj Gönder</Text>
-            <Text style={styles.favoriteModalSubtitle}>
-              Bu kişiye bir mesaj gönder. Mesaj en az 10 karakter olmalıdır.
-            </Text>
-            <TextInput
-              style={styles.favoriteMessageInput}
-              value={favoriteMessage}
-              onChangeText={setFavoriteMessage}
-              placeholder="Mesajınızı yazın..."
-              placeholderTextColor={colors.textSecondaryDark}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              maxLength={2000}
-            />
-            <Text style={styles.favoriteCharCount}>
-              {favoriteMessage.length}/2000
-            </Text>
-            <View style={styles.favoriteModalButtons}>
+        {/* Success Modal */}
+        <Modal
+          visible={showSuccessModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowSuccessModal(false)}
+        >
+          <View style={styles.successModalOverlay}>
+            <View style={styles.successModalContent}>
+              <View style={styles.successIconContainer}>
+                <Text style={styles.successIcon}>✓</Text>
+              </View>
+              <Text style={styles.successModalTitle}>Başarılı</Text>
+              <Text style={styles.successModalMessage}>{successMessage}</Text>
               <TouchableOpacity
-                style={[styles.favoriteModalButton, styles.favoriteModalButtonCancel]}
-                onPress={() => {
-                  setShowFavoriteModal(false);
-                  setFavoriteMessage("");
-                }}
+                style={styles.successModalButton}
+                onPress={() => setShowSuccessModal(false)}
               >
-                <Text style={styles.favoriteModalButtonCancelText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.favoriteModalButton,
-                  styles.favoriteModalButtonConfirm,
-                  favoriteMessage.trim().length < 10 && styles.favoriteModalButtonDisabled,
-                ]}
-                onPress={handleSendFavorite}
-                disabled={favoriteMessage.trim().length < 10}
-              >
-                <Text style={styles.favoriteModalButtonConfirmText}>Gönder</Text>
+                <Text style={styles.successModalButtonText}>Tamam</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Success Modal */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Text style={styles.successIcon}>✓</Text>
-            </View>
-            <Text style={styles.successModalTitle}>Başarılı</Text>
-            <Text style={styles.successModalMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={styles.successModalButton}
-              onPress={() => setShowSuccessModal(false)}
-            >
-              <Text style={styles.successModalButtonText}>Tamam</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Direct Message Limit Modal */}
-      <Modal
-        visible={showDirectLimitModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDirectLimitModal(false)}
-      >
-        <View style={styles.directLimitModalOverlay}>
-          <View style={styles.directLimitModalContent}>
-            <View style={styles.directLimitIconContainer}>
-              <Text style={styles.directLimitIcon}>⚠️</Text>
-            </View>
-            <Text style={styles.directLimitModalTitle}>Limit Doldu</Text>
-            <Text style={styles.directLimitModalMessage}>
-              Haftalık direkt mesaj hakkın bitti.{"\n"}
-              Premium ile haftada 5 direkt mesaj gönderebilirsin.
-            </Text>
-            <View style={styles.directLimitModalButtons}>
-              <TouchableOpacity
-                style={[styles.directLimitModalButton, styles.directLimitModalButtonCancel]}
-                onPress={() => setShowDirectLimitModal(false)}
-              >
-                <Text style={styles.directLimitModalButtonCancelText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.directLimitModalButton, styles.directLimitModalButtonConfirm]}
-                onPress={() => {
-                  setShowDirectLimitModal(false);
-                  router.push("/premium");
-                }}
-              >
-                <Text style={styles.directLimitModalButtonConfirmText}>Premium'a Geç</Text>
-              </TouchableOpacity>
+        {/* Direct Message Limit Modal */}
+        <Modal
+          visible={showDirectLimitModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDirectLimitModal(false)}
+        >
+          <View style={styles.directLimitModalOverlay}>
+            <View style={styles.directLimitModalContent}>
+              <View style={styles.directLimitIconContainer}>
+                <Text style={styles.directLimitIcon}>⚠️</Text>
+              </View>
+              <Text style={styles.directLimitModalTitle}>Limit Doldu</Text>
+              <Text style={styles.directLimitModalMessage}>
+                Haftalık direkt mesaj hakkın bitti.{"\n"}
+                Premium ile haftada 5 direkt mesaj gönderebilirsin.
+              </Text>
+              <View style={styles.directLimitModalButtons}>
+                <TouchableOpacity
+                  style={[styles.directLimitModalButton, styles.directLimitModalButtonCancel]}
+                  onPress={() => setShowDirectLimitModal(false)}
+                >
+                  <Text style={styles.directLimitModalButtonCancelText}>İptal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.directLimitModalButton, styles.directLimitModalButtonConfirm]}
+                  onPress={() => {
+                    setShowDirectLimitModal(false);
+                    router.push("/premium");
+                  }}
+                >
+                  <Text style={styles.directLimitModalButtonConfirmText}>Premium'a Geç</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -1049,6 +1085,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
   },
   scrollView: {
+    position: "relative",
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "center",
@@ -1427,5 +1464,20 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: "#FFFFFF",
     letterSpacing: 2,
+  },
+  favoriteButtonOverlayInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundSecondaryDark,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
   },
 });
