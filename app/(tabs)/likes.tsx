@@ -11,9 +11,11 @@ import {
   Modal,
   ScrollView,
   Animated,
+  Dimensions,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -26,6 +28,7 @@ import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Request = {
   requestId: string;
@@ -61,8 +64,11 @@ type Request = {
   } | null;
 };
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 export default function RequestsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [incomingRequests, setIncomingRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -92,7 +98,7 @@ export default function RequestsScreen() {
   } | null>(null);
   const matchModalAnim = React.useRef(new Animated.Value(0)).current;
   const sparkleAnim = React.useRef(new Animated.Value(0)).current;
-  
+
   // Reset animations when modal closes
   React.useEffect(() => {
     if (!showMatchModal) {
@@ -131,15 +137,15 @@ export default function RequestsScreen() {
   const handleAccept = async (fromUserId: string, matchedUserName?: string, matchedUserPhoto?: string, requestKind?: "LIKE" | "FAVORITE") => {
     try {
       const result = await api.acceptRequest(fromUserId);
-      
+
       console.log("Accept result:", JSON.stringify(result, null, 2)); // Debug log
       console.log("Request kind:", requestKind); // Debug log
-      
+
       // FAVORITE requests always create a conversation
       // LIKE requests only create conversation if both users liked each other
       if (result.conversationId) {
         console.log("ConversationId exists, showing match modal"); // Debug log
-        
+
         // Get user profile to check gender
         let isFemale = false;
         try {
@@ -158,20 +164,20 @@ export default function RequestsScreen() {
           matchedUserPhoto: matchedUserPhoto,
           isFemale,
         });
-        
+
         console.log("Setting showMatchModal to true, matchData:", {
           conversationId: result.conversationId,
           matchedUserId: fromUserId,
           matchedUserName: matchedUserName,
         }); // Debug log
-        
+
         // Set modal visible first
         setShowMatchModal(true);
-        
+
         // Start with visible state (opacity 1) then animate
         matchModalAnim.setValue(1);
         sparkleAnim.setValue(0);
-        
+
         // Immediately start sparkle animation
         Animated.loop(
           Animated.sequence([
@@ -187,7 +193,7 @@ export default function RequestsScreen() {
             }),
           ])
         ).start();
-        
+
         console.log("Match modal should be visible now"); // Debug log
       } else {
         console.log("No conversationId - LIKE request but not a match yet"); // Debug log
@@ -199,7 +205,7 @@ export default function RequestsScreen() {
           [{ text: "Tamam" }]
         );
       }
-      
+
       // Reload requests
       await loadRequests();
       // Update badge
@@ -265,7 +271,7 @@ export default function RequestsScreen() {
     setShowProfileModal(true);
     setLoadingProfile(true);
     setProfileData(null);
-    
+
     try {
       const profile = await api.getUserProfile(request.fromUserId!);
       setProfileData(profile);
@@ -302,62 +308,111 @@ export default function RequestsScreen() {
       : null;
 
     return (
-      <Card style={styles.requestCard}>
-        <TouchableOpacity
-          style={styles.requestContent}
-          onPress={() => handleProfilePress(item)}
+      <View style={styles.requestCardWrapper}>
+        <LinearGradient
+          colors={["rgba(30, 30, 50, 0.9)", "rgba(20, 20, 30, 0.95)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.requestCard}
         >
-          <View style={styles.userInfo}>
-            {user.photos && user.photos.length > 0 ? (
-              <Image
-                source={{ uri: user.photos[0] }}
-                style={styles.avatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user.displayName.charAt(0).toUpperCase()}
-                </Text>
+          <TouchableOpacity
+            style={styles.requestContent}
+            onPress={() => handleProfilePress(item)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.userInfo}>
+              <View style={styles.avatarContainer}>
+                {user.photos && user.photos.length > 0 ? (
+                  <Image
+                    source={{ uri: user.photos[0] }}
+                    style={styles.avatar}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>
+                      {user.displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                {item.kind === "FAVORITE" && (
+                  <View style={styles.favoriteBadge}>
+                    <Ionicons name="star" size={12} color="#FFFFFF" />
+                  </View>
+                )}
               </View>
-            )}
-            <View style={styles.userDetails}>
-              <Text style={styles.userName}>
-                {user.displayName}
-                {age && `, ${age}`}
-              </Text>
-              {user.city && (
-                <Text style={styles.userCity}>📍 {user.city}</Text>
-              )}
-              {item.kind === "FAVORITE" && item.firstMessage && (
-                <Text style={styles.messagePreview} numberOfLines={2}>
-                  {item.firstMessage.text}
-                </Text>
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.declineButton]}
-            onPress={() => handleDecline(item.fromUserId!)}
-          >
-            <Text style={styles.declineButtonText}>Reddet</Text>
+              <View style={styles.userDetails}>
+                <View style={styles.nameContainer}>
+                  <Text style={styles.userName}>
+                    {user.displayName}
+                    {age && `, ${age}`}
+                  </Text>
+                  {item.kind === "FAVORITE" && (
+                    <LinearGradient
+                      colors={[colors.accent, colors.primary]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.superLikeTag}
+                    >
+                      <Text style={styles.superLikeText}>Super Like</Text>
+                    </LinearGradient>
+                  )}
+                </View>
+
+                {user.city && (
+                  <View style={styles.locationContainer}>
+                    <Ionicons name="location-sharp" size={12} color={colors.primary} />
+                    <Text style={styles.userCity}>{user.city}</Text>
+                  </View>
+                )}
+
+                {item.firstMessage && (
+                  <View style={styles.messagePreviewContainer}>
+                    <Text style={styles.messagePreview} numberOfLines={2}>
+                      "{item.firstMessage.text}"
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.acceptButton]}
-            onPress={() => handleAccept(
-              item.fromUserId!, 
-              user.displayName,
-              user.photos && user.photos.length > 0 ? user.photos[0] : undefined,
-              item.kind
-            )}
-          >
-            <Text style={styles.acceptButtonText}>Kabul Et</Text>
-          </TouchableOpacity>
-        </View>
-      </Card>
+
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={() => handleDecline(item.fromUserId!)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionButton, styles.declineButton]}>
+                <Ionicons name="close" size={24} color="#FF4D6D" />
+                <Text style={styles.declineButtonText}>Reddet</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={() => handleAccept(
+                item.fromUserId!,
+                user.displayName,
+                user.photos && user.photos.length > 0 ? user.photos[0] : undefined,
+                item.kind
+              )}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.actionButton, styles.acceptButton]}
+              >
+                <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+                <Text style={styles.acceptButtonText}>Kabul Et</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
     );
   };
 
@@ -397,236 +452,323 @@ export default function RequestsScreen() {
           />
         )}
 
-      {/* Match Modal - Modern & Beautiful */}
-      <Modal
-        visible={showMatchModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMatchModalClose}
-        statusBarTranslucent
-      >
-        <View style={styles.matchModalOverlay}>
-          <Animated.View
-            style={[
-              styles.matchModalContainer,
-              {
-                opacity: 1, // Always visible when modal is shown
-                transform: [
-                  {
-                    scale: matchModalAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.9, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={[colors.primary, colors.primaryLight, colors.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.matchModalGradient}
+        {/* Match Modal - Modern & Beautiful */}
+        <Modal
+          visible={showMatchModal}
+          transparent
+          animationType="fade"
+          onRequestClose={handleMatchModalClose}
+          statusBarTranslucent
+        >
+          <View style={styles.matchModalOverlay}>
+            <Animated.View
+              style={[
+                styles.matchModalContainer,
+                {
+                  opacity: 1, // Always visible when modal is shown
+                  transform: [
+                    {
+                      scale: matchModalAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
-              {/* Sparkle Animation */}
-              <Animated.View
-                style={[
-                  styles.sparkleContainer,
-                  {
-                    opacity: sparkleAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.3, 1],
-                    }),
-                  },
-                ]}
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight, colors.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.matchModalGradient}
               >
-                <Text style={styles.sparkleText}>✨</Text>
-              </Animated.View>
-
-              <View style={styles.matchModalContent}>
-                <Text style={styles.matchTitle}>Eşleştiniz! 🎉</Text>
-                
-                {/* Profile Photo */}
-                {matchData?.matchedUserPhoto ? (
-                  <View style={styles.matchPhotoContainer}>
-                    <Image
-                      source={{ uri: matchData.matchedUserPhoto }}
-                      style={styles.matchPhoto}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.matchPhotoRing} />
-                  </View>
-                ) : (
-                  <View style={[styles.matchPhotoContainer, styles.matchPhotoPlaceholder]}>
-                    <Text style={styles.matchPhotoPlaceholderText}>
-                      {matchData?.matchedUserName?.charAt(0).toUpperCase() || "?"}
-                    </Text>
-                    <View style={styles.matchPhotoRing} />
-                  </View>
-                )}
-
-                <Text style={styles.matchName}>
-                  {matchData?.matchedUserName || "Birisi"}
-                </Text>
-                <Text style={styles.matchSubtitle}>
-                  İkiniz de birbirinizi beğendiniz!
-                </Text>
-
-                {/* First Message Info */}
-                {matchData?.isFemale === false && (
-                  <View style={styles.firstMessageInfo}>
-                    <Text style={styles.firstMessageText}>
-                      💬 İlk mesajı {matchData?.matchedUserName || "karşı taraf"} gönderecek
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.matchModalActions}>
-                  <PrimaryButton
-                    title="Sohbete Git"
-                    onPress={handleGoToChat}
-                    style={styles.matchModalButton}
-                  />
-                  <TouchableOpacity
-                    onPress={handleMatchModalClose}
-                    style={styles.matchModalCloseButton}
-                  >
-                    <Text style={styles.matchModalCloseText}>Devam Et</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      {/* Profile Modal */}
-      <Modal
-        visible={showProfileModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowProfileModal(false);
-          setProfileData(null);
-          setSelectedRequest(null);
-        }}
-      >
-        <View style={styles.profileModalOverlay}>
-          <View style={styles.profileModalCard}>
-            {loadingProfile ? (
-              <View style={styles.profileLoadingContainer}>
-                <Text style={styles.profileLoadingText}>Yükleniyor...</Text>
-              </View>
-            ) : profileData ? (
-              <ScrollView
-                style={styles.profileScrollView}
-                contentContainerStyle={styles.profileContent}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                <TouchableOpacity
-                  style={styles.profileCloseButton}
-                  onPress={() => {
-                    setShowProfileModal(false);
-                    setProfileData(null);
-                    setSelectedRequest(null);
-                  }}
+                {/* Sparkle Animation */}
+                <Animated.View
+                  style={[
+                    styles.sparkleContainer,
+                    {
+                      opacity: sparkleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                    },
+                  ]}
                 >
-                  <Text style={styles.profileCloseText}>✕</Text>
-                </TouchableOpacity>
+                  <Text style={styles.sparkleText}>✨</Text>
+                </Animated.View>
 
-                {/* Photo */}
-                {profileData.photos && profileData.photos.length > 0 ? (
-                  <Image
-                    source={{ uri: profileData.photos[0] }}
-                    style={styles.profilePhoto}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.profilePhotoPlaceholder}>
-                    <Text style={styles.profilePhotoPlaceholderText}>
-                      {profileData.displayName.charAt(0).toUpperCase()}
-                    </Text>
+                <View style={styles.matchModalContent}>
+                  <Text style={styles.matchTitle}>Eşleştiniz! 🎉</Text>
+
+                  {/* Profile Photo */}
+                  {matchData?.matchedUserPhoto ? (
+                    <View style={styles.matchPhotoContainer}>
+                      <Image
+                        source={{ uri: matchData.matchedUserPhoto }}
+                        style={styles.matchPhoto}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.matchPhotoRing} />
+                    </View>
+                  ) : (
+                    <View style={[styles.matchPhotoContainer, styles.matchPhotoPlaceholder]}>
+                      <Text style={styles.matchPhotoPlaceholderText}>
+                        {matchData?.matchedUserName?.charAt(0).toUpperCase() || "?"}
+                      </Text>
+                      <View style={styles.matchPhotoRing} />
+                    </View>
+                  )}
+
+                  <Text style={styles.matchName}>
+                    {matchData?.matchedUserName || "Birisi"}
+                  </Text>
+                  <Text style={styles.matchSubtitle}>
+                    İkiniz de birbirinizi beğendiniz!
+                  </Text>
+
+                  {/* First Message Info */}
+                  {matchData?.isFemale === false && (
+                    <View style={styles.firstMessageInfo}>
+                      <Text style={styles.firstMessageText}>
+                        💬 İlk mesajı {matchData?.matchedUserName || "karşı taraf"} gönderecek
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.matchModalActions}>
+                    <PrimaryButton
+                      title="Sohbete Git"
+                      onPress={handleGoToChat}
+                      style={styles.matchModalButton}
+                    />
+                    <TouchableOpacity
+                      onPress={handleMatchModalClose}
+                      style={styles.matchModalCloseButton}
+                    >
+                      <Text style={styles.matchModalCloseText}>Devam Et</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </View>
+        </Modal>
 
-                {/* Profile Info */}
-                <View style={styles.profileInfo}>
-                  <Text style={styles.profileDisplayName}>
-                    {profileData.displayName}
-                    {profileData.birthYear && `, ${new Date().getFullYear() - profileData.birthYear}`}
-                  </Text>
-                  {profileData.city && (
-                    <Text style={styles.profileCity}>📍 {profileData.city}</Text>
+        {/* Profile Modal - FULL SCREEN PREMIUM */}
+        <Modal
+          visible={showProfileModal}
+          transparent={false} // Full screen
+          animationType="slide"
+          onRequestClose={() => {
+            setShowProfileModal(false);
+            setProfileData(null);
+            setSelectedRequest(null);
+          }}
+          statusBarTranslucent
+        >
+          {loadingProfile ? (
+            <View style={styles.profileLoadingContainer}>
+              <View style={styles.loadingSpinner}>
+                <Ionicons name="reload" size={40} color={colors.primary} />
+              </View>
+              <Text style={styles.profileLoadingText}>Profil Yükleniyor...</Text>
+            </View>
+          ) : profileData ? (
+            <View style={styles.profileModalContainer}>
+              <ScrollView
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
+              >
+
+                {/* Photo Carousel */}
+                <View style={styles.carouselContainer}>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    decelerationRate="fast"
+                  >
+                    {profileData.photos && profileData.photos.length > 0 ? (
+                      profileData.photos.map((photo, index) => (
+                        <Image
+                          key={index}
+                          source={{ uri: photo }}
+                          style={styles.carouselPhoto}
+                          resizeMode="cover"
+                        />
+                      ))
+                    ) : (
+                      <View style={[styles.carouselPhoto, styles.carouselPlaceholder]}>
+                        <Text style={styles.carouselPlaceholderText}>
+                          {profileData.displayName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  {/* Gradient Overlay for Text Readability */}
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.9)"]}
+                    style={styles.carouselGradient}
+                  />
+
+                  {/* Close Button - Floating */}
+                  <TouchableOpacity
+                    style={styles.floatingCloseButton}
+                    onPress={() => {
+                      setShowProfileModal(false);
+                      setProfileData(null);
+                      setSelectedRequest(null);
+                    }}
+                  >
+                    <Ionicons name="close" size={28} color="#FFFFFF" />
+                  </TouchableOpacity>
+
+                  {/* Pagination Dots */}
+                  {profileData.photos && profileData.photos.length > 1 && (
+                    <View style={styles.paginationContainer}>
+                      {profileData.photos.map((_, index) => (
+                        <View key={index} style={[styles.paginationDot, { opacity: 0.8 }]} />
+                      ))}
+                    </View>
                   )}
-                  <Text style={styles.profilePurpose}>
-                    {profileData.purpose.charAt(0) +
-                      profileData.purpose.slice(1).toLowerCase()}
-                  </Text>
 
+                  {/* Name & Basic Info Overlay */}
+                  <View style={styles.headerInfoOverlay}>
+                    <Text style={styles.headerName}>
+                      {profileData.displayName}, {profileData.birthYear ? new Date().getFullYear() - profileData.birthYear : ""}
+                    </Text>
+                    <View style={styles.headerLocation}>
+                      <Ionicons name="location" size={16} color={colors.primary} />
+                      <Text style={styles.headerLocationText}>{profileData.city || "Konum belirtilmemiş"}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Profile Details Content */}
+                <View style={styles.profileDetailsContent}>
+
+                  {/* Bio Section */}
                   {profileData.bio && (
-                    <Text style={styles.profileBio}>{profileData.bio}</Text>
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailTitle}>Hakkımda</Text>
+                      <Text style={styles.bioText}>{profileData.bio}</Text>
+                    </View>
                   )}
 
-                  {/* FAVORITE Request Message */}
+                  {/* FAVORITE Message */}
                   {selectedRequest?.kind === "FAVORITE" && selectedRequest.firstMessage && (
-                    <View style={styles.favoriteMessageContainer}>
-                      <Text style={styles.favoriteMessageLabel}>Gelen Mesaj:</Text>
-                      <View style={styles.favoriteMessageBox}>
-                        <Text style={styles.favoriteMessageText}>
-                          {selectedRequest.firstMessage.text}
+                    <View style={styles.favoriteMessageHighlight}>
+                      <LinearGradient
+                        colors={[colors.accent + "20", colors.primary + "10"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.favoriteMessageContent}
+                      >
+                        <View style={styles.favoriteHeader}>
+                          <Ionicons name="star" size={16} color={colors.accent} />
+                          <Text style={styles.favoriteLabel}>Özel Mesaj</Text>
+                        </View>
+                        <Text style={styles.favoriteText}>"{selectedRequest.firstMessage.text}"</Text>
+                      </LinearGradient>
+                    </View>
+                  )}
+
+                  {/* Purpose Chip */}
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailTitle}>Aradığım</Text>
+                    <View style={styles.chipContainer}>
+                      <View style={styles.purposeChip}>
+                        <Text style={styles.purposeText}>
+                          {profileData.purpose === "CONVERSATION" ? "Sohbet" :
+                            profileData.purpose === "PRACTICE" ? "Dil Pratiği" : "Kahve"}
                         </Text>
                       </View>
                     </View>
-                  )}
+                  </View>
 
                   {/* Languages */}
-                  {(profileData.languagesNative.length > 0 ||
-                    profileData.languagesPractice.length > 0) && (
-                    <View style={styles.profileLanguagesContainer}>
-                      {profileData.languagesNative.length > 0 && (
-                        <View style={styles.profileLanguageSection}>
-                          <Text style={styles.profileLanguageLabel}>
-                            SPEAKS:
-                          </Text>
-                          <Text style={styles.profileLanguages}>
-                            {profileData.languagesNative.join(", ")}
-                          </Text>
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailTitle}>Konuştuğum Diller</Text>
+                    <View style={styles.languageTags}>
+                      {profileData.languagesNative.map((lang, index) => (
+                        <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
+                          <Text style={styles.langText}>{lang}</Text>
                         </View>
-                      )}
-                      {profileData.languagesPractice.length > 0 && (
-                        <View style={styles.profileLanguageSection}>
-                          <Text style={styles.profileLanguageLabel}>
-                            LEARNING:
-                          </Text>
-                          <Text style={styles.profileLanguages}>
-                            {profileData.languagesPractice.join(", ")}
-                          </Text>
+                      ))}
+                      {profileData.languagesPractice.map((lang, index) => (
+                        <View key={`practice-${index}`} style={[styles.langTag, styles.practiceTag]}>
+                          <Text style={styles.langText}>{lang}</Text>
+                          <Ionicons name="school-outline" size={12} color={colors.textSecondaryDark} style={{ marginLeft: 4 }} />
                         </View>
-                      )}
+                      ))}
                     </View>
-                  )}
+                  </View>
                 </View>
               </ScrollView>
-            ) : (
-              <View style={styles.profileErrorContainer}>
-                <Text style={styles.profileErrorText}>
-                  Profil yüklenemedi
-                </Text>
+
+              {/* Floating Action Buttons Area */}
+              <LinearGradient
+                colors={["transparent", "rgba(10, 10, 20, 0.95)", "rgba(10, 10, 20, 1)"]}
+                style={[
+                  styles.floatingActionsOverlay,
+                  {
+                    paddingBottom: 20 + insets.bottom,
+                    height: 120 + insets.bottom
+                  }
+                ]}
+              >
                 <TouchableOpacity
-                  style={styles.profileCloseButton}
+                  style={[styles.floatingActionBtn, styles.declineFab]}
                   onPress={() => {
                     setShowProfileModal(false);
-                    setProfileData(null);
+                    handleDecline(selectedRequest?.fromUserId!);
                   }}
                 >
-                  <Text style={styles.profileCloseText}>Kapat</Text>
+                  <Ionicons name="close" size={32} color="#FF4D6D" />
                 </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+
+                <TouchableOpacity
+                  style={[styles.floatingActionBtn, styles.acceptFab]}
+                  onPress={() => {
+                    setShowProfileModal(false);
+                    if (selectedRequest) {
+                      handleAccept(
+                        selectedRequest.fromUserId!,
+                        profileData.displayName,
+                        profileData.photos && profileData.photos.length > 0 ? profileData.photos[0] : undefined,
+                        selectedRequest.kind
+                      );
+                    }
+                  }}
+                >
+                  <LinearGradient
+                    colors={[colors.primary, colors.primaryLight]}
+                    style={styles.acceptFabGradient}
+                  >
+                    <Ionicons name="heart" size={32} color="#FFFFFF" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+
+            </View>
+          ) : (
+            <View style={styles.profileErrorContainer}>
+              <Text style={styles.profileErrorText}>Profil yüklenemedi</Text>
+              <TouchableOpacity
+                style={styles.profileCloseButton}
+                onPress={() => {
+                  setShowProfileModal(false);
+                  setProfileData(null);
+                }}
+              >
+                <Text style={styles.profileCloseText}>Kapat</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -645,202 +787,400 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
   },
-  requestCard: {
+  requestCardWrapper: {
     marginBottom: spacing.md,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  requestCard: {
     padding: spacing.md,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   requestContent: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   userInfo: {
     flexDirection: "row",
-    alignItems: "center",
     gap: spacing.md,
   },
+  avatarContainer: {
+    position: "relative",
+  },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: colors.primaryDark,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   avatarText: {
-    fontSize: typography.fontSize["2xl"],
-    fontWeight: typography.fontWeight.bold,
+    fontSize: 28,
+    fontWeight: "bold",
     color: "#FFFFFF",
+  },
+  favoriteBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.accent,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.backgroundSecondaryDark,
   },
   userDetails: {
     flex: 1,
+    justifyContent: "center",
+  },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: 4,
   },
   userName: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
-    marginBottom: spacing.xs / 2,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  superLikeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  superLikeText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  locationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
   },
   userCity: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    marginBottom: spacing.xs,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontWeight: "500",
+  },
+  messagePreviewContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 4,
   },
   messagePreview: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
     fontStyle: "italic",
-    marginTop: spacing.xs,
+    lineHeight: 18,
   },
   actions: {
     flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
+    gap: spacing.md,
+  },
+  actionButtonContainer: {
+    flex: 1,
   },
   actionButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: 12,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    gap: 8,
   },
   declineButton: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: "rgba(255, 77, 109, 0.15)",
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: "rgba(255, 77, 109, 0.3)",
   },
   declineButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FF4D6D",
   },
   acceptButton: {
-    backgroundColor: colors.primary,
+    // Gradient handled in component
   },
   acceptButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: 15,
+    fontWeight: "700",
     color: "#FFFFFF",
   },
-  profileModalOverlay: {
+  /* Profile Modal Styles */
+  profileLoadingContainer: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
-    padding: spacing.lg,
+    backgroundColor: colors.backgroundDark,
   },
-  profileModalCard: {
-    width: "100%",
-    maxWidth: 500,
-    height: "90%",
-    maxHeight: 600,
-    backgroundColor: colors.backgroundSecondaryDark,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    overflow: "hidden",
-  },
-  profileLoadingContainer: {
-    padding: spacing.xl,
-    alignItems: "center",
+  loadingSpinner: {
+    marginBottom: spacing.md,
   },
   profileLoadingText: {
-    fontSize: typography.fontSize.base,
     color: colors.textSecondaryDark,
+    fontSize: 16,
   },
-  profileScrollView: {
+  profileModalContainer: {
     flex: 1,
-  },
-  profileContent: {
-    padding: spacing.lg,
-  },
-  profileCloseButton: {
-    alignSelf: "flex-end",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     backgroundColor: colors.backgroundDark,
+  },
+  carouselContainer: {
+    height: SCREEN_HEIGHT * 0.65,
+    position: "relative",
+  },
+  carouselPhoto: {
+    width: SCREEN_WIDTH,
+    height: "100%",
+  },
+  carouselPlaceholder: {
+    backgroundColor: colors.primaryDark,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.md,
   },
-  profileCloseText: {
-    fontSize: typography.fontSize.lg,
-    color: colors.textDark,
-    fontWeight: typography.fontWeight.bold,
+  carouselPlaceholderText: {
+    fontSize: 80,
+    fontWeight: "bold",
+    color: "rgba(255,255,255,0.3)",
   },
-  profilePhoto: {
-    width: "100%",
-    height: 300,
-    borderRadius: 12,
-    marginBottom: spacing.md,
+  carouselGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 200,
   },
-  profilePhotoPlaceholder: {
-    width: "100%",
-    height: 300,
-    borderRadius: 12,
-    backgroundColor: colors.primary + "20",
+  floatingCloseButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.md,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  profilePhotoPlaceholderText: {
-    fontSize: typography.fontSize["5xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
+  paginationContainer: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    flexDirection: "row",
+    gap: 6,
   },
-  profileInfo: {
-    gap: spacing.sm,
+  paginationDot: {
+    width: 30,
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    borderRadius: 2,
   },
-  profileDisplayName: {
-    fontSize: typography.fontSize["2xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
+  activeDot: {
+    backgroundColor: "#FFFFFF",
   },
-  profileCity: {
-    fontSize: typography.fontSize.base,
+  headerInfoOverlay: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+  },
+  headerName: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    marginBottom: 4,
+  },
+  headerLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerLocationText: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "500",
+  },
+  profileDetailsContent: {
+    padding: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  detailSection: {
+    marginBottom: spacing.xl,
+  },
+  detailTitle: {
+    fontSize: 14,
+    fontWeight: "700",
     color: colors.textSecondaryDark,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: spacing.md,
   },
-  profilePurpose: {
-    fontSize: typography.fontSize.sm,
-    color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
-    textTransform: "capitalize",
-  },
-  profileBio: {
-    fontSize: typography.fontSize.base,
+  bioText: {
+    fontSize: 16,
     color: colors.textDark,
     lineHeight: 24,
-    marginTop: spacing.xs,
+    fontWeight: "400",
   },
-  profileLanguagesContainer: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
+  chipContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  profileLanguageSection: {
-    gap: spacing.xs / 2,
+  purposeChip: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
   },
-  profileLanguageLabel: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textSecondaryDark,
-    letterSpacing: 1.2,
+  purposeText: {
+    color: colors.primary,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  languageTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  langTag: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  nativeTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  practiceTag: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderStyle: "dashed",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  langText: {
+    color: colors.textDark,
+    fontSize: 14,
+  },
+  favoriteMessageHighlight: {
+    marginBottom: spacing.xl,
+  },
+  favoriteMessageContent: {
+    padding: spacing.md,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.accent + "50",
+  },
+  favoriteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  favoriteLabel: {
+    color: colors.accent,
+    fontWeight: "700",
+    fontSize: 12,
     textTransform: "uppercase",
   },
-  profileLanguages: {
-    fontSize: typography.fontSize.base,
-    color: colors.textDark,
+  favoriteText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontStyle: "italic",
+    lineHeight: 22,
+  },
+  floatingActionsOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 30,
+    paddingBottom: 20,
+  },
+  floatingActionBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  declineFab: {
+    backgroundColor: "#2A2A35",
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 109, 0.3)",
+  },
+  acceptFab: {
+    // Gradient handled inside
+  },
+  acceptFabGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileErrorContainer: {
-    padding: spacing.xl,
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.backgroundDark,
   },
   profileErrorText: {
     fontSize: typography.fontSize.base,
     color: colors.textSecondaryDark,
     marginBottom: spacing.md,
+  },
+  profileCloseButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  profileCloseText: {
+    color: colors.textDark,
+    fontWeight: "600",
   },
   matchModalOverlay: {
     flex: 1,

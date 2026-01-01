@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
-import { Card } from "@/src/components/Card";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -16,6 +15,7 @@ type ChatListItemProps = {
   lastMessage?: string;
   time?: string;
   unread?: boolean;
+  isMyMessage?: boolean;
   onPress: (conversationId: string) => void;
 };
 
@@ -25,6 +25,7 @@ export function ChatListItem({
   lastMessage,
   time,
   unread = false,
+  isMyMessage = false,
   onPress,
 }: ChatListItemProps) {
   const formatTime = (timeString?: string) => {
@@ -37,13 +38,13 @@ export function ChatListItem({
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return "now";
-      if (diffMins < 60) return `${diffMins}m`;
-      if (diffHours < 24) return `${diffHours}h`;
-      if (diffDays < 7) return `${diffDays}d`;
-      
+      if (diffMins < 1) return "Şimdi";
+      if (diffMins < 60) return `${diffMins}d`;
+      if (diffHours < 24) return `${diffHours}s`;
+      if (diffDays < 7) return `${diffDays}g`;
+
       // Show date if older
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return date.toLocaleDateString("tr-TR", { month: "short", day: "numeric" });
     } catch {
       return null;
     }
@@ -51,77 +52,75 @@ export function ChatListItem({
 
   return (
     <TouchableOpacity onPress={() => onPress(conversationId)} activeOpacity={0.7}>
-      <Card style={styles.card}>
-        <View style={styles.content}>
-          {/* Avatar */}
-          {otherUser.photos && otherUser.photos.length > 0 ? (
-            <Image
-              source={{ uri: otherUser.photos[0] }}
-              style={styles.avatar}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
-                {otherUser.displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+      <View style={styles.container}>
+        {/* Avatar */}
+        {otherUser.photos && otherUser.photos.length > 0 ? (
+          <Image
+            source={{ uri: otherUser.photos[0] }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              {otherUser.displayName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
 
-          {/* Info */}
-          <View style={styles.info}>
-            <View style={styles.headerRow}>
-              <Text style={[styles.name, unread && styles.nameUnread]} numberOfLines={1}>
-                {otherUser.displayName}
-              </Text>
-              {time && (
-                <Text style={styles.time}>{formatTime(time)}</Text>
-              )}
-            </View>
-            
-            <View style={styles.footerRow}>
-              {lastMessage ? (
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {lastMessage}
-                </Text>
-              ) : (
-                <Text style={styles.lastMessagePlaceholder}>
-                  {otherUser.city || "Start a conversation"}
-                </Text>
-              )}
-              {unread && <View style={styles.unreadDot} />}
-            </View>
+        {/* Info */}
+        <View style={styles.info}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.name, unread && styles.nameUnread]} numberOfLines={1}>
+              {otherUser.displayName}
+            </Text>
+            {time && (
+              <Text style={[styles.time, unread && styles.timeUnread]}>{formatTime(time)}</Text>
+            )}
+          </View>
+
+          <View style={styles.footerRow}>
+            <Text
+              style={[styles.lastMessage, unread && styles.lastMessageUnread]}
+              numberOfLines={1}
+            >
+              {isMyMessage && <Text style={styles.senderPrefix}>Sen: </Text>}
+              {lastMessage || <Text style={styles.placeholderText}>{otherUser.city || "Sohbete başla"}</Text>}
+            </Text>
+            {unread && <View style={styles.unreadDot} />}
           </View>
         </View>
-      </Card>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: spacing.sm,
-  },
-  content: {
+  container: {
     flexDirection: "row",
     alignItems: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+    backgroundColor: colors.backgroundDark,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     marginRight: spacing.md,
   },
   avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary + "20",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.backgroundSecondaryDark,
     justifyContent: "center",
     alignItems: "center",
     marginRight: spacing.md,
-    borderWidth: 2,
-    borderColor: colors.primary + "40",
+    borderWidth: 1,
+    borderColor: colors.borderDark,
   },
   avatarText: {
     fontSize: typography.fontSize.xl,
@@ -130,29 +129,33 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    justifyContent: "center",
     minWidth: 0,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.xs / 2,
+    marginBottom: 4,
   },
   name: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textSecondary,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
     flex: 1,
     marginRight: spacing.xs,
   },
   nameUnread: {
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: "#FFFFFF",
   },
   time: {
     fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.medium,
+    color: colors.textSecondaryDark,
+    fontWeight: typography.fontWeight.regular,
+  },
+  timeUnread: {
+    color: colors.primary,
+    fontWeight: typography.fontWeight.semibold,
   },
   footerRow: {
     flexDirection: "row",
@@ -161,21 +164,29 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     flex: 1,
     marginRight: spacing.xs,
+    lineHeight: 20,
   },
-  lastMessagePlaceholder: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textTertiary,
+  lastMessageUnread: {
+    color: colors.textDark,
+    fontWeight: typography.fontWeight.medium,
+  },
+  placeholderText: {
     fontStyle: "italic",
-    flex: 1,
+    opacity: 0.8,
+  },
+  senderPrefix: {
+    color: colors.textDark,
+    fontWeight: typography.fontWeight.medium,
   },
   unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.primary,
+    marginLeft: spacing.xs,
   },
 });
 

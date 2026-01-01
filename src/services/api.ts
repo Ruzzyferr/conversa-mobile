@@ -153,6 +153,7 @@ class ApiClient {
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
     bio: string | null;
     photos: string[];
+    gender?: "MALE" | "FEMALE" | "OTHER" | null;
     createdAt: string;
     updatedAt: string;
   }> {
@@ -324,7 +325,8 @@ class ApiClient {
     }>
   > {
     const response = await this.client.get("/api/v1/matches");
-    return response.data;
+    // Backend returns paginated response { items: [], nextCursor: ... }
+    return response.data.items || [];
   }
 
   async getConversations(): Promise<
@@ -337,6 +339,13 @@ class ApiClient {
         photos: string[];
         city: string | null;
       };
+      created_at: string;
+      lastMessage?: {
+        text: string;
+        audioUrl?: string | null;
+        createdAt: string;
+        senderUserId: string;
+      } | null;
       createdAt: string;
     }>
   > {
@@ -417,23 +426,42 @@ class ApiClient {
     audioUrl: string;
     createdAt: string;
   }> {
+    // Use fetch instead of axios for reliable file uploads in React Native
+    const token = await getToken();
     const formData = new FormData();
+
+    // Ensure URI is correct for Android
+    let uri = audioUri;
+    if (Platform.OS === "android" && !uri.startsWith("file://")) {
+      uri = `file://${uri}`;
+    }
+
     formData.append("audio", {
-      uri: audioUri,
+      uri: uri,
       type: "audio/m4a",
       name: "audio.m4a",
     } as any);
 
-    const response = await this.client.post(
-      `/api/v1/chat/conversations/${conversationId}/messages/audio`,
-      formData,
-      {
+    try {
+      const response = await fetch(`${this.client.defaults.baseURL}/api/v1/chat/conversations/${conversationId}/messages/audio`, {
+        method: "POST",
         headers: {
-          "Content-Type": "multipart/form-data",
+          "Authorization": token ? `Bearer ${token}` : "",
+          // Do NOT set Content-Type header, let fetch handle the boundary
         },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} ${errorText}`);
       }
-    );
-    return response.data;
+
+      return await response.json();
+    } catch (error) {
+      console.error("Audio upload error details:", error);
+      throw error;
+    }
   }
 
   async deleteConversation(conversationId: string): Promise<void> {

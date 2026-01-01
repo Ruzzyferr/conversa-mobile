@@ -35,6 +35,12 @@ type Conversation = {
     city: string | null;
   };
   createdAt: string;
+  lastMessage?: {
+    text: string;
+    audioUrl?: string | null;
+    createdAt: string;
+    senderUserId: string;
+  } | null;
 };
 
 type ChatRequest = {
@@ -56,11 +62,14 @@ type ChatRequest = {
 
 export default function ChatScreen() {
   const router = useRouter();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversations, setActiveConversations] = useState<Conversation[]>([]);
+  const [newMatches, setNewMatches] = useState<any[]>([]);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyingToRequestId, setReplyingToRequestId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -71,13 +80,48 @@ export default function ChatScreen() {
       }
 
       setLoading(true);
-      const [conversationsData, requestsData] = await Promise.all([
+      const [conversationsData, requestsData, matchesData, meData] = await Promise.all([
         api.getConversations(),
         api.getChatRequests(),
+        api.listMatches(),
+        api.getMe(),
       ]);
-      
-      // Filter out conversations without conversationId (shouldn't happen, but just in case)
-      setConversations(conversationsData.filter((c) => c.conversationId !== null) as Conversation[]);
+
+      setCurrentUserId(meData.user.id);
+
+      // 1. Separate Active Conversations (those with messages)
+      const active = conversationsData.filter(c => c.lastMessage !== null && c.lastMessage !== undefined);
+
+      // 2. Identify New Matches (matches without active conversations)
+      // Start with all explicit matches
+      let matches = [...matchesData];
+
+      // Add conversations that have NO messages (technically just matches still)
+      const emptyConversations = conversationsData.filter(c => !c.lastMessage);
+
+      // Map empty conversations to match format if needed, or just treat duplicate logic
+      // Ideally, simple Matches don't imply a conversation exists yet.
+      // We want to show a unique list of people to start chatting with.
+
+      const activeUserIds = new Set(active.map(c => c.otherUser.userId));
+
+      // Filter out matches that are already in active conversations
+      const uniqueNewMatches = matches.filter(m => !activeUserIds.has(m.otherUser.userId));
+
+      // Also add empty conversations if they are not in uniqueNewMatches yet
+      emptyConversations.forEach(c => {
+        if (!activeUserIds.has(c.otherUser.userId) && !uniqueNewMatches.find(m => m.otherUser.userId === c.otherUser.userId)) {
+          uniqueNewMatches.push({
+            matchId: c.matchId || "unknown",
+            conversationId: c.conversationId,
+            otherUser: c.otherUser,
+            createdAt: c.createdAt
+          });
+        }
+      });
+
+      setActiveConversations(active as Conversation[]);
+      setNewMatches(uniqueNewMatches);
       setChatRequests(requestsData);
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -97,6 +141,20 @@ export default function ChatScreen() {
     router.push(`/conversation/${conversationId}`);
   };
 
+  const handleMatchPress = async (match: any) => {
+    if (match.conversationId) {
+      router.push(`/conversation/${match.conversationId}`);
+    } else {
+      // Should create conversation or just navigate with matchId context?
+      // Usually we need conversationId. If it's null, verify backend logic.
+      // Assuming backend creates conversation on match or on first message.
+      // If null, we might need an endpoint to "start" conversation or passing user ID.
+      // For now, let's assume we can navigate to conversation/new?userId=... or similar.
+      // Actually swiip usually has conversationId.
+      console.warn("No conversation ID for match", match);
+    }
+  };
+
   const handleDiscoverPress = () => {
     router.push("/(tabs)/home");
   };
@@ -111,28 +169,27 @@ export default function ChatScreen() {
       const result = await api.replyToRequest(requestId, replyText.trim());
       setReplyingToRequestId(null);
       setReplyText("");
-      
+
       // Navigate to conversation
       router.push(`/conversation/${result.conversationId}`);
-      
+
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
       let errorMessage = error instanceof Error ? error.message : "Mesaj gönderilemedi";
-      
-      // Check for first message restriction errors
+
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;
         const code = errorData?.code;
         const message = errorData?.message || errorMessage;
-        
+
         if (code === "FIRST_MESSAGE_RESTRICTED" || code === "MALE_CANNOT_SEND_FIRST_MESSAGE" || message.toLowerCase().includes("kadın") || message.toLowerCase().includes("first message")) {
           errorMessage = "Bu eşleşmede ilk mesajı kadın tarafı göndermelidir. Lütfen karşı tarafın ilk mesajı göndermesini bekleyin.";
         } else {
           errorMessage = message;
         }
       }
-      
+
       Alert.alert("Hata", errorMessage);
     }
   };
@@ -140,11 +197,11 @@ export default function ChatScreen() {
   const handleAcceptRequest = async (requestId: string, fromUserId: string) => {
     try {
       const result = await api.acceptRequest(fromUserId);
-      
+
       if (result.conversationId) {
         router.push(`/conversation/${result.conversationId}`);
       }
-      
+
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
@@ -153,21 +210,30 @@ export default function ChatScreen() {
     }
   };
 
-  const subtitle = conversations.length > 0 
-    ? `${conversations.length} ${conversations.length === 1 ? "conversation" : "conversations"}`
-    : undefined;
+  const handleDeclineRequest = async (requestId: string, fromUserId: string) => {
+    try {
+      await api.declineRequest(fromUserId);
+      // Reload conversations/requests
+      await loadConversations();
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : "İstek reddedilemedi";
+      Alert.alert("Hata", message);
+    }
+  };
 
-  if (loading && conversations.length === 0) {
+  const calculateAge = (birthYear?: number) => {
+    if (!birthYear) return "";
+    const currentYear = new Date().getFullYear();
+    return `, ${currentYear - birthYear}`;
+  };
+
+  if (loading && activeConversations.length === 0 && newMatches.length === 0) {
     return (
       <SafeAreaView>
         <View style={styles.container}>
           <ScreenHeader title="Chat" />
           <View style={styles.loadingContainer}>
-            <EmptyState
-              icon="💬"
-              title="Loading..."
-              description=""
-            />
+            <EmptyState icon="💬" title="Loading..." description="" />
           </View>
         </View>
       </SafeAreaView>
@@ -177,99 +243,153 @@ export default function ChatScreen() {
   return (
     <SafeAreaView>
       <View style={styles.container}>
-        <ScreenHeader 
-          title="Chat" 
-          subtitle={subtitle}
-        />
-        
-        {/* Requests Section */}
-        {chatRequests.length > 0 && (
-          <View style={styles.requestsSection}>
-            <Text style={styles.requestsSectionTitle}>İstekler</Text>
-            <FlatList
-              data={chatRequests}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.requestsList}
-              renderItem={({ item }) => (
-                <Card style={styles.requestCard}>
-                  <View style={styles.requestHeader}>
-                    {item.fromUser.photos && item.fromUser.photos.length > 0 ? (
-                      <Image
-                        source={{ uri: item.fromUser.photos[0] }}
-                        style={styles.requestAvatar}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.requestAvatarPlaceholder}>
-                        <Text style={styles.requestAvatarText}>
-                          {item.fromUser.displayName.charAt(0).toUpperCase()}
-                        </Text>
+        <ScreenHeader title="Chat" />
+
+        <FlatList
+          data={activeConversations}
+          keyExtractor={(item) => item.conversationId || item.matchId}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={loadConversations}
+              tintColor={colors.primary}
+            />
+          }
+          ListHeaderComponent={
+            <>
+              {/* Requests Section */}
+              {chatRequests.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>İstekler ({chatRequests.length})</Text>
+                  <FlatList
+                    data={chatRequests}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.requestsList}
+                    renderItem={({ item }) => (
+                      <View style={styles.requestCard}>
+                        <View style={styles.requestContent}>
+                          <View style={styles.requestHeader}>
+                            {item.fromUser.photos && item.fromUser.photos.length > 0 ? (
+                              <Image
+                                source={{ uri: item.fromUser.photos[0] }}
+                                style={styles.requestAvatar}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <View style={styles.requestAvatarPlaceholder}>
+                                <Text style={styles.requestAvatarText}>
+                                  {item.fromUser.displayName.charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                            )}
+                            <View style={styles.requestUserInfo}>
+                              <Text style={styles.requestUserName}>
+                                {item.fromUser.displayName}{(item.fromUser as any).birthYear ? calculateAge((item.fromUser as any).birthYear) : ""}
+                              </Text>
+                              {item.fromUser.city && (
+                                <Text style={styles.requestUserCity}>📍 {item.fromUser.city}</Text>
+                              )}
+                            </View>
+                          </View>
+
+                          {item.firstMessage && (
+                            <View style={styles.messageBubble}>
+                              <Text style={styles.requestMessage} numberOfLines={2}>
+                                "{item.firstMessage.text}"
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={styles.requestActions}>
+                            <TouchableOpacity
+                              style={styles.declineButton}
+                              onPress={() => handleDeclineRequest(item.requestId, item.fromUserId)}
+                            >
+                              <Text style={styles.declineButtonText}>Reddet</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.acceptButton}
+                              onPress={() => handleAcceptRequest(item.requestId, item.fromUserId)}
+                            >
+                              <Text style={styles.acceptButtonText}>Kabul Et</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
                       </View>
                     )}
-                    <View style={styles.requestUserInfo}>
-                      <Text style={styles.requestUserName}>{item.fromUser.displayName}</Text>
-                      {item.fromUser.city && (
-                        <Text style={styles.requestUserCity}>📍 {item.fromUser.city}</Text>
-                      )}
-                    </View>
-                  </View>
-                  {item.firstMessage && (
-                    <Text style={styles.requestMessage} numberOfLines={3}>
-                      {item.firstMessage.text}
-                    </Text>
-                  )}
-                  <View style={styles.requestActions}>
-                    <TouchableOpacity
-                      style={[styles.requestActionButton, styles.replyButton]}
-                      onPress={() => setReplyingToRequestId(item.requestId)}
-                    >
-                      <Text style={styles.replyButtonText}>Cevapla</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.requestActionButton, styles.acceptButton]}
-                      onPress={() => handleAcceptRequest(item.requestId, item.fromUserId)}
-                    >
-                      <Text style={styles.acceptButtonText}>Kabul Et</Text>
-                    </TouchableOpacity>
-                  </View>
-                </Card>
+                    keyExtractor={(item) => item.requestId}
+                  />
+                </View>
               )}
-              keyExtractor={(item) => item.requestId}
-            />
-          </View>
-        )}
 
-        {conversations.length === 0 && chatRequests.length === 0 ? (
-          <EmptyState
-            icon="💬"
-            title="No conversations yet"
-            description="Start swiping and match with people to begin chatting!"
-            ctaText="Discover people"
-            onCtaPress={handleDiscoverPress}
-          />
-        ) : (
-          <FlatList
-            data={conversations}
-            renderItem={({ item }) => (
-              <ChatListItem
-                conversationId={item.conversationId!}
-                otherUser={item.otherUser}
-                onPress={handleConversationPress}
+              {/* New Matches Section */}
+              {newMatches.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Yeni Eşleşmeler 💖</Text>
+                  <FlatList
+                    data={newMatches}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalList}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.matchItem}
+                        onPress={() => item.conversationId && handleConversationPress(item.conversationId)}
+                      >
+                        {item.otherUser.photos && item.otherUser.photos.length > 0 ? (
+                          <Image
+                            source={{ uri: item.otherUser.photos[0] }}
+                            style={styles.matchAvatar}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.matchAvatarPlaceholder}>
+                            <Text style={styles.matchAvatarText}>
+                              {item.otherUser.displayName.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.matchName} numberOfLines={1}>
+                          {item.otherUser.displayName}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item) => item.matchId}
+                  />
+                </View>
+              )}
+
+              {/* Messages Header */}
+              <Text style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
+                Mesajlar
+              </Text>
+            </>
+          }
+          ListEmptyComponent={
+            <View style={{ marginTop: 50 }}>
+              <EmptyState
+                icon="💬"
+                title="Henüz mesaj yok"
+                description="Yeni insanlarla tanışmak için keşfetmeye başla!"
+                ctaText="Keşfet"
+                onCtaPress={handleDiscoverPress}
               />
-            )}
-            keyExtractor={(item) => item.matchId}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={loading}
-                onRefresh={loadConversations}
-                tintColor={colors.primary}
-              />
-            }
-          />
-        )}
+            </View>
+          }
+          renderItem={({ item }) => (
+            <ChatListItem
+              conversationId={item.conversationId!}
+              otherUser={item.otherUser}
+              lastMessage={item.lastMessage?.audioUrl ? "🎤 Sesli Mesaj" : item.lastMessage?.text}
+              time={item.lastMessage?.createdAt}
+              isMyMessage={currentUserId ? item.lastMessage?.senderUserId === currentUserId : false}
+              onPress={handleConversationPress}
+            />
+          )}
+        />
 
         {/* Reply Modal */}
         <Modal
@@ -334,106 +454,160 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundDark,
   },
   listContent: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
     paddingBottom: spacing.xl,
   },
   loadingContainer: {
     flex: 1,
   },
-  requestsSection: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+  section: {
+    marginBottom: spacing.md,
   },
-  requestsSectionTitle: {
-    fontSize: typography.fontSize.base,
+  sectionTitle: {
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
+    color: colors.textSecondaryDark,
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  horizontalList: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.md,
   },
   requestsList: {
     paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.md,
+    paddingBottom: spacing.xs,
   },
+  // New Matches Styles
+  matchItem: {
+    alignItems: "center",
+    width: 70,
+  },
+  matchAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: spacing.xs,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  matchAvatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.backgroundSecondaryDark,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  matchAvatarText: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
+  },
+  matchName: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textDark,
+    textAlign: "center",
+  },
+  // Request Styles
   requestCard: {
     width: 280,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    overflow: "hidden",
+  },
+  requestContent: {
     padding: spacing.md,
-    marginRight: spacing.sm,
   },
   requestHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   requestAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   requestAvatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },
   requestAvatarText: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
     color: "#FFFFFF",
+    fontSize: typography.fontSize.lg,
+    fontWeight: "bold",
   },
   requestUserInfo: {
     flex: 1,
   },
   requestUserName: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "bold",
     color: colors.textDark,
-    marginBottom: spacing.xs / 2,
   },
   requestUserCity: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondaryDark,
+    marginTop: 2,
+  },
+  messageBubble: {
+    backgroundColor: colors.backgroundDark,
+    padding: spacing.sm,
+    borderRadius: 12,
+    marginBottom: spacing.md,
+    borderTopLeftRadius: 2,
   },
   requestMessage: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondaryDark,
-    marginBottom: spacing.sm,
-    lineHeight: 18,
+    fontStyle: "italic",
+    lineHeight: 20,
   },
   requestActions: {
     flexDirection: "row",
     gap: spacing.sm,
   },
-  requestActionButton: {
+  declineButton: {
     flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: "center",
-  },
-  replyButton: {
-    backgroundColor: colors.backgroundDark,
     borderWidth: 1,
     borderColor: colors.borderDark,
+    backgroundColor: "transparent",
   },
-  replyButtonText: {
+  declineButtonText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
+    fontWeight: "bold",
+    color: colors.textSecondaryDark,
   },
   acceptButton: {
+    flex: 1,
     backgroundColor: colors.primary,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
   },
   acceptButtonText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "bold",
     color: "#FFFFFF",
   },
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",

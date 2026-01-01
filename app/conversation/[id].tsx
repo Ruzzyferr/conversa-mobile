@@ -16,7 +16,7 @@ import {
   Animated,
   Pressable,
 } from "react-native";
-import * as Audio from "expo-av";
+import { Audio } from "expo-av";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -29,6 +29,7 @@ import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
 import { MaterialIcons } from "@expo/vector-icons";
+import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
 
 type Message = {
   id: string;
@@ -60,11 +61,7 @@ export default function ConversationScreen() {
     new Animated.Value(0),
     new Animated.Value(0),
   ]).current;
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const recordingDurationInterval = useRef<NodeJS.Timeout | null>(null);
-  const recordingAnim = useRef(new Animated.Value(1)).current;
+  const [isRecordingActive, setIsRecordingActive] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserGender, setCurrentUserGender] = useState<"MALE" | "FEMALE" | "OTHER" | null>(null);
   const [otherUser, setOtherUser] = useState<{
@@ -114,28 +111,6 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     checkAuthAndLoadMessages();
-    
-    // Request audio permissions
-    (async () => {
-      try {
-        const { status } = await Audio.Recording.requestPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("İzin Gerekli", "Ses kaydetmek için mikrofon izni gereklidir.");
-        }
-      } catch (error) {
-        console.error("Failed to request audio permissions:", error);
-      }
-    })();
-
-    return () => {
-      // Cleanup
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync();
-      }
-      if (recordingDurationInterval.current) {
-        clearInterval(recordingDurationInterval.current);
-      }
-    };
   }, [conversationId]);
 
   const handleAvatarPress = async () => {
@@ -143,12 +118,12 @@ export default function ConversationScreen() {
       console.log("handleAvatarPress: otherUser is null");
       return;
     }
-    
+
     console.log("handleAvatarPress: Opening profile modal for userId:", otherUser.userId);
     setShowProfileModal(true);
     setLoadingProfile(true);
     setProfileData(null);
-    
+
     try {
       console.log("handleAvatarPress: Calling api.getUserProfile");
       const profile = await api.getUserProfile(otherUser.userId);
@@ -176,12 +151,12 @@ export default function ConversationScreen() {
   };
 
   // Check if we should show waiting screen (male user in male-female match with no messages)
-  const isMaleFemaleMatch = 
-    currentUserGender === "MALE" && 
+  const isMaleFemaleMatch =
+    currentUserGender === "MALE" &&
     otherUser?.gender === "FEMALE";
-  const shouldShowWaitingScreen = 
-    isMaleFemaleMatch && 
-    !hasMessages && 
+  const shouldShowWaitingScreen =
+    isMaleFemaleMatch &&
+    !hasMessages &&
     messages.length === 0 &&
     !firstMessage; // Only for LIKE matches, not FAVORITE (which already has firstMessage)
 
@@ -250,14 +225,14 @@ export default function ConversationScreen() {
 
       const me = await api.getMe();
       setCurrentUserId(me.user.id);
-      
+
       // Load conversation details to get other user info
       const conversationDetails = await api.getConversationDetails(conversationId);
       setOtherUser(conversationDetails.otherUser);
       setFirstMessage(conversationDetails.firstMessage || null);
       setCurrentUserGender(conversationDetails.currentUserGender || null);
       setHasMessages(conversationDetails.hasMessages || false);
-      
+
       await loadMessages();
     } catch (error) {
       console.error("Failed to load messages:", error);
@@ -340,7 +315,7 @@ export default function ConversationScreen() {
 
     setTone(selectedTone);
     setPolishing(true);
-    
+
     try {
       const result = await api.polishMessage(messageText, selectedTone);
       setMessageText(result.polishedText);
@@ -389,83 +364,22 @@ export default function ConversationScreen() {
     }
   };
 
-  const handleStartRecording = async () => {
+  // Handler for VoiceRecorder - sends audio message
+  const handleSendAudio = async (uri: string) => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      // Start pulse animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(recordingAnim, {
-            toValue: 1.2,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(recordingAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-
-      // Start duration counter
-      recordingDurationInterval.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000);
-    } catch (error) {
-      console.error("Failed to start recording:", error);
-      Alert.alert("Hata", "Ses kaydı başlatılamadı");
-    }
-  };
-
-  const handleStopRecording = async () => {
-    if (!recordingRef.current) return;
-
-    try {
-      setIsRecording(false);
-      recordingAnim.stopAnimation();
-      recordingAnim.setValue(1);
-
-      if (recordingDurationInterval.current) {
-        clearInterval(recordingDurationInterval.current);
-        recordingDurationInterval.current = null;
-      }
-
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      
-      if (!uri) {
-        Alert.alert("Hata", "Ses kaydı oluşturulamadı");
-        return;
-      }
-
-      // Send audio message
       setSending(true);
       const newMessage = await api.sendAudioMessage(conversationId, uri);
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => [...prev, { ...newMessage, text: newMessage.text || "" }]);
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
-      console.error("Failed to stop recording:", error);
+      console.error("Failed to send audio:", error);
       Alert.alert("Hata", "Ses gönderilemedi");
+      throw error; // Re-throw so VoiceRecorder can handle it
     } finally {
       setSending(false);
-      recordingRef.current = null;
-      setRecordingDuration(0);
     }
   };
 
@@ -541,7 +455,7 @@ export default function ConversationScreen() {
 
   const handleBlock = async () => {
     if (!otherUser) return;
-    
+
     Alert.alert(
       "Engelle",
       `${otherUser.displayName} kişisini engellemek istediğine emin misin? Bu işlem geri alınamaz.`,
@@ -570,7 +484,7 @@ export default function ConversationScreen() {
 
   const handleReport = async () => {
     if (!otherUser || !reportReason) return;
-    
+
     try {
       await api.reportUser(
         otherUser.userId,
@@ -592,7 +506,7 @@ export default function ConversationScreen() {
 
   const handleLeaveConversation = async () => {
     if (!otherUser) return;
-    
+
     Alert.alert(
       "Konuşmadan Ayrıl",
       `Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de ${otherUser.displayName}'den silecektir.`,
@@ -658,6 +572,12 @@ export default function ConversationScreen() {
     const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [position, setPosition] = useState(0);
+    const [playbackFinished, setPlaybackFinished] = useState(false);
+
+    // Generate random waveform bars once
+    const waveBars = useRef(
+      Array.from({ length: 20 }, () => Math.floor(Math.random() * 20) + 4)
+    ).current;
 
     useEffect(() => {
       return () => {
@@ -669,18 +589,17 @@ export default function ConversationScreen() {
 
     const loadAudio = async () => {
       try {
-        // Construct full URL if it's a relative path
         const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
-        const fullUrl = audioUrl.startsWith("http") 
-          ? audioUrl 
+        const fullUrl = audioUrl.startsWith("http")
+          ? audioUrl
           : `${baseUrl}${audioUrl}`;
-        
+
         const { sound: audioSound } = await Audio.Sound.createAsync(
           { uri: fullUrl },
           { shouldPlay: false }
         );
         setSound(audioSound);
-        
+
         const status = await audioSound.getStatusAsync();
         if (status.isLoaded) {
           setDuration(status.durationMillis || 0);
@@ -701,14 +620,23 @@ export default function ConversationScreen() {
         if (isPlaying) {
           await sound.pauseAsync();
         } else {
-          await sound.playAsync();
+          // If finished, reset to beginning
+          if (playbackFinished) {
+            await sound.replayAsync();
+            setPlaybackFinished(false);
+          } else {
+            await sound.playAsync();
+          }
+
           sound.setOnPlaybackStatusUpdate((status) => {
             if (status.isLoaded) {
               setIsPlaying(status.isPlaying);
               setPosition(status.positionMillis || 0);
               if (status.didJustFinish) {
                 setIsPlaying(false);
-                setPosition(0);
+                setPlaybackFinished(true);
+                // Reset position UI immediately for better UX
+                setPosition(duration);
               }
             }
           });
@@ -726,20 +654,43 @@ export default function ConversationScreen() {
     };
 
     return (
-      <View style={styles.audioPlayerContainer}>
-        <TouchableOpacity onPress={playPause} style={styles.audioPlayButton}>
-          <Text style={styles.audioPlayIcon}>{isPlaying ? "⏸" : "▶"}</Text>
+      <View style={[styles.audioPlayerContainer, !isMyMessage && styles.audioPlayerContainerOther]}>
+        <TouchableOpacity
+          onPress={playPause}
+          style={[styles.audioPlayButton, isMyMessage ? styles.audioPlayButtonMy : styles.audioPlayButtonOther]}
+        >
+          <MaterialIcons
+            name={isPlaying ? "pause" : playbackFinished ? "replay" : "play-arrow"}
+            size={24}
+            color={isMyMessage ? colors.primary : colors.text}
+          />
         </TouchableOpacity>
-        <View style={styles.audioInfo}>
-          <View style={styles.audioWaveform}>
-            <View
-              style={[
-                styles.audioProgress,
-                { width: `${duration > 0 ? (position / duration) * 100 : 0}%` },
-              ]}
-            />
+
+        <View style={styles.audioContent}>
+          {/* Simulated Waveform */}
+          <View style={styles.audioWaveformContainer}>
+            {waveBars.map((height, index) => {
+              // Simple progress visualization based on index
+              const progress = position / duration;
+              const isPlayed = index / waveBars.length < progress;
+
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.waveBar,
+                    {
+                      height,
+                      backgroundColor: isPlayed
+                        ? (isMyMessage ? "rgba(255,255,255,0.9)" : colors.primary)
+                        : (isMyMessage ? "rgba(255,255,255,0.4)" : colors.primary + "40")
+                    }
+                  ]}
+                />
+              );
+            })}
           </View>
-          <Text style={[styles.audioTime, isMyMessage && styles.audioTimeMy]}>
+          <Text style={[styles.audioTime, isMyMessage ? styles.audioTimeMy : styles.audioTimeOther]}>
             {formatTime(position || duration)}
           </Text>
         </View>
@@ -906,29 +857,29 @@ export default function ConversationScreen() {
                         {/* Languages */}
                         {(profileData.languagesNative.length > 0 ||
                           profileData.languagesPractice.length > 0) && (
-                          <View style={styles.profileLanguagesContainer}>
-                            {profileData.languagesNative.length > 0 && (
-                              <View style={styles.profileLanguageSection}>
-                                <Text style={styles.profileLanguageLabel}>
-                                  SPEAKS:
-                                </Text>
-                                <Text style={styles.profileLanguages}>
-                                  {profileData.languagesNative.join(", ")}
-                                </Text>
-                              </View>
-                            )}
-                            {profileData.languagesPractice.length > 0 && (
-                              <View style={styles.profileLanguageSection}>
-                                <Text style={styles.profileLanguageLabel}>
-                                  LEARNING:
-                                </Text>
-                                <Text style={styles.profileLanguages}>
-                                  {profileData.languagesPractice.join(", ")}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
+                            <View style={styles.profileLanguagesContainer}>
+                              {profileData.languagesNative.length > 0 && (
+                                <View style={styles.profileLanguageSection}>
+                                  <Text style={styles.profileLanguageLabel}>
+                                    SPEAKS:
+                                  </Text>
+                                  <Text style={styles.profileLanguages}>
+                                    {profileData.languagesNative.join(", ")}
+                                  </Text>
+                                </View>
+                              )}
+                              {profileData.languagesPractice.length > 0 && (
+                                <View style={styles.profileLanguageSection}>
+                                  <Text style={styles.profileLanguageLabel}>
+                                    LEARNING:
+                                  </Text>
+                                  <Text style={styles.profileLanguages}>
+                                    {profileData.languagesPractice.join(", ")}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          )}
                       </View>
                     </ScrollView>
                   ) : (
@@ -1021,153 +972,133 @@ export default function ConversationScreen() {
 
       {/* Input Container - iOS style */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            value={messageText}
-            onChangeText={setMessageText}
-            placeholder="Mesaj yaz..."
-            placeholderTextColor={colors.textTertiary}
-            multiline
-            maxLength={2000}
-            editable={!sending && !polishing}
-          />
-        </View>
-        
-        {messageText.trim().length > 0 ? (
+        {/* Hide input and buttons when recording */}
+        {!isRecordingActive && (
           <>
-            <View style={styles.aiButtonContainer}>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                value={messageText}
+                onChangeText={setMessageText}
+                placeholder="Mesaj yaz..."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                maxLength={2000}
+                editable={!sending && !polishing}
+              />
+            </View>
+
+            {messageText.trim().length > 0 ? (
+              <>
+                <View style={styles.aiButtonContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.aiButton,
+                      (polishing || showToneSelector) && styles.aiButtonActive,
+                    ]}
+                    onPress={handleAIPress}
+                    disabled={polishing}
+                  >
+                    <Text style={styles.aiButtonText}>
+                      {polishing ? "..." : "✨"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {showToneSelector && (
+                    <Animated.View
+                      style={[
+                        styles.toneSelector,
+                        {
+                          opacity: toneSelectorAnim,
+                          transform: [
+                            {
+                              scale: toneSelectorAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.8, 1],
+                              }),
+                            },
+                            {
+                              translateY: toneSelectorAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [-10, 0],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {(["neutral", "friendly", "playful"] as Tone[]).map((t, index) => (
+                        <Animated.View
+                          key={t}
+                          style={{
+                            opacity: toneButtonAnims[index],
+                            transform: [
+                              {
+                                translateX: toneButtonAnims[index].interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [20, 0],
+                                }),
+                              },
+                              {
+                                scale: toneButtonAnims[index].interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0.5, 1],
+                                }),
+                              },
+                            ],
+                          }}
+                        >
+                          <TouchableOpacity
+                            style={[styles.toneButton, tone === t && styles.toneButtonActive]}
+                            onPress={() => handleToneSelect(t)}
+                            disabled={polishing}
+                          >
+                            <Text
+                              style={[
+                                styles.toneButtonText,
+                                tone === t && styles.toneButtonTextActive,
+                              ]}
+                            >
+                              {t === "neutral" ? "😐" : t === "friendly" ? "😊" : "😄"}
+                            </Text>
+                          </TouchableOpacity>
+                        </Animated.View>
+                      ))}
+                    </Animated.View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    (!messageText.trim() || sending) && styles.sendButtonDisabled,
+                  ]}
+                  onPress={handleSendMessage}
+                  disabled={!messageText.trim() || sending}
+                >
+                  <Text style={styles.sendButtonText}>
+                    {sending ? "..." : "➤"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
               <TouchableOpacity
-                style={[
-                  styles.aiButton,
-                  (polishing || showToneSelector) && styles.aiButtonActive,
-                ]}
+                style={styles.aiButton}
                 onPress={handleAIPress}
                 disabled={polishing}
               >
-                <Text style={styles.aiButtonText}>
-                  {polishing ? "..." : "✨"}
-                </Text>
+                <Text style={styles.aiButtonText}>✨</Text>
               </TouchableOpacity>
-              
-              {showToneSelector && (
-                <Animated.View
-                  style={[
-                    styles.toneSelector,
-                    {
-                      opacity: toneSelectorAnim,
-                      transform: [
-                        {
-                          scale: toneSelectorAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.8, 1],
-                          }),
-                        },
-                        {
-                          translateY: toneSelectorAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-10, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  {(["neutral", "friendly", "playful"] as Tone[]).map((t, index) => (
-                    <Animated.View
-                      key={t}
-                      style={{
-                        opacity: toneButtonAnims[index],
-                        transform: [
-                          {
-                            translateX: toneButtonAnims[index].interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [20, 0],
-                            }),
-                          },
-                          {
-                            scale: toneButtonAnims[index].interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.5, 1],
-                            }),
-                          },
-                        ],
-                      }}
-                    >
-                      <TouchableOpacity
-                        style={[styles.toneButton, tone === t && styles.toneButtonActive]}
-                        onPress={() => handleToneSelect(t)}
-                        disabled={polishing}
-                      >
-                        <Text
-                          style={[
-                            styles.toneButtonText,
-                            tone === t && styles.toneButtonTextActive,
-                          ]}
-                        >
-                          {t === "neutral" ? "😐" : t === "friendly" ? "😊" : "😄"}
-                        </Text>
-                      </TouchableOpacity>
-                    </Animated.View>
-                  ))}
-                </Animated.View>
-              )}
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                (!messageText.trim() || sending) && styles.sendButtonDisabled,
-              ]}
-              onPress={handleSendMessage}
-              disabled={!messageText.trim() || sending}
-            >
-              <Text style={styles.sendButtonText}>
-                {sending ? "..." : "➤"}
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.aiButton}
-              onPress={handleAIPress}
-              disabled={polishing}
-            >
-              <Text style={styles.aiButtonText}>✨</Text>
-            </TouchableOpacity>
-            <Pressable
-              style={({ pressed }) => [
-                styles.voiceButton,
-                isRecording && styles.voiceButtonRecording,
-                pressed && styles.voiceButtonPressed,
-              ]}
-              onPressIn={handleStartRecording}
-              onPressOut={handleStopRecording}
-              disabled={sending || isRecording}
-            >
-              <Animated.View
-                style={[
-                  styles.voiceButtonInner,
-                  {
-                    transform: [{ scale: isRecording ? recordingAnim : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.voiceButtonText}>
-                  {isRecording ? "🎤" : "🎙️"}
-                </Text>
-              </Animated.View>
-              {isRecording && (
-                <View style={styles.recordingIndicator}>
-                  <Text style={styles.recordingDuration}>
-                    {Math.floor(recordingDuration / 60)}:
-                    {(recordingDuration % 60).toString().padStart(2, "0")}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
+            )}
           </>
         )}
+
+        {/* VoiceRecorder - always rendered, takes full width when active */}
+        <VoiceRecorder
+          onSend={handleSendAudio}
+          onCancel={() => { }}
+          onRecordingStateChange={setIsRecordingActive}
+          disabled={sending}
+        />
       </View>
 
       {/* Premium Modal */}
@@ -1279,29 +1210,29 @@ export default function ConversationScreen() {
                   {/* Languages */}
                   {(profileData.languagesNative.length > 0 ||
                     profileData.languagesPractice.length > 0) && (
-                    <View style={styles.profileLanguagesContainer}>
-                      {profileData.languagesNative.length > 0 && (
-                        <View style={styles.profileLanguageSection}>
-                          <Text style={styles.profileLanguageLabel}>
-                            SPEAKS:
-                          </Text>
-                          <Text style={styles.profileLanguages}>
-                            {profileData.languagesNative.join(", ")}
-                          </Text>
-                        </View>
-                      )}
-                      {profileData.languagesPractice.length > 0 && (
-                        <View style={styles.profileLanguageSection}>
-                          <Text style={styles.profileLanguageLabel}>
-                            LEARNING:
-                          </Text>
-                          <Text style={styles.profileLanguages}>
-                            {profileData.languagesPractice.join(", ")}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
+                      <View style={styles.profileLanguagesContainer}>
+                        {profileData.languagesNative.length > 0 && (
+                          <View style={styles.profileLanguageSection}>
+                            <Text style={styles.profileLanguageLabel}>
+                              SPEAKS:
+                            </Text>
+                            <Text style={styles.profileLanguages}>
+                              {profileData.languagesNative.join(", ")}
+                            </Text>
+                          </View>
+                        )}
+                        {profileData.languagesPractice.length > 0 && (
+                          <View style={styles.profileLanguageSection}>
+                            <Text style={styles.profileLanguageLabel}>
+                              LEARNING:
+                            </Text>
+                            <Text style={styles.profileLanguages}>
+                              {profileData.languagesPractice.join(", ")}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                 </View>
               </ScrollView>
             ) : (
@@ -1394,7 +1325,7 @@ export default function ConversationScreen() {
                       style={[
                         styles.reportReasonText,
                         reportReason === reason &&
-                          styles.reportReasonTextActive,
+                        styles.reportReasonTextActive,
                       ]}
                     >
                       {reason.charAt(0) + reason.slice(1).toLowerCase()}
@@ -1692,41 +1623,50 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    minWidth: 150,
+    minWidth: 160,
+    paddingVertical: 4,
+  },
+  audioPlayerContainerOther: {
+    // adjustments for received messages
   },
   audioPlayButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  audioPlayIcon: {
-    fontSize: typography.fontSize.base,
-    color: "#FFFFFF",
-  },
-  audioInfo: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  audioWaveform: {
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  audioProgress: {
-    height: "100%",
+  audioPlayButtonMy: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 2,
+  },
+  audioPlayButtonOther: {
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  audioContent: {
+    flex: 1,
+    gap: 2,
+  },
+  audioWaveformContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 24,
+    gap: 3,
+  },
+  waveBar: {
+    width: 3,
+    borderRadius: 1.5,
   },
   audioTime: {
-    fontSize: typography.fontSize.xs,
-    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 11,
+    fontWeight: "500",
   },
   audioTimeMy: {
-    color: "#FFFFFF",
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  audioTimeOther: {
+    color: colors.textSecondary,
   },
   modalOverlay: {
     flex: 1,

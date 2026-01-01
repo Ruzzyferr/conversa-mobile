@@ -18,7 +18,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Profil fotoğraflarınızı çekmek için kamera erişimine ihtiyacımız var.",
-        "NSLocationWhenInUseUsageDescription": "Yakınındaki insanları görmek için konum erişimine ihtiyacımız var."
+        "NSLocationWhenInUseUsageDescription": "Yakınındaki insanları görmek için konum erişimine ihtiyacımız var.",
+        "NSMicrophoneUsageDescription": "Ses mesajı göndermek için mikrofon erişimine ihtiyacımız var."
       }
     },
     "android": {
@@ -32,7 +33,8 @@
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -42,6 +44,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Ses mesajı göndermek için mikrofon erişimine ihtiyacımız var."
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {
