@@ -367,6 +367,35 @@ export default function RequestsScreen() {
                   </View>
                 )}
 
+                {/* Languages Preview */}
+                {(user.languagesNative.length > 0 || user.languagesPractice.length > 0) && (
+                  <View style={styles.cardLanguageContainer}>
+                    {user.languagesNative.length > 0 && (
+                      <View style={styles.cardLangRow}>
+                        <Ionicons name="chatbubbles-outline" size={12} color={colors.textSecondaryDark} />
+                        <Text style={styles.cardLangText} numberOfLines={1}>
+                          {user.languagesNative.join(", ")}
+                        </Text>
+                      </View>
+                    )}
+                    {user.languagesPractice.length > 0 && (
+                      <View style={styles.cardLangRow}>
+                        <Ionicons name="school-outline" size={12} color={colors.textSecondaryDark} />
+                        <Text style={styles.cardLangText} numberOfLines={1}>
+                          {user.languagesPractice.join(", ")}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Bio Preview */}
+                {user.bio && (
+                  <Text style={styles.cardBio} numberOfLines={2}>
+                    {user.bio}
+                  </Text>
+                )}
+
                 {item.firstMessage && (
                   <View style={styles.messagePreviewContainer}>
                     <Text style={styles.messagePreview} numberOfLines={2}>
@@ -883,6 +912,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "rgba(255, 255, 255, 0.6)",
     fontWeight: "500",
+  },
+  cardLanguageContainer: {
+    gap: 4,
+    marginBottom: 8,
+  },
+  cardLangRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cardLangText: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.7)",
+  },
+  cardBio: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+    lineHeight: 18,
+    marginBottom: 8,
   },
   messagePreviewContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.05)",
