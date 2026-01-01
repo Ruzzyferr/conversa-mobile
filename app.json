@@ -45,19 +45,22 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
-        {
-          "microphonePermission": "Ses mesajı göndermek için mikrofon erişimine ihtiyacımız var."
-        }
-      ],
-      [
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ],
-      "./plugins/withAndroidLaunchMode.js"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "./plugins/withAndroidLaunchMode.js",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

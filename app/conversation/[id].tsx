@@ -16,7 +16,7 @@ import {
   Animated,
   Pressable,
 } from "react-native";
-import { Audio } from "expo-av";
+import { useAudioPlayer } from "expo-audio";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -568,81 +568,60 @@ export default function ConversationScreen() {
 
   // Audio Player Component
   const AudioPlayer = ({ audioUrl, isMyMessage }: { audioUrl: string; isMyMessage: boolean }) => {
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [position, setPosition] = useState(0);
-    const [playbackFinished, setPlaybackFinished] = useState(false);
 
     // Generate random waveform bars once
     const waveBars = useRef(
       Array.from({ length: 20 }, () => Math.floor(Math.random() * 20) + 4)
     ).current;
 
+    // Prepare source
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+    const fullUrl = audioUrl.startsWith("http")
+      ? audioUrl
+      : `${baseUrl}${audioUrl}`;
+
+    const player = useAudioPlayer(fullUrl);
+
     useEffect(() => {
-      return () => {
-        if (sound) {
-          sound.unloadAsync();
-        }
-      };
-    }, [sound]);
-
-    const loadAudio = async () => {
-      try {
-        const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
-        const fullUrl = audioUrl.startsWith("http")
-          ? audioUrl
-          : `${baseUrl}${audioUrl}`;
-
-        const { sound: audioSound } = await Audio.Sound.createAsync(
-          { uri: fullUrl },
-          { shouldPlay: false }
-        );
-        setSound(audioSound);
-
-        const status = await audioSound.getStatusAsync();
-        if (status.isLoaded) {
-          setDuration(status.durationMillis || 0);
-        }
-      } catch (error) {
-        console.error("Failed to load audio:", error);
+      if (player) {
+        setIsPlaying(player.playing);
+        setDuration(player.duration * 1000); // Duration is in seconds usually
+        // Polling for position update or use status callback if available in hook options
+        // expo-audio hook might not auto-poll position for react render without configuration.
+        // We can use an interval or if the player object exposes a listener.
+        // For simplicity, we can poll while playing.
       }
-    };
+    }, [player?.playing, player?.duration]);
 
+    // Position polling
     useEffect(() => {
-      loadAudio();
-    }, [audioUrl]);
+      let interval: any;
+      if (isPlaying && player) {
+        interval = setInterval(() => {
+          setPosition(player.currentTime * 1000); // currentTime in seconds
+        }, 100);
+      } else if (player) {
+        setPosition(player.currentTime * 1000);
+      }
+      return () => clearInterval(interval);
+    }, [isPlaying, player]);
 
-    const playPause = async () => {
-      if (!sound) return;
 
-      try {
-        if (isPlaying) {
-          await sound.pauseAsync();
-        } else {
-          // If finished, reset to beginning
-          if (playbackFinished) {
-            await sound.replayAsync();
-            setPlaybackFinished(false);
-          } else {
-            await sound.playAsync();
-          }
+    const playPause = () => {
+      if (!player) return;
 
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded) {
-              setIsPlaying(status.isPlaying);
-              setPosition(status.positionMillis || 0);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-                setPlaybackFinished(true);
-                // Reset position UI immediately for better UX
-                setPosition(duration);
-              }
-            }
-          });
+      if (player.playing) {
+        player.pause();
+      } else {
+        // If finished (currentTime >= duration), seek to 0?
+        // player.play() typically resumes or starts.
+        if (Math.abs(player.currentTime - player.duration) < 0.1) {
+          player.seekTo(0);
         }
-      } catch (error) {
-        console.error("Failed to play/pause audio:", error);
+        player.play();
       }
     };
 
@@ -660,7 +639,7 @@ export default function ConversationScreen() {
           style={[styles.audioPlayButton, isMyMessage ? styles.audioPlayButtonMy : styles.audioPlayButtonOther]}
         >
           <MaterialIcons
-            name={isPlaying ? "pause" : playbackFinished ? "replay" : "play-arrow"}
+            name={isPlaying ? "pause" : "play-arrow"}
             size={24}
             color={isMyMessage ? colors.primary : colors.text}
           />
@@ -671,7 +650,7 @@ export default function ConversationScreen() {
           <View style={styles.audioWaveformContainer}>
             {waveBars.map((height, index) => {
               // Simple progress visualization based on index
-              const progress = position / duration;
+              const progress = duration > 0 ? position / duration : 0;
               const isPlayed = index / waveBars.length < progress;
 
               return (

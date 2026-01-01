@@ -244,7 +244,7 @@ export default function ProfileEditScreen() {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
-      
+
       setLocation({
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
@@ -264,13 +264,31 @@ export default function ProfileEditScreen() {
 
     setLoading(true);
     try {
+      // 1. Upload new photos (those starting with file:// or content://)
+      const uploadedPhotos = await Promise.all(
+        photos.map(async (photoUri) => {
+          if (photoUri.startsWith("file://") || photoUri.startsWith("content://") || (Platform.OS === 'android' && !photoUri.startsWith("http"))) {
+            try {
+              // Show some feedback or just block (loading is true)
+              const publicUrl = await api.uploadPhoto(photoUri);
+              return publicUrl;
+            } catch (error) {
+              console.error("Failed to upload photo:", photoUri, error);
+              throw new Error("Fotoğraflar yüklenirken hata oluştu");
+            }
+          }
+          return photoUri; // Already a remote URL
+        })
+      );
+
+      // 2. Save profile with PUBLIC URLs
       await api.upsertMyProfile({
-        displayName: displayName.trim(), // Cannot change but required
-        birthYear: birthYear ? parseInt(birthYear) : undefined, // Cannot change but required
+        displayName: displayName.trim(),
+        birthYear: birthYear ? parseInt(birthYear) : undefined,
         purpose: purpose,
-        languagesNative: languagesNative, // Cannot change but required
+        languagesNative: languagesNative,
         languagesPractice: languagesPractice,
-        photos: photos,
+        photos: uploadedPhotos, // Use the uploaded URLs
         bio: bio.trim() || undefined,
         interests: selectedInterests.length > 0 ? selectedInterests : undefined,
         city: location?.city,
@@ -302,7 +320,7 @@ export default function ProfileEditScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <RainBackground />
-      
+
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -384,8 +402,8 @@ export default function ProfileEditScreen() {
                     {p === "CONVERSATION"
                       ? "💬 Sohbet"
                       : p === "PRACTICE"
-                      ? "📚 Pratik"
-                      : "☕ Kahve"}
+                        ? "📚 Pratik"
+                        : "☕ Kahve"}
                   </Text>
                 </TouchableOpacity>
               ))}

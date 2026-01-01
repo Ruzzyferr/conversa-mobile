@@ -21,8 +21,8 @@
     "@react-navigation/native": "^7.1.8",
     "axios": "^1.13.2",
     "expo": "~54.0.30",
+    "expo-audio": "~1.1.1",
     "expo-auth-session": "^7.0.10",
-    "expo-av": "~16.0.8",
     "expo-blur": "~15.0.8",
     "expo-build-properties": "^1.0.10",
     "expo-clipboard": "~7.0.0",
@@ -55,6 +55,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },

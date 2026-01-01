@@ -464,6 +464,50 @@ class ApiClient {
     }
   }
 
+  async uploadPhoto(photoUri: string): Promise<string> {
+    const token = await getToken();
+    const formData = new FormData();
+
+    let uri = photoUri;
+    // Android fix for file:// prefix
+    if (Platform.OS === "android" && !uri.startsWith("file://") && !uri.startsWith("http")) {
+      uri = `file://${uri}`;
+    }
+
+    // Guess file type based on extension
+    const match = /\.(\w+)$/.exec(uri);
+    const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+    formData.append("photo", {
+      uri: uri,
+      type,
+      name: `upload.${match ? match[1] : "jpg"}`,
+    } as any);
+
+    try {
+      const response = await fetch(`${this.client.defaults.baseURL}/api/v1/storage/upload`, {
+        method: "POST",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+          // Do NOT set Content-Type header manually
+        },
+        body: formData,
+      });
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status} - ${responseText}`);
+      }
+
+      const data = JSON.parse(responseText);
+      return data.url;
+    } catch (error) {
+      console.error("Photo upload error:", error);
+      throw error;
+    }
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
     await this.client.delete(`/api/v1/chat/conversations/${conversationId}`);
   }
