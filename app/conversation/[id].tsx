@@ -16,7 +16,6 @@ import {
   Animated,
   Pressable,
 } from "react-native";
-import { useAudioPlayer } from "expo-audio";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -571,6 +570,9 @@ export default function ConversationScreen() {
     const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [position, setPosition] = useState(0);
+    const [isLoaded, setIsLoaded] = useState(false);
+    const playerRef = useRef<any>(null);
+    const intervalRef = useRef<any>(null);
 
     // Generate random waveform bars once
     const waveBars = useRef(
@@ -583,45 +585,102 @@ export default function ConversationScreen() {
       ? audioUrl
       : `${baseUrl}${audioUrl}`;
 
-    const player = useAudioPlayer(fullUrl);
-
+    // Initialize player on mount
     useEffect(() => {
-      if (player) {
-        setIsPlaying(player.playing);
-        setDuration(player.duration * 1000); // Duration is in seconds usually
-        // Polling for position update or use status callback if available in hook options
-        // expo-audio hook might not auto-poll position for react render without configuration.
-        // We can use an interval or if the player object exposes a listener.
-        // For simplicity, we can poll while playing.
-      }
-    }, [player?.playing, player?.duration]);
+      let mounted = true;
+
+      const initPlayer = async () => {
+        try {
+          const { createAudioPlayer, AudioModule } = await import("expo-audio");
+
+          // Set audio mode for playback
+          await AudioModule.setAudioModeAsync({
+            playsInSilentMode: true,
+            allowsRecording: false,
+          });
+
+          const player = createAudioPlayer({ uri: fullUrl });
+
+          if (mounted) {
+            playerRef.current = player;
+
+            // Wait for player to load
+            const checkLoaded = setInterval(() => {
+              if (player.isLoaded) {
+                setIsLoaded(true);
+                setDuration(player.duration * 1000);
+                clearInterval(checkLoaded);
+              }
+            }, 100);
+
+            // Clear after 5 seconds if not loaded
+            setTimeout(() => clearInterval(checkLoaded), 5000);
+          }
+        } catch (error) {
+          console.error("Failed to init audio player:", error);
+        }
+      };
+
+      initPlayer();
+
+      return () => {
+        mounted = false;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        if (playerRef.current) {
+          try {
+            playerRef.current.remove();
+          } catch (e) { }
+          playerRef.current = null;
+        }
+      };
+    }, [fullUrl]);
 
     // Position polling
     useEffect(() => {
-      let interval: any;
-      if (isPlaying && player) {
-        interval = setInterval(() => {
-          setPosition(player.currentTime * 1000); // currentTime in seconds
+      if (isPlaying && playerRef.current) {
+        intervalRef.current = setInterval(() => {
+          if (playerRef.current) {
+            setPosition(playerRef.current.currentTime * 1000);
+            setIsPlaying(playerRef.current.playing);
+
+            // Check if playback finished
+            if (!playerRef.current.playing && position > 0) {
+              setIsPlaying(false);
+            }
+          }
         }, 100);
-      } else if (player) {
-        setPosition(player.currentTime * 1000);
       }
-      return () => clearInterval(interval);
-    }, [isPlaying, player]);
-
-
-    const playPause = () => {
-      if (!player) return;
-
-      if (player.playing) {
-        player.pause();
-      } else {
-        // If finished (currentTime >= duration), seek to 0?
-        // player.play() typically resumes or starts.
-        if (Math.abs(player.currentTime - player.duration) < 0.1) {
-          player.seekTo(0);
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
         }
-        player.play();
+      };
+    }, [isPlaying]);
+
+    const playPause = async () => {
+      const player = playerRef.current;
+      if (!player) {
+        console.log("Player not initialized yet");
+        return;
+      }
+
+      try {
+        if (player.playing) {
+          player.pause();
+          setIsPlaying(false);
+        } else {
+          // If finished, seek to start
+          if (player.currentTime >= player.duration - 0.1) {
+            player.seekTo(0);
+          }
+          player.volume = 1;
+          player.play();
+          setIsPlaying(true);
+        }
+      } catch (error) {
+        console.error("Playback error:", error);
       }
     };
 

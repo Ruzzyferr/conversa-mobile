@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
     View,
     Text,
@@ -8,6 +8,7 @@ import {
     Modal,
     Linking,
     Dimensions,
+    Platform,
 } from "react-native";
 import Animated, {
     useSharedValue,
@@ -20,16 +21,23 @@ import Animated, {
     Extrapolation,
     cancelAnimation,
     runOnJS,
+    SharedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAudioRecorder, useAudioPlayer, AudioSource, AndroidOutputFormat, AndroidAudioEncoder } from "expo-audio";
+import {
+    useAudioRecorder,
+    useAudioRecorderState,
+    AudioModule,
+    RecordingPresets,
+    AudioPlayer,
+} from "expo-audio";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const CANCEL_THRESHOLD = -80; // Sola 80px kaydırınca iptal
+const CANCEL_THRESHOLD = -80;
 
 type RecordingState = "idle" | "recording" | "preview";
 
@@ -46,9 +54,8 @@ const BAR_GAP = 2;
 const MAX_BAR_HEIGHT = 24;
 const MIN_BAR_HEIGHT = 4;
 
-// Separate component for each bar to comply with hooks rules
 type WaveformBarProps = {
-    barHeight: { value: number };
+    barHeight: SharedValue<number>;
     isRecording: boolean;
 };
 
@@ -68,7 +75,87 @@ function WaveformBar({ barHeight, isRecording }: WaveformBarProps) {
     );
 }
 
-export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabled }: VoiceRecorderProps) {
+// Waveform bars component
+function WaveformBars({
+    isRecording,
+    meteringValue,
+}: {
+    isRecording: boolean;
+    meteringValue: number;
+}) {
+    const bar0 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar1 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar2 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar3 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar4 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar5 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar6 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar7 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar8 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar9 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar10 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar11 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar12 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar13 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar14 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar15 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar16 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar17 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar18 = useSharedValue(MIN_BAR_HEIGHT);
+    const bar19 = useSharedValue(MIN_BAR_HEIGHT);
+
+    const barHeights = useMemo(
+        () => [
+            bar0, bar1, bar2, bar3, bar4, bar5, bar6, bar7, bar8, bar9,
+            bar10, bar11, bar12, bar13, bar14, bar15, bar16, bar17, bar18, bar19,
+        ],
+        [bar0, bar1, bar2, bar3, bar4, bar5, bar6, bar7, bar8, bar9,
+            bar10, bar11, bar12, bar13, bar14, bar15, bar16, bar17, bar18, bar19]
+    );
+
+    useEffect(() => {
+        if (isRecording && meteringValue !== 0) {
+            const normalizedValue = Math.max(0, Math.min(1, (meteringValue + 60) / 60));
+            const newBarHeight = MIN_BAR_HEIGHT + normalizedValue * (MAX_BAR_HEIGHT - MIN_BAR_HEIGHT);
+
+            for (let i = 0; i < NUM_BARS - 1; i++) {
+                barHeights[i].value = barHeights[i + 1].value;
+            }
+
+            barHeights[NUM_BARS - 1].value = withSpring(newBarHeight, {
+                damping: 15,
+                stiffness: 300,
+            });
+        }
+    }, [isRecording, meteringValue, barHeights]);
+
+    useEffect(() => {
+        if (!isRecording) {
+            barHeights.forEach((bar) => {
+                bar.value = withTiming(MIN_BAR_HEIGHT, { duration: 200 });
+            });
+        }
+    }, [isRecording, barHeights]);
+
+    return (
+        <View style={styles.waveform}>
+            {barHeights.map((barHeight, index) => (
+                <WaveformBar
+                    key={index}
+                    barHeight={barHeight}
+                    isRecording={isRecording}
+                />
+            ))}
+        </View>
+    );
+}
+
+export function VoiceRecorder({
+    onSend,
+    onCancel,
+    onRecordingStateChange,
+    disabled,
+}: VoiceRecorderProps) {
     const insets = useSafeAreaInsets();
     const [recordingState, setRecordingState] = useState<RecordingState>("idle");
     const [audioUri, setAudioUri] = useState<string | null>(null);
@@ -76,65 +163,26 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
     const [isPlaying, setIsPlaying] = useState(false);
     const [sending, setSending] = useState(false);
     const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [meteringValue, setMeteringValue] = useState(0);
 
-    // Expo Audio Hooks
-    const audioRecorder = useAudioRecorder(
-        {
-            sampleRate: 44100,
-            bitRate: 128000,
-            extension: '.m4a',
-            numberOfChannels: 1,
-            android: {
-                extension: '.m4a',
-                outputFormat: 2 as any, // MPEG_4
-                audioEncoder: 3 as any, // AAC
-                sampleRate: 44100,
-            },
-            ios: {
-                extension: '.m4a',
-                audioQuality: 127, // HIGH
-                sampleRate: 44100,
-                linearPCMBitDepth: 16,
-                linearPCMIsBigEndian: false,
-                linearPCMIsFloat: false,
-            },
-            web: {
-                mimeType: 'audio/mp4',
-                bitsPerSecond: 128000,
-            },
-        },
-        (status) => {
-            // Update waveform based on status.metering if available
-            // Note: expo-audio metering API might be different, checking docs/types would be ideal
-            // but assuming a similar approach or fallback for now.
-            // If metering isn't directly exposed in status callback, we might need a separate interval.
-            // For now, simulating metering if not present.
-            /* if (status.amplitude) {
-               updateWaveform(status.amplitude);
-            } */
-        }
-    );
-
-    const [soundSource, setSoundSource] = useState<AudioSource | null>(null);
-    const player = useAudioPlayer(soundSource);
-
-
-    // Refs
-    // const recordingRef = useRef<Audio.Recording | null>(null); // No longer needed with useAudioRecorder
-    // const soundRef = useRef<Audio.Sound | null>(null); // No longer needed with useAudioPlayer
+    const isStoppingRef = useRef(false);
+    const isTogglingRef = useRef(false);
     const durationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-    const meteringInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+    const playerRef = useRef<AudioPlayer | null>(null);
 
+    const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status: any) => {
+        if (status.isRecording) {
+            const metering = status.metering ?? -30;
+            setMeteringValue(metering);
+        }
+    });
 
-    // Animated values for waveform bars
-    const barHeights = useRef(
-        Array.from({ length: NUM_BARS }, () => useSharedValue(MIN_BAR_HEIGHT))
-    ).current;
+    const recorderState = useAudioRecorderState(audioRecorder, 100);
 
-    // Recording pulse animation
+    // Animation values
     const pulseScale = useSharedValue(1);
     const micScale = useSharedValue(1);
-    const translateX = useSharedValue(0); // For slide-to-cancel gesture
+    const translateX = useSharedValue(0);
 
     // Notify parent of recording state changes
     useEffect(() => {
@@ -148,91 +196,98 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
         };
     }, []);
 
-    // Player status updates
-    useEffect(() => {
-        if (player) {
-            setIsPlaying(player.playing);
-        }
-    }, [player?.playing]);
-
-
     const cleanup = useCallback(async () => {
         if (durationInterval.current) {
             clearInterval(durationInterval.current);
             durationInterval.current = null;
         }
-        if (meteringInterval.current) {
-            clearInterval(meteringInterval.current);
-            meteringInterval.current = null;
-        }
 
-        if (audioRecorder.isRecording) {
-            try {
-                await audioRecorder.stop();
-            } catch { }
-        }
-
-        // Player cleanup handled by hook ideally, but can pause if needed
-        if (player && player.playing) {
-            player.pause();
-        }
-
-    }, [audioRecorder, player]);
-
-
-    const checkPermission = async (): Promise<boolean> => {
-        // useAudioRecorder handles permissions internally usually, or we use explicit method
-        // But for now assuming we need to request.
-        // Looking at expo-audio, requestPermissionsAsync is on Audio module if exported,
-        // or we check via hook/module. 
-        // Let's assume audioRecorder.requestPermissionsAsync() exists or similar.
-        // Actually, Audio.requestPermissionsAsync was expo-av. expo-audio uses standard permissions?
-        // Let's try to assume we can ask recorder.
-
-        // Correct approach for expo-video/audio involves calling requestPermissionsAsync from the module logic
-        // If not available, we might need to rely on the hook's prompt.
-        // Let's try to simulate the old logic for now if specific API isn't clear,
-        // but typically hooks enforce permission.
+        cancelAnimation(pulseScale);
+        cancelAnimation(micScale);
+        cancelAnimation(translateX);
+        pulseScale.value = 1;
+        micScale.value = 1;
+        translateX.value = 0;
 
         try {
-            // For now, let's assume we invoke the recorder and let it fail or prompt if needed, 
-            // or check docs. Since I can't check docs on the fly easily without web tool (which I have),
-            // I'll assume we can try to record.
-            // Wait, I should use useAudioRecorder().permission
-            // Let's rely on `audioRecorder.prepare()` to trigger potential permission checks or check manual prop.
-            return true; // Placeholder, assuming handled or will fail gracefully
+            if (recorderState.isRecording) {
+                await audioRecorder.stop();
+            }
         } catch (error) {
-            console.error("Permission check error:", error);
+            console.warn("Cleanup: Failed to stop recorder:", error);
+        }
+
+        // Release player
+        if (playerRef.current) {
+            try {
+                playerRef.current.remove();
+            } catch (e) {
+                console.warn("Failed to remove player:", e);
+            }
+            playerRef.current = null;
+        }
+    }, [audioRecorder, pulseScale, micScale, translateX, recorderState.isRecording]);
+
+    const requestPermissions = async (): Promise<boolean> => {
+        try {
+            const currentStatus = await AudioModule.getRecordingPermissionsAsync();
+            console.log("Current permission status:", currentStatus);
+
+            if (currentStatus.granted) {
+                return true;
+            }
+
+            if (currentStatus.canAskAgain) {
+                const permissionResult = await AudioModule.requestRecordingPermissionsAsync();
+                console.log("Permission request result:", permissionResult);
+
+                if (permissionResult.granted) {
+                    return true;
+                }
+            }
+
+            console.log("Permission denied, showing modal");
+            setShowPermissionModal(true);
+            return false;
+        } catch (error) {
+            console.error("Permission request error:", error);
+            setShowPermissionModal(true);
             return false;
         }
     };
 
     const startRecording = async () => {
-        // We'll manage permission manually if possible, or assume hook handles it.
-        // Let's update this to just try start and catch error.
         try {
-            if (audioRecorder.isRecording) return;
+            if (recorderState.isRecording) {
+                console.log("Already recording, ignoring start request");
+                return;
+            }
 
-            // Note: expo-audio might need permission request first.
-            // usually: const perm = await usePermissions(...) or similar. 
-            // We'll assume for this generic step we proceed.
+            console.log("Starting recording process...");
 
-            await startRecordingInternal();
+            const hasPermission = await requestPermissions();
+            if (!hasPermission) {
+                console.log("No permission, aborting recording");
+                return;
+            }
 
-        } catch (error) {
-            console.error("Start recording failed", error);
-            setShowPermissionModal(true); // Assuming failure means permission issue
-        }
-    };
+            await AudioModule.setAudioModeAsync({
+                playsInSilentMode: true,
+                allowsRecording: true,
+            });
 
-    const startRecordingInternal = async () => {
-        try {
-            await audioRecorder.record();
+            console.log("Preparing recorder...");
+            await audioRecorder.prepareToRecordAsync();
+            console.log("Recorder prepared");
+
+            console.log("Starting recorder...");
+            audioRecorder.record();
+            console.log("Recorder started");
 
             setRecordingState("recording");
             setDuration(0);
+            setMeteringValue(0);
 
-            // Start pulse animation on recording dot
             pulseScale.value = withRepeat(
                 withSequence(
                     withTiming(1.3, { duration: 500 }),
@@ -242,7 +297,6 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                 false
             );
 
-            // Start mic breathing animation
             micScale.value = withRepeat(
                 withSequence(
                     withTiming(1.1, { duration: 800 }),
@@ -252,44 +306,28 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                 false
             );
 
-            // Start duration counter
             durationInterval.current = setInterval(() => {
                 setDuration((prev) => prev + 1);
             }, 1000);
-
-            // Simulate metering for waveform since hook callback might be sparse
-            meteringInterval.current = setInterval(() => {
-                // Random metering since we don't have direct access in this mock implementation
-                // Real implementation would read `audioRecorder.getAnalysis()` if available
-                const simulatedMetering = Math.random() * -10; // -10 to 0 dB mostly
-                updateWaveform(simulatedMetering);
-            }, 100);
-
         } catch (error) {
-            console.error("Failed to start recording:", error);
-            throw error;
+            console.error("Start recording failed:", error);
+            setShowPermissionModal(true);
         }
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const updateWaveform = (metering: number) => {
-        // Metering is usually negative dB (e.g. -160 to 0)
-        // Normalize -60dB -> 0 to 0dB -> 1
-        const normalizedValue = Math.max(0, Math.min(1, (metering + 60) / 60));
-        const barHeight = MIN_BAR_HEIGHT + normalizedValue * (MAX_BAR_HEIGHT - MIN_BAR_HEIGHT);
-
-        for (let i = 0; i < NUM_BARS - 1; i++) {
-            barHeights[i].value = barHeights[i + 1].value;
-        }
-        barHeights[NUM_BARS - 1].value = withSpring(barHeight, {
-            damping: 15,
-            stiffness: 300,
-        });
-    };
-
 
     const stopRecording = async () => {
-        if (!audioRecorder.isRecording) return;
+        console.log("stopRecording called", {
+            recordingState,
+            isRecording: recorderState.isRecording,
+            isStopping: isStoppingRef.current,
+        });
+
+        if (recordingState !== "recording" || isStoppingRef.current) {
+            console.log("Not in recording state or already stopping, ignoring");
+            return;
+        }
+
+        isStoppingRef.current = true;
 
         try {
             cancelAnimation(pulseScale);
@@ -301,56 +339,116 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                 clearInterval(durationInterval.current);
                 durationInterval.current = null;
             }
-            if (meteringInterval.current) {
-                clearInterval(meteringInterval.current);
-                meteringInterval.current = null;
-            }
 
+            console.log("Stopping recorder...");
             await audioRecorder.stop();
+            console.log("Recorder stopped");
+
             const uri = audioRecorder.uri;
+            console.log("Recording URI:", uri);
 
             if (!uri) {
                 console.error("Recording URI is null");
                 setRecordingState("idle");
+                isStoppingRef.current = false;
                 return;
             }
 
+            console.log("Recording stopped successfully, URI:", uri);
             setAudioUri(uri);
             setRecordingState("preview");
 
-            // Prepare player
-            setSoundSource({ uri });
-            // player will auto-update source via hook dependency
+            // Set audio mode for playback
+            await AudioModule.setAudioModeAsync({
+                playsInSilentMode: true,
+                allowsRecording: false,
+            });
+
+            // Create player using Audio.createAudioPlayer
+            console.log("Creating audio player for:", uri);
+            const { createAudioPlayer } = await import("expo-audio");
+
+            // Release old player if exists
+            if (playerRef.current) {
+                try {
+                    playerRef.current.remove();
+                } catch (e) { }
+            }
+
+            playerRef.current = createAudioPlayer({ uri });
+            console.log("Player created:", playerRef.current?.id);
 
         } catch (error) {
             console.error("Failed to stop recording:", error);
             setRecordingState("idle");
+        } finally {
+            isStoppingRef.current = false;
         }
     };
 
     const togglePlayback = async () => {
-        if (!player.isLoaded) return;
-
-        if (player.playing) {
-            player.pause();
-        } else {
-            player.play();
+        // Debounce
+        if (isTogglingRef.current) {
+            console.log("togglePlayback debounced");
+            return;
         }
+        isTogglingRef.current = true;
+
+        const player = playerRef.current;
+        console.log("togglePlayback called", {
+            hasPlayer: !!player,
+            isLoaded: player?.isLoaded,
+            playing: player?.playing,
+            duration: player?.duration,
+        });
+
+        if (!player) {
+            console.log("Player is null");
+            isTogglingRef.current = false;
+            return;
+        }
+
+        try {
+            if (player.playing) {
+                console.log("Pausing playback");
+                player.pause();
+                setIsPlaying(false);
+            } else {
+                console.log("Starting playback");
+                player.volume = 1;
+                player.play();
+                setIsPlaying(true);
+            }
+        } catch (error) {
+            console.error("Playback error:", error);
+        }
+
+        setTimeout(() => {
+            isTogglingRef.current = false;
+        }, 300);
     };
 
     const handleDelete = async () => {
         cancelAnimation(pulseScale);
         cancelAnimation(micScale);
-        translateX.value = 0; // Reset gesture position
+        translateX.value = 0;
+        isStoppingRef.current = false;
+
+        // Release player
+        if (playerRef.current) {
+            try {
+                playerRef.current.remove();
+            } catch (e) { }
+            playerRef.current = null;
+        }
+
         await cleanup();
         setRecordingState("idle");
         setAudioUri(null);
         setDuration(0);
-        setSoundSource(null);
+        setMeteringValue(0);
+        setIsPlaying(false);
 
-        barHeights.forEach((bar) => {
-            bar.value = MIN_BAR_HEIGHT;
-        });
         onCancel();
     };
 
@@ -358,22 +456,42 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
         if (!audioUri) return;
 
         setSending(true);
+        isStoppingRef.current = false;
+
         try {
+            // Release player before sending
+            if (playerRef.current) {
+                try {
+                    playerRef.current.remove();
+                } catch (e) { }
+                playerRef.current = null;
+            }
+
             await onSend(audioUri);
             await cleanup();
             setRecordingState("idle");
             setAudioUri(null);
             setDuration(0);
-            setSoundSource(null);
-
-            barHeights.forEach((bar) => {
-                bar.value = MIN_BAR_HEIGHT;
-            });
+            setMeteringValue(0);
+            setIsPlaying(false);
         } catch (error) {
             console.error("Send error:", error);
         } finally {
             setSending(false);
         }
+    };
+
+    const openAppSettings = async () => {
+        try {
+            if (Platform.OS === "ios") {
+                await Linking.openURL("app-settings:");
+            } else {
+                await Linking.openSettings();
+            }
+        } catch (error) {
+            console.error("Failed to open settings:", error);
+        }
+        setShowPermissionModal(false);
     };
 
     const formatTime = (seconds: number) => {
@@ -382,6 +500,7 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
         return `${mins}:${secs.toString().padStart(2, "0")}`;
     };
 
+    // Animated styles
     const pulseAnimatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseScale.value }],
         opacity: interpolate(pulseScale.value, [1, 1.3], [1, 0.6]),
@@ -390,11 +509,10 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
     const micAnimatedStyle = useAnimatedStyle(() => ({
         transform: [
             { scale: micScale.value },
-            { translateX: translateX.value }
+            { translateX: translateX.value },
         ],
     }));
 
-    // Opacity for cancel text based on slide distance
     const cancelOpacityStyle = useAnimatedStyle(() => ({
         opacity: interpolate(
             translateX.value,
@@ -404,33 +522,71 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
         ),
     }));
 
-    // Pan gesture for slide-to-cancel
+    // Gestures
+    const tapGesture = Gesture.Tap().onEnd(() => {
+        runOnJS(stopRecording)();
+    });
+
     const panGesture = Gesture.Pan()
+        .activeOffsetX([-20, 20])
         .onUpdate((event) => {
-            // Only allow sliding left (negative values)
             if (event.translationX < 0) {
-                translateX.value = Math.max(event.translationX, CANCEL_THRESHOLD - 20);
+                translateX.value = Math.max(
+                    event.translationX,
+                    CANCEL_THRESHOLD - 20
+                );
             }
         })
         .onEnd((event) => {
             if (event.translationX < CANCEL_THRESHOLD) {
-                // Cancelled - animate out and delete
                 translateX.value = withTiming(-SCREEN_WIDTH, { duration: 200 }, () => {
                     runOnJS(handleDelete)();
                 });
             } else {
-                // Return to original position
                 translateX.value = withSpring(0);
             }
         });
 
-    // Tap gesture for stopping recording
-    const tapGesture = Gesture.Tap()
-        .onEnd(() => {
-            runOnJS(stopRecording)();
-        });
+    const composedGesture = Gesture.Race(tapGesture, panGesture);
 
-    // Idle state - show mic button only
+    // Permission Modal
+    const renderPermissionModal = () => (
+        <Modal
+            visible={showPermissionModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowPermissionModal(false)}
+        >
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalCard}>
+                    <View style={styles.modalIconContainer}>
+                        <MaterialIcons name="mic" size={48} color={colors.primary} />
+                    </View>
+                    <Text style={styles.modalTitle}>Mikrofon İzni Gerekli</Text>
+                    <Text style={styles.modalText}>
+                        Ses mesajı gönderebilmek için mikrofon erişimine ihtiyacımız var.
+                        Lütfen ayarlardan izin verin.
+                    </Text>
+                    <View style={styles.modalActions}>
+                        <TouchableOpacity
+                            style={styles.modalButtonPrimary}
+                            onPress={openAppSettings}
+                        >
+                            <Text style={styles.modalButtonPrimaryText}>Ayarları Aç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.modalButtonSecondary}
+                            onPress={() => setShowPermissionModal(false)}
+                        >
+                            <Text style={styles.modalButtonSecondaryText}>İptal</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+
+    // Idle state
     if (recordingState === "idle") {
         return (
             <>
@@ -450,72 +606,37 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                         color={disabled ? colors.textTertiary : colors.primary}
                     />
                 </Pressable>
-
-                {/* Permission Modal */}
-                <Modal
-                    visible={showPermissionModal}
-                    transparent
-                    animationType="fade"
-                    onRequestClose={() => setShowPermissionModal(false)}
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalCard}>
-                            <View style={styles.modalIconContainer}>
-                                <MaterialIcons name="mic" size={48} color={colors.primary} />
-                            </View>
-                            <Text style={styles.modalTitle}>Mikrofon İzni Gerekli</Text>
-                            <Text style={styles.modalText}>
-                                Ses mesajı gönderebilmek için mikrofon erişimine ihtiyacımız var.
-                            </Text>
-                            <View style={styles.modalActions}>
-                                <TouchableOpacity
-                                    style={styles.modalButtonPrimary}
-                                    onPress={() => {
-                                        setShowPermissionModal(false);
-                                        // Linking.openSettings(); // Or request permission logic
-                                        // For now just close because permissions in expo-audio are a bit different
-                                    }}
-                                >
-                                    <Text style={styles.modalButtonPrimaryText}>İzin Ver</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.modalButtonSecondary}
-                                    onPress={() => setShowPermissionModal(false)}
-                                >
-                                    <Text style={styles.modalButtonSecondaryText}>İptal</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
+                {renderPermissionModal()}
             </>
         );
     }
 
-    // Recording state - Bumble style with slide-to-cancel
+    // Recording state
     if (recordingState === "recording") {
-        const composedGesture = Gesture.Simultaneous(panGesture, tapGesture);
-
         return (
             <View style={styles.recordingContainer}>
-                {/* Left: Recording dot + duration */}
                 <View style={styles.recordingLeft}>
                     <Animated.View style={[styles.recordingDot, pulseAnimatedStyle]} />
                     <Text style={styles.durationText}>{formatTime(duration)}</Text>
                 </View>
 
-                {/* Center: Slide to cancel hint */}
                 <Animated.View style={[styles.cancelArea, cancelOpacityStyle]}>
-                    <MaterialIcons name="chevron-left" size={18} color={colors.textSecondary} />
+                    <MaterialIcons
+                        name="chevron-left"
+                        size={18}
+                        color={colors.textSecondary}
+                    />
                     <Text style={styles.cancelText}>İptal için kaydır</Text>
                 </Animated.View>
 
-                {/* Right: Draggable mic button */}
                 <GestureDetector gesture={composedGesture}>
                     <Animated.View style={[styles.micCircle, micAnimatedStyle]}>
-                        <MaterialIcons name="mic" size={22} color="#FFF" />
+                        <View style={styles.micButtonInner}>
+                            <MaterialIcons name="mic" size={22} color="#FFF" />
+                        </View>
                     </Animated.View>
                 </GestureDetector>
+                {renderPermissionModal()}
             </View>
         );
     }
@@ -523,7 +644,6 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
     // Preview state
     return (
         <View style={styles.previewContainer}>
-            {/* Delete button */}
             <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={handleDelete}
@@ -532,7 +652,6 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                 <MaterialIcons name="delete" size={22} color={colors.error} />
             </TouchableOpacity>
 
-            {/* Play/Pause button */}
             <TouchableOpacity
                 style={styles.playButton}
                 onPress={togglePlayback}
@@ -545,40 +664,25 @@ export function VoiceRecorder({ onSend, onCancel, onRecordingStateChange, disabl
                 />
             </TouchableOpacity>
 
-            {/* Waveform */}
             <View style={styles.waveformContainer}>
-                <View style={styles.waveform}>
-                    {barHeights.map((barHeight, index) => (
-                        <WaveformBar
-                            key={index}
-                            barHeight={barHeight}
-                            isRecording={false}
-                        />
-                    ))}
-                </View>
+                <WaveformBars isRecording={false} meteringValue={meteringValue} />
             </View>
 
-            {/* Duration */}
             <Text style={styles.previewDuration}>{formatTime(duration)}</Text>
 
-            {/* Send button */}
             <TouchableOpacity
                 style={[styles.sendButton, sending && styles.sendButtonDisabled]}
                 onPress={handleSend}
                 disabled={sending}
             >
-                <MaterialIcons
-                    name="send"
-                    size={20}
-                    color="#FFF"
-                />
+                <MaterialIcons name="send" size={20} color="#FFF" />
             </TouchableOpacity>
+            {renderPermissionModal()}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    // Idle state
     micButton: {
         width: 44,
         height: 44,
@@ -594,14 +698,12 @@ const styles = StyleSheet.create({
     micButtonDisabled: {
         opacity: 0.5,
     },
-
-    // Recording state - Premium dark theme
     recordingContainer: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: "#1C2033", // Dark theme background
+        backgroundColor: "#1C2033",
         borderRadius: 28,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
@@ -659,12 +761,17 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 6,
     },
-    // Preview state - Premium dark theme
+    micButtonInner: {
+        width: "100%",
+        height: "100%",
+        justifyContent: "center",
+        alignItems: "center",
+    },
     previewContainer: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1C2033", // Dark theme background
+        backgroundColor: "#1C2033",
         borderRadius: 28,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
@@ -742,8 +849,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0,
         elevation: 0,
     },
-
-    // Modal styles
     modalOverlay: {
         flex: 1,
         backgroundColor: "rgba(0, 0, 0, 0.7)",
