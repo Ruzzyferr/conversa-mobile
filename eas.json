@@ -7,7 +7,7 @@
         "EXPO_PUBLIC_ENV": "dev"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     },
     "preview": {
@@ -27,7 +27,7 @@
         "EXPO_PUBLIC_ENV": "prod"
       },
       "android": {
-        "buildType": "aab"
+        "buildType": "app-bundle"
       },
       "ios": {
         "buildConfiguration": "Release"
@@ -35,4 +35,3 @@
     }
   }
 }
-

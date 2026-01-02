@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { Platform } from "react-native";
-import { getToken } from "./authStore";
+import { getToken, clearToken } from "./authStore";
+import { router } from "expo-router";
 
 // Determine API URL based on platform and environment
 function getApiUrl(): string {
@@ -24,6 +25,9 @@ function getApiUrl(): string {
 }
 
 const API_URL = getApiUrl();
+
+// Flag to prevent multiple logout redirects
+let isLoggingOut = false;
 
 class ApiClient {
   private client: AxiosInstance;
@@ -51,12 +55,32 @@ class ApiClient {
       }
     );
 
-    // Add response interceptor for error handling
+    // Add response interceptor for error handling - AUTO LOGOUT on 401
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          // Token might be invalid, but we'll let the calling code handle it
+      async (error: AxiosError) => {
+        if (error.response?.status === 401 && !isLoggingOut) {
+          // Invalid session token - auto logout
+          const errorData = error.response.data as any;
+          const errorCode = errorData?.error?.code;
+
+          // Only logout on UNAUTHORIZED code (not on login failures)
+          if (errorCode === "UNAUTHORIZED" || errorData?.code === "UNAUTHORIZED") {
+            console.warn("[API] 401 UNAUTHORIZED - Logging out automatically");
+            isLoggingOut = true;
+
+            try {
+              await clearToken();
+              // Use setTimeout to ensure we're not in a render cycle
+              setTimeout(() => {
+                router.replace("/(auth)/welcome");
+                isLoggingOut = false;
+              }, 100);
+            } catch (e) {
+              console.error("[API] Error during auto-logout:", e);
+              isLoggingOut = false;
+            }
+          }
         }
         return Promise.reject(error);
       }

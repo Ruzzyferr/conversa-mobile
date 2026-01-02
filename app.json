@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Swiip-mobile",
-    "slug": "Swiip-mobile",
+    "slug": "swiip",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Profil fotoğraflarınızı çekmek için kamera erişimine ihtiyacımız var.",
         "NSLocationWhenInUseUsageDescription": "Yakınındaki insanları görmek için konum erişimine ihtiyacımız var.",
-        "NSMicrophoneUsageDescription": "Ses mesajı göndermek için mikrofon erişimine ihtiyacımız var."
+        "NSMicrophoneUsageDescription": "Ses mesajı göndermek için mikrofon erişimine ihtiyacımız var.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -34,7 +35,9 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -60,10 +63,18 @@
         }
       ],
       "./plugins/withAndroidLaunchMode.js",
-      "expo-audio"
+      "expo-audio",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d73c1139-dfa9-4772-94cc-61bb0f8c4f1e"
+      }
+    },
+    "owner": "ruzzyfer"
   }
 }

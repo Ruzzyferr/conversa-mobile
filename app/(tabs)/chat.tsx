@@ -24,6 +24,7 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
+import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 
 type Conversation = {
   conversationId: string | null;
@@ -390,6 +391,9 @@ export default function ChatScreen() {
             />
           )}
         />
+
+        {/* Banner Ad for non-premium users */}
+        <BannerAdComponent style={{ marginBottom: 8 }} />
 
         {/* Reply Modal */}
         <Modal

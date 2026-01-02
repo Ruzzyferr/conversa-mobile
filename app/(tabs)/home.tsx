@@ -26,6 +26,7 @@ import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 import { api } from "@/src/services/api";
 import { getToken } from "@/src/services/authStore";
 import { showRewardedAd } from "@/src/services/rewardedAds";
+import { showInterstitialAd, initializeInterstitialAds, preloadInterstitialAd } from "@/src/services/interstitialAds";
 import { usePremium } from "@/src/state/premium";
 import { AxiosError } from "axios";
 
@@ -93,6 +94,10 @@ export default function HomeScreen() {
   const [successMessage, setSuccessMessage] = useState("");
   const [showDirectLimitModal, setShowDirectLimitModal] = useState(false);
 
+  // Swipe counter for interstitial ads (show every 5 swipes for non-premium)
+  const swipeCountRef = useRef(0);
+  const SWIPES_BEFORE_AD = 5;
+
   const { premiumEnabled, refreshPremiumStatus } = usePremium();
 
   // Use both premiumEnabled from context and local isPremium state
@@ -107,7 +112,25 @@ export default function HomeScreen() {
   useEffect(() => {
     checkAuthAndLoadFeed();
     loadBoostStatus();
+    // Initialize interstitial ads
+    initializeInterstitialAds();
   }, []);
+
+  // Check and show interstitial ad every 5 swipes
+  const maybeShowInterstitialAd = useCallback(async () => {
+    if (isUserPremium) return; // Premium users don't see ads
+
+    swipeCountRef.current += 1;
+
+    if (swipeCountRef.current >= SWIPES_BEFORE_AD) {
+      swipeCountRef.current = 0; // Reset counter
+      const result = await showInterstitialAd();
+      if (!result.success) {
+        // Ad not ready, preload for next time
+        preloadInterstitialAd();
+      }
+    }
+  }, [isUserPremium]);
 
   const loadBoostStatus = async () => {
     try {
@@ -308,6 +331,9 @@ export default function HomeScreen() {
     // Remove card from feed immediately (swipe animation already completed)
     removeTopCard(currentCard);
 
+    // Show interstitial ad every 5 swipes for non-premium users
+    maybeShowInterstitialAd();
+
     // Make API call in background (fire-and-forget)
     api.like(likedUserId).then((result) => {
       // Check if we matched
@@ -412,6 +438,9 @@ export default function HomeScreen() {
 
     // Remove card from feed immediately (swipe animation already completed)
     removeTopCard(currentCard);
+
+    // Show interstitial ad every 5 swipes for non-premium users
+    maybeShowInterstitialAd();
 
     // Make API call in background (fire-and-forget)
     api.pass(passedUserId).catch((error) => {

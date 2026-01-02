@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -326,6 +327,26 @@ export default function ProfileScreen() {
 
         {/* Settings Section */}
         <View style={styles.settingsSection}>
+          {/* Boost Button - Prominent placement */}
+          <TouchableOpacity
+            style={[styles.settingsItem, styles.boostItem]}
+            onPress={() => router.push("/premium")}
+          >
+            <View style={styles.settingsItemLeft}>
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                style={[styles.settingsIcon, { borderRadius: 10 }]}
+              >
+                <Ionicons name="rocket" size={20} color="#FFF" />
+              </LinearGradient>
+              <View>
+                <Text style={[styles.settingsItemText, { fontWeight: 'bold' }]}>⚡ Boost</Text>
+                <Text style={styles.boostSubtext}>Profilini öne çıkar</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingsItem} onPress={() => router.push("/profile-edit")}>
             <View style={styles.settingsItemLeft}>
               <View style={[styles.settingsIcon, { backgroundColor: colors.primary + '20' }]}>
@@ -347,6 +368,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Banner Ad for non-premium users */}
+      <BannerAdComponent style={{ marginBottom: 8 }} />
 
       {/* Logout Confirmation Modal */}
       <Modal
@@ -720,6 +744,15 @@ const styles = StyleSheet.create({
   settingsItemText: {
     fontSize: 15,
     color: colors.textDark,
+  },
+  boostItem: {
+    backgroundColor: colors.primary + '08',
+    borderBottomColor: colors.primary + '20',
+  },
+  boostSubtext: {
+    fontSize: 12,
+    color: colors.textSecondaryDark,
+    marginTop: 2,
   },
 
   // Modal
