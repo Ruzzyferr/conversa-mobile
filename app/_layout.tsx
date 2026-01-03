@@ -55,6 +55,7 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   // Initialize AdMob on app start (only in dev builds, not Expo Go)
+  // Initialize AdMob on app start (only in dev builds, not Expo Go)
   useEffect(() => {
     // Initialize ads silently - it will check for Expo Go internally
     initializeAds().catch(() => {

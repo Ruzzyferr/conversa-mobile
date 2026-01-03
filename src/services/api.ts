@@ -10,10 +10,18 @@ function getApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // Default based on platform
+
+  // In production builds, we should NOT fallback to localhost blindly
+  // as it will almost certainly fail on a physical device.
+  if (!__DEV__) {
+    // Optional: You could return a default production URL here if you have one hardcoded
+    // return "https://api.swiip.app";
+    console.warn("EXPO_PUBLIC_API_URL is not set in production build! Request will likely fail.");
+  }
+
+  // Default based on platform (mainly for development)
   if (Platform.OS === "android") {
     // Android emulator uses 10.0.2.2 to access host machine's localhost
-    // For physical device, use your computer's local IP (e.g., 192.168.1.100)
     return __DEV__ ? "http://10.0.2.2:4000" : "http://localhost:4000";
   } else if (Platform.OS === "ios") {
     // iOS simulator can use localhost
@@ -24,7 +32,7 @@ function getApiUrl(): string {
   return "http://localhost:4000";
 }
 
-const API_URL = getApiUrl();
+export const API_URL = getApiUrl();
 
 // Flag to prevent multiple logout redirects
 let isLoggingOut = false;

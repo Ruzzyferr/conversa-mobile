@@ -76,7 +76,7 @@ export default function VerifyCodeScreen() {
 
   const handleVerify = async (codeToVerify?: string) => {
     const fullCode = codeToVerify || code.join("");
-    
+
     if (fullCode.length !== 6) {
       Alert.alert("Error", "Please enter the 6-digit code");
       return;
@@ -93,7 +93,7 @@ export default function VerifyCodeScreen() {
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
       let message = "Geçersiz doğrulama kodu. Lütfen tekrar deneyin.";
-      
+
       if (error instanceof Error) {
         // Try to extract a user-friendly message
         if (error.message.includes("400") || error.message.includes("Invalid")) {
@@ -104,7 +104,7 @@ export default function VerifyCodeScreen() {
           message = error.message;
         }
       }
-      
+
       setErrorMessage(message);
       setShowErrorModal(true);
       // Clear code on error
@@ -142,54 +142,54 @@ export default function VerifyCodeScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.content}>
-        <Text style={styles.title}>Enter Verification Code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to{"\n"}
-          <Text style={styles.identifier}>{identifier}</Text>
-        </Text>
-
-        <Card style={styles.card}>
-          <View style={styles.codeContainer}>
-            {code.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref) => {
-                  inputRefs.current[index] = ref;
-                }}
-                style={styles.codeInput}
-                value={digit}
-                onChangeText={(value) => handleCodeChange(value, index)}
-                onKeyPress={({ nativeEvent }) =>
-                  handleKeyPress(nativeEvent.key, index)
-                }
-                keyboardType="number-pad"
-                maxLength={1}
-                selectTextOnFocus
-                editable={!loading}
-              />
-            ))}
-          </View>
-
-          <PrimaryButton
-            title="Verify"
-            onPress={() => handleVerify()}
-            loading={loading}
-            disabled={code.join("").length !== 6}
-            style={styles.button}
-          />
-
-          <Text style={styles.resendText}>
-            Didn't receive the code?{" "}
-            <Text
-              style={styles.resendLink}
-              onPress={handleResend}
-              disabled={resending}
-            >
-              {resending ? "Sending..." : "Resend"}
-            </Text>
+          <Text style={styles.title}>Enter Verification Code</Text>
+          <Text style={styles.subtitle}>
+            We sent a 6-digit code to{"\n"}
+            <Text style={styles.identifier}>{identifier}</Text>
           </Text>
-        </Card>
-      </View>
+
+          <Card style={styles.card}>
+            <View style={styles.codeContainer}>
+              {code.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => {
+                    inputRefs.current[index] = ref;
+                  }}
+                  style={styles.codeInput}
+                  value={digit}
+                  onChangeText={(value) => handleCodeChange(value, index)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleKeyPress(nativeEvent.key, index)
+                  }
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  editable={!loading}
+                />
+              ))}
+            </View>
+
+            <PrimaryButton
+              title="Verify"
+              onPress={() => handleVerify()}
+              loading={loading}
+              disabled={code.join("").length !== 6}
+              style={styles.button}
+            />
+
+            <Text style={styles.resendText}>
+              Didn't receive the code?{" "}
+              <Text
+                style={styles.resendLink}
+                onPress={handleResend}
+                disabled={resending}
+              >
+                {resending ? "Sending..." : "Resend"}
+              </Text>
+            </Text>
+          </Card>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Error Modal */}
@@ -265,14 +265,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 12,
-    padding: spacing.md,
-    fontSize: typography.fontSize["2xl"],
+    padding: spacing.sm,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.textDark,
     borderWidth: 2,
     borderColor: colors.borderDark,
     textAlign: "center",
-    minHeight: 60,
+    minHeight: 50,
   },
   button: {
     marginTop: spacing.sm,
