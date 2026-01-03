@@ -20,7 +20,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { DiscoveryCard } from "@/src/components/DiscoveryCard";
-import { SwipeDeck } from "@/src/components/SwipeDeck";
+import { SwipeDeck, SwipeDeckHandle } from "@/src/components/SwipeDeck";
 import { FilterSheet, FilterParams } from "@/src/components/FilterSheet";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 import { api } from "@/src/services/api";
@@ -49,6 +49,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [feed, setFeed] = useState<DiscoveryCard[]>([]);
+  const swipeDeckRef = useRef<SwipeDeckHandle>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
@@ -364,6 +365,14 @@ export default function HomeScreen() {
         const details = errorData?.details;
 
         if (details && errorData.code === "LIKE_LIMIT_REACHED") {
+          // Restore the card to the front of the feed
+          setFeed(prevFeed => [currentCard, ...prevFeed.filter(c => c.userId !== currentCard.userId)]);
+
+          // Trigger swipeBack animation to bring card back visually
+          setTimeout(() => {
+            swipeDeckRef.current?.swipeBack();
+          }, 100);
+
           setLikeLimitInfo({
             likesUsed: details.likesUsed || 0,
             likesLimit: details.likesLimit || 15,
@@ -775,6 +784,7 @@ export default function HomeScreen() {
         {/* Card Container - Swipe Deck (smooth animated style) */}
         <View style={styles.scrollView}>
           <SwipeDeck
+            ref={swipeDeckRef}
             items={feed}
             onSwipeLeft={handlePass}
             onSwipeRight={handleLike}
@@ -795,6 +805,8 @@ export default function HomeScreen() {
             renderCard={(card) => (
               <DiscoveryCard
                 card={card}
+                onSwipeLeft={() => swipeDeckRef.current?.swipeLeft()}
+                onSwipeRight={() => swipeDeckRef.current?.swipeRight()}
                 onFavorite={() => handleFavorite(card)}
                 favoritesRemaining={favoriteInfo?.favoritesRemaining}
                 isPremium={isUserPremium}

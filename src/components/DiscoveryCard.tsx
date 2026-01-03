@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from "react-native";
-import { ScrollView, RectButton } from "react-native-gesture-handler";
+import { View, Text, StyleSheet, Image, Dimensions } from "react-native";
+import { ScrollView, RectButton, TouchableOpacity } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
@@ -36,7 +36,7 @@ type DiscoveryCardProps = {
   isPremium?: boolean;
 };
 
-export function DiscoveryCard({ card, onFavorite, favoritesRemaining, isPremium }: DiscoveryCardProps) {
+export function DiscoveryCard({ card, onSwipeLeft, onSwipeRight, onFavorite, favoritesRemaining, isPremium }: DiscoveryCardProps) {
   const { profile, distanceKm } = card;
   const [bioExpanded, setBioExpanded] = useState(false);
 
@@ -243,8 +243,71 @@ export function DiscoveryCard({ card, onFavorite, favoritesRemaining, isPremium 
             </View>
           ))}
 
+          {/* Bumble-style Location Card */}
+          <View style={styles.locationCard}>
+            <Text style={styles.locationCardHeader}>Konum</Text>
+            <View style={styles.locationCardContent}>
+              <MaterialIcons name="location-on" size={28} color={colors.textSecondaryDark} />
+              <View style={styles.locationCardInfo}>
+                <Text style={styles.locationCardCity}>
+                  {profile.city || "Belirtilmemiş"}
+                </Text>
+                {distanceKm && (
+                  <Text style={styles.locationCardDistance}>
+                    {formatDistance(distanceKm)}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons Row - Dark Theme */}
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity
+              style={[styles.actionButtonCircle, styles.declineButton]}
+              onPress={onSwipeLeft}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="close" size={32} color="#FF4D6D" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButtonCircle, styles.starButton]}
+              onPress={onFavorite}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[colors.accent, colors.primary]}
+                style={styles.starGradient}
+              >
+                <MaterialIcons name="star" size={26} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButtonCircle, styles.heartButton]}
+              onPress={onSwipeRight}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                style={styles.heartGradient}
+              >
+                <MaterialIcons name="favorite" size={28} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Block & Report Section */}
+          <View style={styles.safetySection}>
+            <TouchableOpacity style={styles.safetyButton}>
+              <Text style={styles.blockText}>Engelle</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.safetyButton}>
+              <Text style={styles.reportText}>Bildir</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Bottom padding for safe scrolling */}
-          <View style={{ height: spacing.xl * 3 }} />
+          <View style={{ height: spacing.xl * 2 }} />
         </View>
       </ScrollView>
     </View>
@@ -477,5 +540,104 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "bold",
+  },
+  // Bumble-style Location Card - Dark Theme
+  locationCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 16,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  locationCardHeader: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSecondaryDark,
+    marginBottom: spacing.sm,
+  },
+  locationCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  locationCardInfo: {
+    flex: 1,
+  },
+  locationCardCity: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  locationCardDistance: {
+    fontSize: 14,
+    color: colors.textSecondaryDark,
+    marginTop: 2,
+  },
+  // Action Buttons Row - Dark Theme
+  actionButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 24,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  actionButtonCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  declineButton: {
+    backgroundColor: "rgba(255, 77, 109, 0.15)",
+    borderWidth: 2,
+    borderColor: "rgba(255, 77, 109, 0.4)",
+  },
+  starButton: {
+    overflow: "hidden",
+  },
+  starGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heartButton: {
+    overflow: "hidden",
+  },
+  heartGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  // Safety Section - Dark Theme
+  safetySection: {
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  safetyButton: {
+    paddingVertical: spacing.sm,
+  },
+  blockText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textSecondaryDark,
+  },
+  reportText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FF4D6D",
   },
 });

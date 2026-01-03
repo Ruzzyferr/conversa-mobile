@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import { api } from "@/src/services/api";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 
 type Request = {
   requestId: string;
@@ -37,6 +38,7 @@ type Request = {
   kind: "LIKE" | "FAVORITE";
   status: "PENDING" | "ACCEPTED" | "DECLINED";
   createdAt: string;
+  expiresAt?: string;
   fromUser?: {
     userId: string;
     displayName: string;
@@ -65,6 +67,54 @@ type Request = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Expiration Timer Component
+const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
+  const [timeLeft, setTimeLeft] = useState("");
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const expiry = new Date(expiresAt).getTime();
+      const diff = expiry - now;
+
+      if (diff <= 0) {
+        setTimeLeft("Süresi doldu");
+        setIsUrgent(true);
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (hours > 0) {
+        setTimeLeft(`${hours}s ${minutes}dk`);
+        setIsUrgent(hours < 6);
+      } else {
+        setTimeLeft(`${minutes}dk`);
+        setIsUrgent(true);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  return (
+    <View style={[styles.expirationBadge, isUrgent && styles.expirationBadgeUrgent]}>
+      <Ionicons
+        name="time-outline"
+        size={12}
+        color={isUrgent ? "#FF4D6D" : colors.textSecondaryDark}
+      />
+      <Text style={[styles.expirationText, isUrgent && styles.expirationTextUrgent]}>
+        {timeLeft}
+      </Text>
+    </View>
+  );
+};
 
 export default function RequestsScreen() {
   const router = useRouter();
@@ -98,6 +148,13 @@ export default function RequestsScreen() {
   } | null>(null);
   const matchModalAnim = React.useRef(new Animated.Value(0)).current;
   const sparkleAnim = React.useRef(new Animated.Value(0)).current;
+
+  // LikeLimitModal state
+  const [showLikeLimitModal, setShowLikeLimitModal] = useState(false);
+  const [likesUsed, setLikesUsed] = useState(0);
+  const [likesLimit, setLikesLimit] = useState(10);
+  const [isPremium, setIsPremium] = useState(false);
+  const [watchingAd, setWatchingAd] = useState(false);
 
   // Reset animations when modal closes
   React.useEffect(() => {
@@ -212,6 +269,15 @@ export default function RequestsScreen() {
       badgeUpdater.update();
     } catch (error: any) {
       console.error("Accept error:", error); // Debug log
+
+      // Check for LIKE_LIMIT_REACHED error
+      if (error?.response?.data?.error?.code === "LIKE_LIMIT_REACHED" ||
+        error?.message?.includes("LIKE_LIMIT_REACHED")) {
+        // Show like limit modal
+        setShowLikeLimitModal(true);
+        return;
+      }
+
       const message = error instanceof Error ? error.message : "İstek kabul edilemedi";
       Alert.alert("Hata", message);
     }
@@ -359,6 +425,11 @@ export default function RequestsScreen() {
                     </LinearGradient>
                   )}
                 </View>
+
+                {/* Expiration Timer */}
+                {item.expiresAt && item.status === "PENDING" && (
+                  <ExpirationTimer expiresAt={item.expiresAt} />
+                )}
 
                 {user.city && (
                   <View style={styles.locationContainer}>
@@ -583,6 +654,28 @@ export default function RequestsScreen() {
             </Animated.View>
           </View>
         </Modal>
+
+        {/* Like Limit Modal */}
+        <LikeLimitModal
+          visible={showLikeLimitModal}
+          onClose={() => setShowLikeLimitModal(false)}
+          onWatchAd={async () => {
+            setWatchingAd(true);
+            try {
+              // TODO: Implement rewarded ad watching
+              // For now just close modal
+              setShowLikeLimitModal(false);
+            } catch (error) {
+              console.error("Ad error:", error);
+            } finally {
+              setWatchingAd(false);
+            }
+          }}
+          likesUsed={likesUsed}
+          likesLimit={likesLimit}
+          isPremium={isPremium}
+          watchingAd={watchingAd}
+        />
 
         {/* Profile Modal - FULL SCREEN PREMIUM */}
         <Modal
@@ -1387,5 +1480,28 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text,
     lineHeight: 22,
+  },
+  // Expiration Timer Styles
+  expirationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginTop: 6,
+    gap: 4,
+  },
+  expirationBadgeUrgent: {
+    backgroundColor: "rgba(255, 77, 109, 0.15)",
+  },
+  expirationText: {
+    fontSize: 11,
+    color: colors.textSecondaryDark,
+    fontWeight: "500",
+  },
+  expirationTextUrgent: {
+    color: "#FF4D6D",
   },
 });

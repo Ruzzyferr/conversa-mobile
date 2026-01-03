@@ -29,6 +29,7 @@ import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
 import { MaterialIcons } from "@expo/vector-icons";
 import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
+import { ProfileModal } from "@/src/components/ProfileModal";
 
 type Message = {
   id: string;
@@ -825,119 +826,12 @@ export default function ConversationScreen() {
             </View>
           </View>
 
-          {/* Profile Modal for waiting screen */}
-          {showProfileModal && (
-            <Modal
-              visible={showProfileModal}
-              transparent
-              animationType="slide"
-              onRequestClose={() => {
-                setShowProfileModal(false);
-                setProfileData(null);
-              }}
-            >
-              <View style={styles.modalOverlay}>
-                <Card style={styles.profileModalCard}>
-                  {loadingProfile ? (
-                    <View style={styles.profileLoadingContainer}>
-                      <Text style={styles.profileLoadingText}>Yükleniyor...</Text>
-                    </View>
-                  ) : profileData ? (
-                    <ScrollView
-                      style={styles.profileScrollView}
-                      contentContainerStyle={styles.profileContent}
-                      showsVerticalScrollIndicator={true}
-                      nestedScrollEnabled={true}
-                    >
-                      <TouchableOpacity
-                        onPress={() => {
-                          setShowProfileModal(false);
-                          setProfileData(null);
-                        }}
-                        style={styles.profileCloseButton}
-                      >
-                        <Text style={styles.profileCloseText}>✕</Text>
-                      </TouchableOpacity>
-
-                      {/* Photo */}
-                      {profileData.photos && profileData.photos.length > 0 ? (
-                        <Image
-                          source={{ uri: profileData.photos[0] }}
-                          style={styles.profilePhoto}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.profilePhotoPlaceholder}>
-                          <Text style={styles.profilePhotoPlaceholderText}>
-                            {profileData.displayName.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Profile Info - Same as likes screen */}
-                      <View style={styles.profileInfo}>
-                        <Text style={styles.profileDisplayName}>
-                          {profileData.displayName}
-                          {profileData.birthYear && `, ${new Date().getFullYear() - profileData.birthYear}`}
-                        </Text>
-                        {profileData.city && (
-                          <Text style={styles.profileCity}>📍 {profileData.city}</Text>
-                        )}
-                        <Text style={styles.profilePurpose}>
-                          {profileData.purpose.charAt(0) +
-                            profileData.purpose.slice(1).toLowerCase()}
-                        </Text>
-
-                        {profileData.bio && (
-                          <Text style={styles.profileBio}>{profileData.bio}</Text>
-                        )}
-
-                        {/* Languages */}
-                        {(profileData.languagesNative.length > 0 ||
-                          profileData.languagesPractice.length > 0) && (
-                            <View style={styles.profileLanguagesContainer}>
-                              {profileData.languagesNative.length > 0 && (
-                                <View style={styles.profileLanguageSection}>
-                                  <Text style={styles.profileLanguageLabel}>
-                                    SPEAKS:
-                                  </Text>
-                                  <Text style={styles.profileLanguages}>
-                                    {profileData.languagesNative.join(", ")}
-                                  </Text>
-                                </View>
-                              )}
-                              {profileData.languagesPractice.length > 0 && (
-                                <View style={styles.profileLanguageSection}>
-                                  <Text style={styles.profileLanguageLabel}>
-                                    LEARNING:
-                                  </Text>
-                                  <Text style={styles.profileLanguages}>
-                                    {profileData.languagesPractice.join(", ")}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          )}
-                      </View>
-                    </ScrollView>
-                  ) : (
-                    <View style={styles.profileErrorContainer}>
-                      <Text style={styles.profileErrorText}>Profil yüklenemedi</Text>
-                      <TouchableOpacity
-                        onPress={() => {
-                          setShowProfileModal(false);
-                          setProfileData(null);
-                        }}
-                        style={styles.modalCloseButton}
-                      >
-                        <Text style={styles.modalCloseText}>Kapat</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </Card>
-              </View>
-            </Modal>
-          )}
+          {/* Profile Modal for waiting screen - Using reusable component */}
+          <ProfileModal
+            visible={showProfileModal}
+            onClose={() => setShowProfileModal(false)}
+            userId={otherUser?.userId || null}
+          />
 
           {/* Leave Conversation Modal for waiting screen */}
           <Modal
@@ -1179,119 +1073,12 @@ export default function ConversationScreen() {
         </View>
       </Modal>
 
-      {/* Profile Modal */}
-      <Modal
+      {/* Profile Modal - Using reusable component */}
+      <ProfileModal
         visible={showProfileModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowProfileModal(false);
-          setProfileData(null);
-        }}
-      >
-        <View style={styles.profileModalOverlay}>
-          <View style={styles.profileModalCard}>
-            {loadingProfile ? (
-              <View style={styles.profileLoadingContainer}>
-                <Text style={styles.profileLoadingText}>Yükleniyor...</Text>
-              </View>
-            ) : profileData ? (
-              <ScrollView
-                style={styles.profileScrollView}
-                contentContainerStyle={styles.profileContent}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                <TouchableOpacity
-                  style={styles.profileCloseButton}
-                  onPress={() => {
-                    setShowProfileModal(false);
-                    setProfileData(null);
-                  }}
-                >
-                  <Text style={styles.profileCloseText}>✕</Text>
-                </TouchableOpacity>
-
-                {/* Photo */}
-                {profileData.photos && profileData.photos.length > 0 ? (
-                  <Image
-                    source={{ uri: profileData.photos[0] }}
-                    style={styles.profilePhoto}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.profilePhotoPlaceholder}>
-                    <Text style={styles.profilePhotoPlaceholderText}>
-                      {profileData.displayName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Profile Info - Same as likes screen */}
-                <View style={styles.profileInfo}>
-                  <Text style={styles.profileDisplayName}>
-                    {profileData.displayName}
-                    {profileData.birthYear && `, ${new Date().getFullYear() - profileData.birthYear}`}
-                  </Text>
-                  {profileData.city && (
-                    <Text style={styles.profileCity}>📍 {profileData.city}</Text>
-                  )}
-                  <Text style={styles.profilePurpose}>
-                    {profileData.purpose.charAt(0) +
-                      profileData.purpose.slice(1).toLowerCase()}
-                  </Text>
-
-                  {profileData.bio && (
-                    <Text style={styles.profileBio}>{profileData.bio}</Text>
-                  )}
-
-                  {/* Languages */}
-                  {(profileData.languagesNative.length > 0 ||
-                    profileData.languagesPractice.length > 0) && (
-                      <View style={styles.profileLanguagesContainer}>
-                        {profileData.languagesNative.length > 0 && (
-                          <View style={styles.profileLanguageSection}>
-                            <Text style={styles.profileLanguageLabel}>
-                              SPEAKS:
-                            </Text>
-                            <Text style={styles.profileLanguages}>
-                              {profileData.languagesNative.join(", ")}
-                            </Text>
-                          </View>
-                        )}
-                        {profileData.languagesPractice.length > 0 && (
-                          <View style={styles.profileLanguageSection}>
-                            <Text style={styles.profileLanguageLabel}>
-                              LEARNING:
-                            </Text>
-                            <Text style={styles.profileLanguages}>
-                              {profileData.languagesPractice.join(", ")}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                </View>
-              </ScrollView>
-            ) : (
-              <View style={styles.profileErrorContainer}>
-                <Text style={styles.profileErrorText}>
-                  Profil yüklenemedi
-                </Text>
-                <TouchableOpacity
-                  style={styles.profileCloseButton}
-                  onPress={() => {
-                    setShowProfileModal(false);
-                    setProfileData(null);
-                  }}
-                >
-                  <Text style={styles.profileCloseText}>Kapat</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowProfileModal(false)}
+        userId={otherUser?.userId || null}
+      />
 
       {/* Safety Modal (Android) */}
       <Modal

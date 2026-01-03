@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { View, StyleSheet, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
@@ -6,7 +6,7 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from "react-native-reanimated";
-import SwipeableCard from "./SwipeableCard";
+import SwipeableCard, { SwipeableCardHandle } from "./SwipeableCard";
 import { windowWidth } from "./swipeUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -26,6 +26,7 @@ type StackCardProps<T> = {
   OverlayLabelRight?: () => React.ReactElement;
   OverlayLabelLeft?: () => React.ReactElement;
   onTranslateXChange?: (translateX: ReturnType<typeof useSharedValue<number>>) => void;
+  cardRef?: React.RefObject<SwipeableCardHandle | null>;
 };
 
 function StackCard<T extends { userId?: string }>({
@@ -40,6 +41,7 @@ function StackCard<T extends { userId?: string }>({
   OverlayLabelRight,
   OverlayLabelLeft,
   onTranslateXChange,
+  cardRef,
 }: StackCardProps<T>) {
   // Calculate static values outside worklet
   const baseScale = 1 - stackDepth * 0.04;
@@ -88,6 +90,7 @@ function StackCard<T extends { userId?: string }>({
       pointerEvents={isFirst ? "auto" : "none"}
     >
       <SwipeableCard
+        ref={isFirst ? cardRef : undefined}
         cardWidth={CARD_WIDTH}
         cardHeight={720}
         translateXRange={[-windowWidth / 2, 0, windowWidth / 2]}
@@ -110,6 +113,13 @@ function StackCard<T extends { userId?: string }>({
   );
 }
 
+// Export handle type for external use
+export type SwipeDeckHandle = {
+  swipeLeft: () => void;
+  swipeRight: () => void;
+  swipeBack: () => void;
+};
+
 type SwipeDeckProps<T> = {
   items: T[];
   renderCard: (item: T, isFirst: boolean) => React.ReactNode;
@@ -120,20 +130,26 @@ type SwipeDeckProps<T> = {
   FavoriteButton?: () => React.ReactElement;
 };
 
-export function SwipeDeck<T extends { userId?: string }>({
-  items,
-  renderCard,
-  onSwipeLeft,
-  onSwipeRight,
-  OverlayLabelRight,
-  OverlayLabelLeft,
-  FavoriteButton,
-}: SwipeDeckProps<T>) {
+function SwipeDeckInner<T extends { userId?: string }>(
+  {
+    items,
+    renderCard,
+    onSwipeLeft,
+    onSwipeRight,
+    OverlayLabelRight,
+    OverlayLabelLeft,
+    FavoriteButton,
+  }: SwipeDeckProps<T>,
+  ref: React.ForwardedRef<SwipeDeckHandle>
+) {
   // Get the first 3 items to display in stack
   const stackItems = useMemo(() => items.slice(0, 3), [items]);
 
   // Track the top card's translateX for animating cards behind it
   const topCardTranslateX = useSharedValue(0);
+
+  // Ref for the top card's SwipeableCard
+  const topCardRef = useRef<SwipeableCardHandle>(null);
 
   const handleSwipeRight = (item: T) => {
     onSwipeRight(item);
@@ -149,6 +165,19 @@ export function SwipeDeck<T extends { userId?: string }>({
     'worklet';
     topCardTranslateX.value = translateX.value;
   };
+
+  // Expose swipe methods via ref
+  useImperativeHandle(ref, () => ({
+    swipeLeft: () => {
+      topCardRef.current?.swipeLeft();
+    },
+    swipeRight: () => {
+      topCardRef.current?.swipeRight();
+    },
+    swipeBack: () => {
+      topCardRef.current?.swipeBack();
+    },
+  }));
 
   return (
     <View style={styles.container}>
@@ -172,6 +201,7 @@ export function SwipeDeck<T extends { userId?: string }>({
               OverlayLabelRight={OverlayLabelRight}
               OverlayLabelLeft={OverlayLabelLeft}
               onTranslateXChange={isFirst ? handleTopCardTranslateXChange : undefined}
+              cardRef={topCardRef}
             />
           );
         })}
@@ -179,6 +209,11 @@ export function SwipeDeck<T extends { userId?: string }>({
     </View>
   );
 }
+
+// Export with forwardRef
+export const SwipeDeck = forwardRef(SwipeDeckInner) as <T extends { userId?: string }>(
+  props: SwipeDeckProps<T> & { ref?: React.ForwardedRef<SwipeDeckHandle> }
+) => React.ReactElement;
 
 const styles = StyleSheet.create({
   container: {
