@@ -14,6 +14,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
@@ -80,7 +81,7 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
       const diff = expiry - now;
 
       if (diff <= 0) {
-        setTimeLeft("Süresi doldu");
+        setTimeLeft(t('likes.expired'));
         setIsUrgent(true);
         return;
       }
@@ -89,10 +90,10 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
       if (hours > 0) {
-        setTimeLeft(`${hours}s ${minutes}dk`);
+        setTimeLeft(`${hours}${t('likes.hours')} ${minutes}${t('likes.minutes')}`);
         setIsUrgent(hours < 6);
       } else {
-        setTimeLeft(`${minutes}dk`);
+        setTimeLeft(`${minutes}${t('likes.minutes')}`);
         setIsUrgent(true);
       }
     };
@@ -118,6 +119,7 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
 
 export default function RequestsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [incomingRequests, setIncomingRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,7 @@ export default function RequestsScreen() {
     matchedUserName?: string;
     matchedUserPhoto?: string;
     isFemale?: boolean;
+    t?: any; // Add t to matchData type if needed or just use from scope
   } | null>(null);
   const matchModalAnim = React.useRef(new Animated.Value(0)).current;
   const sparkleAnim = React.useRef(new Animated.Value(0)).current;
@@ -179,7 +182,7 @@ export default function RequestsScreen() {
       setIncomingRequests(incoming);
     } catch (error) {
       console.error("Failed to load requests:", error);
-      Alert.alert("Hata", "İstekler yüklenirken bir hata oluştu");
+      Alert.alert(t('common.error'), t('likes.loading_error'));
     } finally {
       setLoading(false);
     }
@@ -257,9 +260,9 @@ export default function RequestsScreen() {
         // No conversationId means it's a LIKE request but not a match yet
         // Show a different message
         Alert.alert(
-          "İstek Kabul Edildi",
-          `${matchedUserName || "Kullanıcı"} ile eşleşmek için siz de onları beğenmelisiniz.`,
-          [{ text: "Tamam" }]
+          t('likes.request_accepted'),
+          t('likes.match_hint', { name: matchedUserName || "Kullanıcı" }),
+          [{ text: t('common.complete') }]
         );
       }
 
@@ -278,8 +281,8 @@ export default function RequestsScreen() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : "İstek kabul edilemedi";
-      Alert.alert("Hata", message);
+      const message = error instanceof Error ? error.message : t('likes.accept_error');
+      Alert.alert(t('common.error'), message);
     }
   };
 
@@ -327,8 +330,8 @@ export default function RequestsScreen() {
       // Update badge
       badgeUpdater.update();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : "İstek reddedilemedi";
-      Alert.alert("Hata", message);
+      const message = error instanceof Error ? error.message : t('likes.decline_error');
+      Alert.alert(t('common.error'), message);
     }
   };
 
@@ -347,10 +350,10 @@ export default function RequestsScreen() {
         console.error("Axios error:", error.response?.data);
       }
       const errorMessage =
-        error instanceof Error ? error.message : "Profil yüklenemedi";
-      Alert.alert("Hata", errorMessage, [
+        error instanceof Error ? error.message : t('likes.profile_error');
+      Alert.alert(t('common.error'), errorMessage, [
         {
-          text: "Tamam",
+          text: t('common.complete'),
           onPress: () => {
             setShowProfileModal(false);
             setProfileData(null);
@@ -421,7 +424,7 @@ export default function RequestsScreen() {
                       end={{ x: 1, y: 0 }}
                       style={styles.superLikeTag}
                     >
-                      <Text style={styles.superLikeText}>Super Like</Text>
+                      <Text style={styles.superLikeText}>{t('likes.super_like')}</Text>
                     </LinearGradient>
                   )}
                 </View>
@@ -486,7 +489,7 @@ export default function RequestsScreen() {
             >
               <View style={[styles.actionButton, styles.declineButton]}>
                 <Ionicons name="close" size={24} color="#FF4D6D" />
-                <Text style={styles.declineButtonText}>Reddet</Text>
+                <Text style={styles.declineButtonText}>{t('likes.decline')}</Text>
               </View>
             </TouchableOpacity>
 
@@ -507,7 +510,7 @@ export default function RequestsScreen() {
                 style={[styles.actionButton, styles.acceptButton]}
               >
                 <Ionicons name="checkmark" size={24} color="#FFFFFF" />
-                <Text style={styles.acceptButtonText}>Kabul Et</Text>
+                <Text style={styles.acceptButtonText}>{t('likes.accept')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -519,21 +522,21 @@ export default function RequestsScreen() {
   return (
     <SafeAreaView>
       <View style={styles.container}>
-        <ScreenHeader title="İstekler" />
+        <ScreenHeader title={t('likes.header')} />
 
         {loading && incomingRequests.length === 0 ? (
           <View style={styles.loadingContainer}>
             <EmptyState
               icon="💔"
-              title="Yükleniyor..."
+              title={t('likes.loading')}
               description=""
             />
           </View>
         ) : incomingRequests.length === 0 ? (
           <EmptyState
             icon="💔"
-            title="Gelen istek yok"
-            description="Henüz size istek gönderen kimse yok. Profilinizi geliştirin ve daha fazla kişiyle tanışın!"
+            title={t('likes.no_requests')}
+            description={t('likes.no_requests_desc')}
           />
         ) : (
           <FlatList
@@ -599,7 +602,7 @@ export default function RequestsScreen() {
                 </Animated.View>
 
                 <View style={styles.matchModalContent}>
-                  <Text style={styles.matchTitle}>Eşleştiniz! 🎉</Text>
+                  <Text style={styles.matchTitle}>{t('likes.matched')}</Text>
 
                   {/* Profile Photo */}
                   {matchData?.matchedUserPhoto ? (
@@ -624,21 +627,21 @@ export default function RequestsScreen() {
                     {matchData?.matchedUserName || "Birisi"}
                   </Text>
                   <Text style={styles.matchSubtitle}>
-                    İkiniz de birbirinizi beğendiniz!
+                    {t('likes.matched_desc')}
                   </Text>
 
                   {/* First Message Info */}
                   {matchData?.isFemale === false && (
                     <View style={styles.firstMessageInfo}>
                       <Text style={styles.firstMessageText}>
-                        💬 İlk mesajı {matchData?.matchedUserName || "karşı taraf"} gönderecek
+                        {t('likes.first_message', { name: matchData?.matchedUserName || "karşı taraf" })}
                       </Text>
                     </View>
                   )}
 
                   <View style={styles.matchModalActions}>
                     <PrimaryButton
-                      title="Sohbete Git"
+                      title={t('likes.go_to_chat')}
                       onPress={handleGoToChat}
                       style={styles.matchModalButton}
                     />
@@ -646,7 +649,7 @@ export default function RequestsScreen() {
                       onPress={handleMatchModalClose}
                       style={styles.matchModalCloseButton}
                     >
-                      <Text style={styles.matchModalCloseText}>Devam Et</Text>
+                      <Text style={styles.matchModalCloseText}>{t('likes.continue')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -694,7 +697,7 @@ export default function RequestsScreen() {
               <View style={styles.loadingSpinner}>
                 <Ionicons name="reload" size={40} color={colors.primary} />
               </View>
-              <Text style={styles.profileLoadingText}>Profil Yükleniyor...</Text>
+              <Text style={styles.profileLoadingText}>{t('likes.profile_loading')}</Text>
             </View>
           ) : profileData ? (
             <View style={styles.profileModalContainer}>
@@ -764,7 +767,7 @@ export default function RequestsScreen() {
                     </Text>
                     <View style={styles.headerLocation}>
                       <Ionicons name="location" size={16} color={colors.primary} />
-                      <Text style={styles.headerLocationText}>{profileData.city || "Konum belirtilmemiş"}</Text>
+                      <Text style={styles.headerLocationText}>{profileData.city || t('likes.location_unknown')}</Text>
                     </View>
                   </View>
                 </View>
@@ -775,7 +778,7 @@ export default function RequestsScreen() {
                   {/* Bio Section */}
                   {profileData.bio && (
                     <View style={styles.detailSection}>
-                      <Text style={styles.detailTitle}>Hakkımda</Text>
+                      <Text style={styles.detailTitle}>{t('likes.about_me')}</Text>
                       <Text style={styles.bioText}>{profileData.bio}</Text>
                     </View>
                   )}
@@ -791,7 +794,7 @@ export default function RequestsScreen() {
                       >
                         <View style={styles.favoriteHeader}>
                           <Ionicons name="star" size={16} color={colors.accent} />
-                          <Text style={styles.favoriteLabel}>Özel Mesaj</Text>
+                          <Text style={styles.favoriteLabel}>{t('likes.special_message')}</Text>
                         </View>
                         <Text style={styles.favoriteText}>"{selectedRequest.firstMessage.text}"</Text>
                       </LinearGradient>

@@ -30,6 +30,7 @@ import { showInterstitialAd, initializeInterstitialAds, preloadInterstitialAd } 
 import { usePremium } from "@/src/state/premium";
 import { getOfferings, purchasePremium, PurchasesPackage } from "@/src/services/purchases";
 import { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 
 type DiscoveryCard = {
   userId: string;
@@ -47,6 +48,7 @@ type DiscoveryCard = {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [favoritePackage, setFavoritePackage] = useState<PurchasesPackage | null>(null);
@@ -126,7 +128,7 @@ export default function HomeScreen() {
       if (offerings?.availablePackages) {
         // Look for favorite pack (e.g., swiip_favorite_5pack)
         const foundPackage = offerings.availablePackages.find(
-          pkg => pkg.identifier.includes("favorite")
+          pkg => pkg.identifier === "swiip_favorite_5pack"
         );
         if (foundPackage) {
           setFavoritePackage(foundPackage);
@@ -221,11 +223,11 @@ export default function HomeScreen() {
       await loadFeed();
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to load";
+        error instanceof Error ? error.message : t('common.load_error'); // Assuming 'load_error' or generic 'error'
       if (errorMessage.includes("Profile required")) {
         router.replace("/(auth)/profile-setup");
       } else {
-        Alert.alert("Error", errorMessage);
+        Alert.alert(t('common.error'), errorMessage);
       }
     }
   };
@@ -288,8 +290,8 @@ export default function HomeScreen() {
 
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to load feed";
-      Alert.alert("Error", errorMessage);
+        error instanceof Error ? error.message : t('home.load_feed_error');
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setLoading(false);
     }
@@ -413,9 +415,9 @@ export default function HomeScreen() {
 
       if (!adResult.success) {
         if (adResult.error?.includes('closed without earning')) {
-          Alert.alert("Ad Not Completed", "Please watch the ad completely to earn your reward.");
+          Alert.alert(t('home.ad.not_completed_title'), t('home.ad.not_completed_msg'));
         } else {
-          Alert.alert("Error", adResult.error || "Failed to watch ad. Please try again.");
+          Alert.alert(t('common.error'), adResult.error || t('home.ad.error'));
         }
         setWatchingAd(false);
         return;
@@ -430,7 +432,7 @@ export default function HomeScreen() {
         likesLimit: rewardResult.likesInfo.likesLimit,
       });
 
-      Alert.alert("Success", `You got +${rewardResult.rewardAmount} likes!`);
+      Alert.alert(t('home.ad.success'), t('home.ad.reward_msg', { amount: rewardResult.rewardAmount }));
       setShowLikeLimitModal(false);
 
       // Refresh usage to get updated limits
@@ -448,7 +450,7 @@ export default function HomeScreen() {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to get reward";
-      Alert.alert("Error", errorMessage);
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setWatchingAd(false);
     }
@@ -495,17 +497,17 @@ export default function HomeScreen() {
         if (usage.usage && usage.usage.favoritesRemaining !== undefined) {
           if (usage.usage.favoritesRemaining <= 0) {
             // Show limit modal with purchase option
-            const price = favoritePackage?.product.priceString || "a pack";
+            const price = favoritePackage?.product.priceString || t('home.favorite.default_pack_name');
             Alert.alert(
-              "Favori Hakkı Yok",
-              `Favori göndermek için hakkınız kalmamış. 5 favori hakkı almak ister misiniz? (${favoritePackage ? price : "Store'dan"})`,
+              t('home.favorite.limit_title'),
+              t('home.favorite.limit_msg'),
               [
                 {
-                  text: "İptal",
+                  text: t('common.cancel'),
                   style: "cancel",
                 },
                 {
-                  text: "Satın Al",
+                  text: t('home.favorite.purchase_btn'),
                   onPress: async () => {
                     await handlePurchaseFavorites();
                   },
@@ -529,7 +531,7 @@ export default function HomeScreen() {
   const handleSendFavorite = async () => {
     if (!favoriteCard) return;
     if (favoriteMessage.trim().length < 10) {
-      Alert.alert("Uyarı", "Mesaj en az 10 karakter olmalıdır");
+      Alert.alert(t('common.error'), t('home.favorite.modal_subtitle'));
       return;
     }
 
@@ -549,7 +551,7 @@ export default function HomeScreen() {
       }
 
       // Show success modal
-      setSuccessMessage("Mesaj isteği gönderildi");
+      setSuccessMessage(t('home.favorite.success_msg'));
       setShowSuccessModal(true);
 
       // Clear message and card, remove from feed
@@ -566,15 +568,15 @@ export default function HomeScreen() {
       if (error instanceof AxiosError && error.response?.status === 429) {
         // Direct message limit reached - show purchase option
         Alert.alert(
-          "Favori Hakkı Yok",
-          "Favori göndermek için hakkınız kalmamış. 5 favori hakkı almak ister misiniz? (5$)",
+          t('home.favorite.limit_title'),
+          t('home.favorite.limit_msg'),
           [
             {
-              text: "İptal",
+              text: t('common.cancel'),
               style: "cancel",
             },
             {
-              text: "Satın Al",
+              text: t('home.favorite.purchase_btn'),
               onPress: () => {
                 router.push("/premium");
               },
@@ -583,8 +585,8 @@ export default function HomeScreen() {
         );
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : "Mesaj gönderilemedi";
-        Alert.alert("Hata", errorMessage);
+          error instanceof Error ? error.message : t('chat.send_error');
+        Alert.alert(t('common.error'), errorMessage);
       }
       // Reset favorite card on error
       setFavoriteCard(null);
@@ -608,10 +610,10 @@ export default function HomeScreen() {
         console.warn("No favorite package found. Falling back to mock.");
       }
 
-      // Sync with backend (mock or real)
-      await api.purchaseFavorite();
+      // Sync with backend
+      await api.syncBilling();
 
-      Alert.alert("Başarılı", "5 Favori hakkı eklendi! 🎉");
+      Alert.alert(t('home.favorite.success_title'), t('home.favorite.purchase_success'));
 
       // Refresh limits
       const usage = await api.getUsage();
@@ -624,7 +626,7 @@ export default function HomeScreen() {
       }
     } catch (error: any) {
       if (error.message !== "Purchase cancelled") {
-        Alert.alert("Hata", "Satın alma işlemi başarısız oldu.");
+        Alert.alert(t('common.error'), t('home.favorite.purchase_error'));
       }
     } finally {
       setLoading(false);
@@ -656,19 +658,19 @@ export default function HomeScreen() {
 
   const handleBoost = async (minutes: 60 | 180 | 720) => {
     try {
-      await api.activateBoost(minutes);
+      await api.activateBoost();
       await loadBoostStatus();
       setShowBoostModal(false);
-      Alert.alert("Success", `Boost activated for ${minutes} minutes!`);
+      Alert.alert(t('home.ad.success'), t('home.boost.active', { time: `${minutes}m` }));
     } catch (error) {
       if (error instanceof AxiosError && (error.response?.status === 403 || error.response?.status === 402)) {
         Alert.alert(
-          "Premium Required",
-          "Boost is a premium feature. Upgrade to Premium to use it.",
+          t('home.boost.premium_title'),
+          t('home.boost.premium_msg'),
           [
-            { text: "Cancel", style: "cancel" },
+            { text: t('common.cancel'), style: "cancel" },
             {
-              text: "Go Premium",
+              text: t('home.dm_limit.premium_btn'),
               onPress: () => router.push("/premium"),
             },
           ]
@@ -676,8 +678,8 @@ export default function HomeScreen() {
         setShowBoostModal(false);
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to activate boost";
-        Alert.alert("Error", errorMessage);
+          error instanceof Error ? error.message : t('home.boost.activation_error');
+        Alert.alert(t('common.error'), errorMessage);
       }
     }
   };
@@ -699,7 +701,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView>
         <View style={styles.content}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -720,7 +722,7 @@ export default function HomeScreen() {
                   style={styles.premiumBadge}
                 >
                   <Text style={styles.premiumBadgeIcon}>✨</Text>
-                  <Text style={styles.premiumBadgeText}>Premium</Text>
+                  <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
                 </LinearGradient>
               )}
             </View>
@@ -737,13 +739,12 @@ export default function HomeScreen() {
           </View>
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyEmoji}>✨</Text>
-            <Text style={styles.emptyTitle}>Bugünlük herkesi gördün!</Text>
+            <Text style={styles.emptyTitle}>{t('home.empty.title')}</Text>
             <Text style={styles.emptyText}>
-              Yeni insanlar yakında burada olacak.{"\n"}
-              Biraz sonra tekrar kontrol et 😊
+              {t('home.empty.text')}
             </Text>
             <PrimaryButton
-              title="Yenile"
+              title={t('home.empty.refresh')}
               onPress={() => loadFeed()}
               style={styles.refreshButton}
             />
@@ -754,40 +755,7 @@ export default function HomeScreen() {
   }
 
   // Safety check: ensure feed has cards
-  if (feed.length === 0) {
-    return (
-      <SafeAreaView>
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.title}>Swiip</Text>
-            </View>
-            <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.filterButton}
-                onPress={() => setShowFilterModal(true)}
-              >
-                <Text style={styles.filterButtonText}>☰</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>✨</Text>
-            <Text style={styles.emptyTitle}>Bugünlük herkesi gördün!</Text>
-            <Text style={styles.emptyText}>
-              Yeni insanlar yakında burada olacak.{"\n"}
-              Biraz sonra tekrar kontrol et 😊
-            </Text>
-            <PrimaryButton
-              title="Yenile"
-              onPress={() => loadFeed()}
-              style={styles.refreshButton}
-            />
-          </Card>
-        </View>
-      </SafeAreaView>
-    );
-  }
+
 
   // SwipeDeck always uses items[0] as the top card
   const currentCard = feed[0];
@@ -807,7 +775,7 @@ export default function HomeScreen() {
                 style={styles.premiumBadge}
               >
                 <Text style={styles.premiumBadgeIcon}>✨</Text>
-                <Text style={styles.premiumBadgeText}>Premium</Text>
+                <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
               </LinearGradient>
             )}
           </View>
@@ -844,14 +812,14 @@ export default function HomeScreen() {
             OverlayLabelRight={() => (
               <View style={styles.overlayContainer}>
                 <View style={[styles.overlayLabel, styles.overlayLabelRight]}>
-                  <Text style={styles.overlayLabelText}>LIKE</Text>
+                  <Text style={styles.overlayLabelText}>{t('home.overlay.like')}</Text>
                 </View>
               </View>
             )}
             OverlayLabelLeft={() => (
               <View style={styles.overlayContainer}>
                 <View style={[styles.overlayLabel, styles.overlayLabelLeft]}>
-                  <Text style={styles.overlayLabelText}>PASS</Text>
+                  <Text style={styles.overlayLabelText}>{t('home.overlay.pass')}</Text>
                 </View>
               </View>
             )}
@@ -900,13 +868,13 @@ export default function HomeScreen() {
         >
           <View style={styles.modalOverlay}>
             <Card style={styles.modalCard}>
-              <Text style={styles.matchTitle}>It's a match!</Text>
+              <Text style={styles.matchTitle}>{t('home.match.title')}</Text>
               <Text style={styles.matchSubtitle}>
-                You and {matchData?.matchedUserName || "someone"} liked each other
+                {t('home.match.subtitle', { name: matchData?.matchedUserName || "someone" })}
               </Text>
               <View style={styles.modalActions}>
                 <PrimaryButton
-                  title="Say hi"
+                  title={t('home.match.say_hi')}
                   onPress={handleGoToChat}
                   style={styles.modalButton}
                 />
@@ -914,7 +882,7 @@ export default function HomeScreen() {
                   onPress={handleMatchModalClose}
                   style={styles.modalCloseButton}
                 >
-                  <Text style={styles.modalCloseText}>Continue swiping</Text>
+                  <Text style={styles.modalCloseText}>{t('home.match.continue')}</Text>
                 </TouchableOpacity>
               </View>
             </Card>
@@ -930,14 +898,14 @@ export default function HomeScreen() {
         >
           <View style={styles.modalOverlay}>
             <Card style={styles.modalCard}>
-              <Text style={styles.boostModalTitle}>Boost Your Profile</Text>
+              <Text style={styles.boostModalTitle}>{t('home.boost.title')}</Text>
               <Text style={styles.boostModalText}>
-                Get more visibility and appear at the top of discovery feed
+                {t('home.boost.subtitle')}
               </Text>
               {boostStatus?.active && (
                 <View style={styles.activeBoostInfo}>
                   <Text style={styles.activeBoostText}>
-                    Active boost ends in: {getTimeRemaining()}
+                    {t('home.boost.active', { time: getTimeRemaining() })}
                   </Text>
                 </View>
               )}
@@ -946,29 +914,29 @@ export default function HomeScreen() {
                   style={styles.boostOption}
                   onPress={() => handleBoost(60)}
                 >
-                  <Text style={styles.boostOptionTitle}>1 Hour</Text>
-                  <Text style={styles.boostOptionSubtitle}>Quick boost</Text>
+                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.1h')}</Text>
+                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.1h_sub')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.boostOption}
                   onPress={() => handleBoost(180)}
                 >
-                  <Text style={styles.boostOptionTitle}>3 Hours</Text>
-                  <Text style={styles.boostOptionSubtitle}>Popular choice</Text>
+                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.3h')}</Text>
+                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.3h_sub')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.boostOption}
                   onPress={() => handleBoost(720)}
                 >
-                  <Text style={styles.boostOptionTitle}>12 Hours</Text>
-                  <Text style={styles.boostOptionSubtitle}>Maximum visibility</Text>
+                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.12h')}</Text>
+                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.12h_sub')}</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
                 onPress={() => setShowBoostModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>Cancel</Text>
+                <Text style={styles.modalCloseText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </Card>
           </View>
@@ -999,15 +967,15 @@ export default function HomeScreen() {
         >
           <View style={styles.favoriteModalOverlay}>
             <View style={styles.favoriteModalContent}>
-              <Text style={styles.favoriteModalTitle}>Direkt Mesaj Gönder</Text>
+              <Text style={styles.favoriteModalTitle}>{t('home.favorite.modal_title')}</Text>
               <Text style={styles.favoriteModalSubtitle}>
-                Bu kişiye bir mesaj gönder. Mesaj en az 10 karakter olmalıdır.
+                {t('home.favorite.modal_subtitle')}
               </Text>
               <TextInput
                 style={styles.favoriteMessageInput}
                 value={favoriteMessage}
                 onChangeText={setFavoriteMessage}
-                placeholder="Mesajınızı yazın..."
+                placeholder={t('home.favorite.placeholder')}
                 placeholderTextColor={colors.textSecondaryDark}
                 multiline
                 numberOfLines={4}
@@ -1015,7 +983,7 @@ export default function HomeScreen() {
                 maxLength={2000}
               />
               <Text style={styles.favoriteCharCount}>
-                {favoriteMessage.length}/2000
+                {t('home.favorite.char_count', { length: favoriteMessage.length })}
               </Text>
               <View style={styles.favoriteModalButtons}>
                 <TouchableOpacity
@@ -1025,7 +993,7 @@ export default function HomeScreen() {
                     setFavoriteMessage("");
                   }}
                 >
-                  <Text style={styles.favoriteModalButtonCancelText}>İptal</Text>
+                  <Text style={styles.favoriteModalButtonCancelText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -1036,7 +1004,7 @@ export default function HomeScreen() {
                   onPress={handleSendFavorite}
                   disabled={favoriteMessage.trim().length < 10}
                 >
-                  <Text style={styles.favoriteModalButtonConfirmText}>Gönder</Text>
+                  <Text style={styles.favoriteModalButtonConfirmText}>{t('home.favorite.send_btn')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1055,13 +1023,13 @@ export default function HomeScreen() {
               <View style={styles.successIconContainer}>
                 <Text style={styles.successIcon}>✓</Text>
               </View>
-              <Text style={styles.successModalTitle}>Başarılı</Text>
+              <Text style={styles.successModalTitle}>{t('home.favorite.success_title')}</Text>
               <Text style={styles.successModalMessage}>{successMessage}</Text>
               <TouchableOpacity
                 style={styles.successModalButton}
                 onPress={() => setShowSuccessModal(false)}
               >
-                <Text style={styles.successModalButtonText}>Tamam</Text>
+                <Text style={styles.successModalButtonText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1079,17 +1047,16 @@ export default function HomeScreen() {
               <View style={styles.directLimitIconContainer}>
                 <Text style={styles.directLimitIcon}>⚠️</Text>
               </View>
-              <Text style={styles.directLimitModalTitle}>Limit Doldu</Text>
+              <Text style={styles.directLimitModalTitle}>{t('home.dm_limit.title')}</Text>
               <Text style={styles.directLimitModalMessage}>
-                Haftalık direkt mesaj hakkın bitti.{"\n"}
-                Premium ile haftada 5 direkt mesaj gönderebilirsin.
+                {t('home.dm_limit.msg')}
               </Text>
               <View style={styles.directLimitModalButtons}>
                 <TouchableOpacity
                   style={[styles.directLimitModalButton, styles.directLimitModalButtonCancel]}
                   onPress={() => setShowDirectLimitModal(false)}
                 >
-                  <Text style={styles.directLimitModalButtonCancelText}>İptal</Text>
+                  <Text style={styles.directLimitModalButtonCancelText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.directLimitModalButton, styles.directLimitModalButtonConfirm]}
@@ -1098,7 +1065,7 @@ export default function HomeScreen() {
                     router.push("/premium");
                   }}
                 >
-                  <Text style={styles.directLimitModalButtonConfirmText}>Premium'a Geç</Text>
+                  <Text style={styles.directLimitModalButtonConfirmText}>{t('home.dm_limit.premium_btn')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

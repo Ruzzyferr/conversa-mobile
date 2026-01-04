@@ -206,6 +206,11 @@ function SwipeDeckInner<T extends { userId?: string }>(
           );
         })}
       </View>
+      {FavoriteButton && (
+        <View style={styles.favoriteButtonContainer}>
+          <FavoriteButton />
+        </View>
+      )}
     </View>
   );
 }

@@ -15,6 +15,7 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { api } from "@/src/services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -26,7 +27,7 @@ type ProfileData = {
     city: string | null;
     languagesNative: string[];
     languagesPractice: string[];
-    purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
+    purpose: "CONVERSATION" | "PRACTICE" | "COFFEE" | "DATING" | "FRIENDSHIP";
     bio: string | null;
     photos: string[];
 };
@@ -52,6 +53,7 @@ export function ProfileModal({
     onDecline,
     firstMessage,
 }: ProfileModalProps) {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const [loading, setLoading] = useState(true);
     const [profileData, setProfileData] = useState<ProfileData | null>(null);
@@ -97,7 +99,7 @@ export function ProfileModal({
                     <View style={styles.loadingSpinner}>
                         <Ionicons name="reload" size={40} color={colors.primary} />
                     </View>
-                    <Text style={styles.loadingText}>Profil Yükleniyor...</Text>
+                    <Text style={styles.loadingText}>{t('profile.loading')}</Text>
                 </View>
             ) : profileData ? (
                 <View style={styles.container}>
@@ -164,7 +166,7 @@ export function ProfileModal({
                                 <View style={styles.headerLocation}>
                                     <Ionicons name="location" size={16} color={colors.primary} />
                                     <Text style={styles.headerLocationText}>
-                                        {profileData.city || "Konum belirtilmemiş"}
+                                        {profileData.city || t('profile.location.unknown')}
                                     </Text>
                                 </View>
                             </View>
@@ -175,7 +177,7 @@ export function ProfileModal({
                             {/* Bio Section */}
                             {profileData.bio && (
                                 <View style={styles.detailSection}>
-                                    <Text style={styles.detailTitle}>Hakkımda</Text>
+                                    <Text style={styles.detailTitle}>{t('profile.about')}</Text>
                                     <Text style={styles.bioText}>{profileData.bio}</Text>
                                 </View>
                             )}
@@ -191,7 +193,7 @@ export function ProfileModal({
                                     >
                                         <View style={styles.favoriteHeader}>
                                             <Ionicons name="star" size={16} color={colors.accent} />
-                                            <Text style={styles.favoriteLabel}>Özel Mesaj</Text>
+                                            <Text style={styles.favoriteLabel}>{t('profile.special_message')}</Text>
                                         </View>
                                         <Text style={styles.favoriteText}>"{firstMessage.text}"</Text>
                                     </LinearGradient>
@@ -200,15 +202,11 @@ export function ProfileModal({
 
                             {/* Purpose Chip */}
                             <View style={styles.detailSection}>
-                                <Text style={styles.detailTitle}>Aradığım</Text>
+                                <Text style={styles.detailTitle}>{t('profile.seeking')}</Text>
                                 <View style={styles.chipContainer}>
                                     <View style={styles.purposeChip}>
                                         <Text style={styles.purposeText}>
-                                            {profileData.purpose === "CONVERSATION"
-                                                ? "Sohbet"
-                                                : profileData.purpose === "PRACTICE"
-                                                    ? "Dil Pratiği"
-                                                    : "Kahve"}
+                                            {t(`profile.purposes.${profileData.purpose.toLowerCase()}`, profileData.purpose)}
                                         </Text>
                                     </View>
                                 </View>
@@ -216,7 +214,7 @@ export function ProfileModal({
 
                             {/* Languages */}
                             <View style={styles.detailSection}>
-                                <Text style={styles.detailTitle}>Konuştuğum Diller</Text>
+                                <Text style={styles.detailTitle}>{t('profile.languages')}</Text>
                                 <View style={styles.languageTags}>
                                     {profileData.languagesNative.map((lang, index) => (
                                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
@@ -280,9 +278,9 @@ export function ProfileModal({
                 </View>
             ) : (
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>Profil yüklenemedi</Text>
+                    <Text style={styles.errorText}>{t('profile.load_error')}</Text>
                     <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                        <Text style={styles.closeText}>Kapat</Text>
+                        <Text style={styles.closeText}>{t('common.close')}</Text>
                     </TouchableOpacity>
                 </View>
             )}

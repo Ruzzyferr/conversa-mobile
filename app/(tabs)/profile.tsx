@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal, Dimensions } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -24,6 +25,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<{
@@ -49,12 +51,14 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [boostPackage, setBoostPackage] = useState<PurchasesPackage | null>(null);
 
-  useEffect(() => {
-    loadUserData();
-    loadPremiumStatus();
-    loadBoostStatus();
-    loadOfferings();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+      loadPremiumStatus();
+      loadBoostStatus();
+      loadOfferings();
+    }, [])
+  );
 
   const loadOfferings = async () => {
     try {
@@ -62,7 +66,7 @@ export default function ProfileScreen() {
       if (offerings?.availablePackages) {
         // Look for a package with "boost" in the identifier
         const foundPackage = offerings.availablePackages.find(
-          pkg => pkg.identifier.includes("boost")
+          pkg => pkg.identifier === "swiip_boost_2pack"
         );
         if (foundPackage) {
           setBoostPackage(foundPackage);
@@ -129,7 +133,7 @@ export default function ProfileScreen() {
 
   const handleBoost = async () => {
     if (boostStatus?.active) {
-      Alert.alert("Boost Aktif ⚡", `Profilin şu anda zaten öne çıkarılmış durumda!\nBitiş: ${getTimeRemaining(boostStatus.endsAt!)}`);
+      Alert.alert(t('profile.boost_active_alert'), t('profile.boost_active_msg', { time: getTimeRemaining(boostStatus.endsAt!) }));
       return;
     }
 
@@ -137,12 +141,12 @@ export default function ProfileScreen() {
 
     if (hasBoosts) {
       Alert.alert(
-        "Profile Boost 🚀",
-        `Profilini 30 dakika boyunca öne çıkarmak istiyor musun?\n\nKalan Hakkın: ${boostStatus?.boostsRemaining || 0}`,
+        t('profile.boost_confirm_title'),
+        t('profile.boost_confirm_msg', { count: boostStatus?.boostsRemaining || 0 }),
         [
-          { text: "İptal", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           {
-            text: "Boostla!",
+            text: t('profile.boost_action'),
             onPress: async () => {
               try {
                 const result = await api.activateBoost();
@@ -150,10 +154,10 @@ export default function ProfileScreen() {
                   ...result,
                   weeklyLimit: boostStatus?.weeklyLimit || 2,
                 });
-                Alert.alert("Başarılı! 🚀", "Profilin 30 dakika boyunca öne çıkarılacak!");
+                Alert.alert(t('profile.boost_success_title'), t('profile.boost_success_msg'));
               } catch (error: any) {
-                const message = error.response?.data?.error?.message || "Bir hata oluştu";
-                Alert.alert("Hata", message);
+                const message = error.response?.data?.error?.message || t('common.error_occurred');
+                Alert.alert(t('common.error'), message);
               }
             }
           }
@@ -164,16 +168,16 @@ export default function ProfileScreen() {
       const priceString = boostPackage?.product.priceString || "$4.99";
 
       Alert.alert(
-        "Boost Hakkın Kalmadı",
-        `Profilini öne çıkarmak için yeni boost paketine ihtiyacın var.\n\n Paket: 2 Boost`, // Modified as per instruction
+        t('profile.boost_no_credits_title'),
+        t('profile.boost_no_credits_msg'), // Modified as per instruction
         [
-          { text: "İptal", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           !premiumStatus?.isPremium ? {
-            text: "Premium'a Geç ✨",
+            text: t('profile.upgrade_premium'),
             onPress: () => router.push("/premium")
           } : null,
           {
-            text: `2 Boost Al (${priceString})`, // Modified as per instruction
+            text: t('profile.buy_boost', { price: priceString }), // Modified as per instruction
             onPress: handlePurchaseBoost
           }
         ].filter(Boolean) as any
@@ -198,13 +202,13 @@ export default function ProfileScreen() {
       const result = await api.purchaseBoost();
       if (result.success) {
         await loadBoostStatus();
-        Alert.alert("Satın Alma Başarılı! 🎉", "Hesabına 2 Boost eklendi. Şimdi profilini öne çıkarabilirsin!");
+        Alert.alert(t('profile.purchase_success_title'), t('profile.purchase_success_msg'));
       }
     } catch (error: any) {
       if (error.message === "Purchase cancelled") { // Added as per instruction
         return; // User cancelled, do nothing
       }
-      Alert.alert("Satın Alma Başarısız", "Bir hata oluştu. Lütfen tekrar dene.");
+      Alert.alert(t('profile.purchase_error_title'), t('profile.purchase_error_msg'));
     } finally {
       setLoading(false);
     }
@@ -215,18 +219,18 @@ export default function ProfileScreen() {
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
 
-    if (diff <= 0) return "Süresi dolmuş";
+    if (diff <= 0) return t('profile.time_expired');
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
     if (days > 0) {
-      return `${days} gün ${hours} saat`;
+      return `${days} ${t('profile.days')} ${hours} ${t('profile.hours')}`;
     } else if (hours > 0) {
-      return `${hours} saat ${minutes} dakika`;
+      return `${hours} ${t('profile.hours')} ${minutes} ${t('profile.minutes')}`;
     } else {
-      return `${minutes} dakika`;
+      return `${minutes} ${t('profile.minutes')}`;
     }
   };
 
@@ -253,7 +257,7 @@ export default function ProfileScreen() {
           colors={[colors.primary + '20', colors.backgroundDark]}
           style={StyleSheet.absoluteFill}
         />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>{t('profile.loading')}</Text>
       </View>
     );
   }
@@ -317,7 +321,7 @@ export default function ProfileScreen() {
               onPress={() => router.push("/profile-edit")}
             >
               <Ionicons name="pencil" size={16} color="#FFF" />
-              <Text style={styles.editButtonText}>Düzenle</Text>
+              <Text style={styles.editButtonText}>{t('profile.edit')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -327,19 +331,19 @@ export default function ProfileScreen() {
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{profile.languagesNative?.length || 0}</Text>
-              <Text style={styles.statLabel}>Ana Dil</Text>
+              <Text style={styles.statLabel}>{t('profile.native_language')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{profile.languagesPractice?.length || 0}</Text>
-              <Text style={styles.statLabel}>Öğreniyor</Text>
+              <Text style={styles.statLabel}>{t('profile.learning')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
                 {profile.purpose === "CONVERSATION" ? "💬" : profile.purpose === "PRACTICE" ? "📚" : "☕"}
               </Text>
-              <Text style={styles.statLabel}>Amaç</Text>
+              <Text style={styles.statLabel}>{t('profile.purpose')}</Text>
             </View>
           </View>
         )}
@@ -349,12 +353,12 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="globe-outline" size={20} color={colors.primary} />
-              <Text style={styles.cardTitle}>Diller</Text>
+              <Text style={styles.cardTitle}>{t('profile.languages')}</Text>
             </View>
 
             {profile.languagesNative?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>Ana Diller</Text>
+                <Text style={styles.languageSectionTitle}>{t('profile.native_languages')}</Text>
                 <View style={styles.languageTags}>
                   {profile.languagesNative.map((lang: string, index: number) => (
                     <LinearGradient
@@ -371,7 +375,7 @@ export default function ProfileScreen() {
 
             {profile.languagesPractice?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>Öğreniyor</Text>
+                <Text style={styles.languageSectionTitle}>{t('profile.learning')}</Text>
                 <View style={styles.languageTags}>
                   {profile.languagesPractice.map((lang: string, index: number) => (
                     <LinearGradient
@@ -393,7 +397,7 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="document-text-outline" size={20} color={colors.primary} />
-              <Text style={styles.cardTitle}>Hakkında</Text>
+              <Text style={styles.cardTitle}>{t('profile.about')}</Text>
             </View>
             <Text style={styles.bioText}>{profile.bio}</Text>
           </View>
@@ -411,24 +415,24 @@ export default function ProfileScreen() {
                   style={styles.premiumActiveBadge}
                 >
                   <Text style={styles.premiumActiveIcon}>✨</Text>
-                  <Text style={styles.premiumActiveText}>Premium Aktif</Text>
+                  <Text style={styles.premiumActiveText}>{t('profile.premium_active')}</Text>
                 </LinearGradient>
 
                 {premiumStatus.premiumExpiresAt && (
                   <View style={styles.premiumExpiryRow}>
                     <Ionicons name="time-outline" size={18} color={colors.textSecondaryDark} />
                     <Text style={styles.premiumExpiryText}>
-                      Kalan: {getTimeRemaining(premiumStatus.premiumExpiresAt)}
+                      {t('profile.remaining', { time: getTimeRemaining(premiumStatus.premiumExpiresAt) })}
                     </Text>
                   </View>
                 )}
 
                 <View style={styles.premiumBenefits}>
                   {[
-                    { icon: "infinite", text: "Sınırsız Mesaj" },
-                    { icon: "eye", text: "Kim Beğendi" },
-                    { icon: "rocket", text: "Boost" },
-                    { icon: "diamond", text: "Direkt Mesaj" },
+                    { icon: "infinite", text: t('profile.unlimited_messages') },
+                    { icon: "eye", text: t('profile.who_liked') },
+                    { icon: "rocket", text: t('profile.boost') },
+                    { icon: "diamond", text: t('profile.direct_message') },
                   ].map((benefit, index) => (
                     <View key={index} style={styles.premiumBenefitItem}>
                       <Ionicons name={benefit.icon as any} size={16} color={colors.primary} />
@@ -440,9 +444,9 @@ export default function ProfileScreen() {
             ) : (
               <>
                 <View style={styles.premiumUpgradeHeader}>
-                  <Text style={styles.premiumUpgradeTitle}>✨ Premium'a Geç</Text>
+                  <Text style={styles.premiumUpgradeTitle}>{t('profile.upgrade_premium')}</Text>
                   <Text style={styles.premiumUpgradeSubtitle}>
-                    Tüm özelliklerin kilidini aç
+                    {t('profile.unlock_features')}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -455,7 +459,7 @@ export default function ProfileScreen() {
                     end={{ x: 1, y: 0 }}
                     style={styles.premiumUpgradeButtonGradient}
                   >
-                    <Text style={styles.premiumUpgradeButtonText}>Premium'a Yükselt</Text>
+                    <Text style={styles.premiumUpgradeButtonText}>{t('profile.upgrade_button')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </>
@@ -479,14 +483,14 @@ export default function ProfileScreen() {
               </LinearGradient>
               <View>
                 <Text style={[styles.settingsItemText, { fontWeight: 'bold' }, boostStatus?.active && { color: '#FFD700' }]}>
-                  {boostStatus?.active ? "⚡ Boost Aktif!" : "⚡ Boost"}
+                  {boostStatus?.active ? t('profile.boost_active') : t('profile.boost_button')}
                 </Text>
                 <Text style={[styles.boostSubtext, boostStatus?.active && { color: 'rgba(255, 215, 0, 0.7)' }]}>
                   {boostStatus?.active
-                    ? `Bitiş: ${getTimeRemaining(boostStatus.endsAt!)}`
+                    ? t('profile.boost_active_desc', { time: getTimeRemaining(boostStatus.endsAt!) })
                     : premiumStatus?.isPremium
-                      ? `Kalan Hakkın: ${boostStatus?.boostsRemaining || 0}`
-                      : "Profilini öne çıkar"}
+                      ? t('profile.boost_remaining', { count: boostStatus?.boostsRemaining || 0 })
+                      : t('profile.boost_promo')}
                 </Text>
               </View>
             </View>
@@ -502,7 +506,7 @@ export default function ProfileScreen() {
               <View style={[styles.settingsIcon, { backgroundColor: colors.primary + '20' }]}>
                 <Ionicons name="person-outline" size={20} color={colors.primary} />
               </View>
-              <Text style={styles.settingsItemText}>Profili Düzenle</Text>
+              <Text style={styles.settingsItemText}>{t('profile.edit_profile')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>
@@ -512,7 +516,7 @@ export default function ProfileScreen() {
               <View style={[styles.settingsIcon, { backgroundColor: colors.error + '20' }]}>
                 <Ionicons name="log-out-outline" size={20} color={colors.error} />
               </View>
-              <Text style={[styles.settingsItemText, { color: colors.error }]}>Çıkış Yap</Text>
+              <Text style={[styles.settingsItemText, { color: colors.error }]}>{t('profile.logout')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>
@@ -534,22 +538,22 @@ export default function ProfileScreen() {
             <View style={styles.modalIconContainer}>
               <Ionicons name="log-out-outline" size={32} color={colors.error} />
             </View>
-            <Text style={styles.modalTitle}>Çıkış Yap</Text>
+            <Text style={styles.modalTitle}>{t('profile.logout_confirm_title')}</Text>
             <Text style={styles.modalMessage}>
-              Hesabından çıkış yapmak istediğine emin misin?
+              {t('profile.logout_confirm_desc')}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => setShowLogoutModal(false)}
               >
-                <Text style={styles.modalButtonCancelText}>İptal</Text>
+                <Text style={styles.modalButtonCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
                 onPress={confirmLogout}
               >
-                <Text style={styles.modalButtonConfirmText}>Çıkış Yap</Text>
+                <Text style={styles.modalButtonConfirmText}>{t('profile.logout')}</Text>
               </TouchableOpacity>
             </View>
           </View>

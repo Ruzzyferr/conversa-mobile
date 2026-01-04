@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
@@ -71,6 +72,7 @@ const INTERESTS = [
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProfileSetupScreen() {
+    const { t } = useTranslation();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
@@ -100,6 +102,7 @@ export default function ProfileSetupScreen() {
     const rotateAnim = useRef(new Animated.Value(0)).current;
     const [isAnimating, setIsAnimating] = useState(false);
     const prevStep = useRef(1);
+    const scrollViewRef = useRef<ScrollView>(null);
 
     // Animate step change with page flip effect
     useEffect(() => {
@@ -143,6 +146,9 @@ export default function ProfileSetupScreen() {
             });
 
             prevStep.current = currentStep;
+
+            // Scroll to top when step changes
+            scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         }
     }, [currentStep]);
 
@@ -155,8 +161,8 @@ export default function ProfileSetupScreen() {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
             Alert.alert(
-                "İzin Gerekli",
-                "Fotoğraf seçmek için galeri erişim izni gereklidir."
+                t('setup.alerts.permission_required'),
+                t('setup.alerts.gallery_permission')
             );
             return false;
         }
@@ -167,8 +173,8 @@ export default function ProfileSetupScreen() {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
             Alert.alert(
-                "İzin Gerekli",
-                "Fotoğraf çekmek için kamera erişim izni gereklidir."
+                t('setup.alerts.permission_required'),
+                t('setup.alerts.camera_permission')
             );
             return false;
         }
@@ -179,8 +185,8 @@ export default function ProfileSetupScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
             Alert.alert(
-                "İzin Gerekli",
-                "Yakınındaki insanları görmek için konum erişim izni gereklidir."
+                t('setup.alerts.permission_required'),
+                t('setup.alerts.location_permission')
             );
             return false;
         }
@@ -313,15 +319,15 @@ export default function ProfileSetupScreen() {
 
     const handleCancel = () => {
         Alert.alert(
-            "İptal Et",
-            "Profil oluşturmayı iptal etmek istediğine emin misin? Tüm bilgiler kaybolacak.",
+            t('setup.alerts.cancel_title'),
+            t('setup.alerts.cancel_message'),
             [
                 {
-                    text: "Hayır",
+                    text: t('setup.alerts.no_keep'),
                     style: "cancel",
                 },
                 {
-                    text: "Evet, İptal Et",
+                    text: t('setup.alerts.yes_cancel'),
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -341,15 +347,15 @@ export default function ProfileSetupScreen() {
         switch (step) {
             case 1:
                 if (!displayName.trim()) {
-                    Alert.alert("Uyarı", "Lütfen isminizi girin");
+                    Alert.alert(t('common.error'), t('setup.alerts.name_required'));
                     return false;
                 }
                 if (displayName.trim().length < 2) {
-                    Alert.alert("Uyarı", "İsim en az 2 karakter olmalıdır");
+                    Alert.alert(t('common.error'), t('setup.alerts.name_length'));
                     return false;
                 }
                 if (!birthYear || birthYear.length !== 4) {
-                    Alert.alert("Uyarı", "Lütfen geçerli bir doğum yılı girin (örn: 1990)");
+                    Alert.alert(t('common.error'), t('setup.alerts.birth_required'));
                     return false;
                 }
                 const year = parseInt(birthYear);
@@ -357,21 +363,21 @@ export default function ProfileSetupScreen() {
                 const minYear = currentYear - 100;
                 const maxYear = currentYear - 18;
                 if (isNaN(year) || year < minYear || year > maxYear) {
-                    Alert.alert("Uyarı", `Doğum yılı ${minYear} ile ${maxYear} arasında olmalıdır`);
+                    Alert.alert(t('common.error'), t('setup.alerts.birth_range', { min: minYear, max: maxYear }));
                     return false;
                 }
                 if (!gender) {
-                    Alert.alert("Uyarı", "Lütfen cinsiyetinizi seçin");
+                    Alert.alert(t('common.error'), t('setup.alerts.gender_required'));
                     return false;
                 }
                 return true;
             case 2:
                 if (languagesNative.length === 0) {
-                    Alert.alert("Uyarı", "Lütfen en az bir ana dil seçin");
+                    Alert.alert(t('common.error'), t('setup.alerts.native_required'));
                     return false;
                 }
                 if (languagesPractice.length === 0) {
-                    Alert.alert("Uyarı", "Lütfen en az bir öğrenmek istediğiniz dil seçin");
+                    Alert.alert(t('common.error'), t('setup.alerts.practice_required'));
                     return false;
                 }
                 return true;
@@ -379,7 +385,7 @@ export default function ProfileSetupScreen() {
                 return true;
             case 4:
                 if (photos.length === 0) {
-                    Alert.alert("Uyarı", "Lütfen en az bir fotoğraf seçin");
+                    Alert.alert(t('common.error'), t('setup.alerts.photo_required'));
                     return false;
                 }
                 return true;
@@ -410,6 +416,24 @@ export default function ProfileSetupScreen() {
 
         setLoading(true);
         try {
+            // 1. Upload photos first
+            const uploadedPhotos = await Promise.all(
+                photos.map(async (photoUri) => {
+                    // Check if it's already a remote URL (unlikely in setup, but good practice)
+                    if (photoUri.startsWith("http")) return photoUri;
+
+                    try {
+                        const publicUrl = await api.uploadPhoto(photoUri);
+                        return publicUrl;
+                    } catch (error) {
+                        console.error("Failed to upload photo:", photoUri, error);
+                        // If upload fails, just return original URI or handle error?
+                        // Better to fail loudly so user knows
+                        throw new Error(t('setup.alerts.upload_error'));
+                    }
+                })
+            );
+
             const year = parseInt(birthYear);
             await api.upsertMyProfile({
                 displayName: displayName.trim(),
@@ -418,7 +442,7 @@ export default function ProfileSetupScreen() {
                 purpose: purpose,
                 languagesNative: languagesNative,
                 languagesPractice: languagesPractice,
-                photos: photos,
+                photos: uploadedPhotos,
                 bio: bio.trim() || undefined,
                 interests: selectedInterests.length > 0 ? selectedInterests : undefined,
                 city: location?.city,
@@ -429,8 +453,8 @@ export default function ProfileSetupScreen() {
             router.replace("/(tabs)/home");
         } catch (error: unknown) {
             const errorMessage =
-                error instanceof Error ? error.message : "Profil kaydedilemedi";
-            Alert.alert("Hata", errorMessage);
+                error instanceof Error ? error.message : t('setup.alerts.save_error');
+            Alert.alert(t('common.error'), errorMessage);
         } finally {
             setLoading(false);
         }
@@ -439,15 +463,15 @@ export default function ProfileSetupScreen() {
     const renderStep1 = () => (
         <View style={styles.stepContainer}>
             <View style={styles.headerSection}>
-                <Text style={styles.stepTitle}>Adın ve Doğum Tarihin</Text>
+                <Text style={styles.stepTitle}>{t('setup.step1.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Başlamak için temel bilgilerine ihtiyacımız var
+                    {t('setup.step1.subtitle')}
                 </Text>
             </View>
 
             {/* Display Name */}
             <View style={styles.section}>
-                <Text style={styles.label}>İsmin Nedir? *</Text>
+                <Text style={styles.label}>{t('setup.step1.name_label')} *</Text>
                 <View style={styles.inputContainer}>
                     <MaterialIcons
                         name="person-outline"
@@ -459,7 +483,7 @@ export default function ProfileSetupScreen() {
                         style={styles.textInput}
                         value={displayName}
                         onChangeText={setDisplayName}
-                        placeholder="İsmini gir"
+                        placeholder={t('setup.step1.name_placeholder')}
                         placeholderTextColor={colors.textSecondaryDark}
                         maxLength={40}
                     />
@@ -468,7 +492,7 @@ export default function ProfileSetupScreen() {
 
             {/* Birth Year */}
             <View style={styles.section}>
-                <Text style={styles.label}>Doğum Yılın? *</Text>
+                <Text style={styles.label}>{t('setup.step1.birth_label')} *</Text>
                 <View style={styles.inputContainer}>
                     <MaterialIcons
                         name="cake"
@@ -480,7 +504,7 @@ export default function ProfileSetupScreen() {
                         style={styles.textInput}
                         value={birthYear}
                         onChangeText={setBirthYear}
-                        placeholder="Örn: 1990"
+                        placeholder={t('setup.step1.birth_placeholder')}
                         placeholderTextColor={colors.textSecondaryDark}
                         keyboardType="number-pad"
                         maxLength={4}
@@ -490,7 +514,7 @@ export default function ProfileSetupScreen() {
 
             {/* Gender */}
             <View style={styles.section}>
-                <Text style={styles.label}>Cinsiyetin? *</Text>
+                <Text style={styles.label}>{t('setup.step1.gender_label')} *</Text>
                 <View style={styles.optionGrid}>
                     {(["MALE", "FEMALE", "OTHER"] as Gender[]).map((g) => (
                         <TouchableOpacity
@@ -512,7 +536,7 @@ export default function ProfileSetupScreen() {
                                         gender === g && styles.optionTextSelected,
                                     ]}
                                 >
-                                    {g === "MALE" ? "Erkek" : g === "FEMALE" ? "Kadın" : "Diğer"}
+                                    {t(`setup.step1.gender_${g.toLowerCase()}`)}
                                 </Text>
                             </View>
                             {gender === g && (
@@ -527,7 +551,7 @@ export default function ProfileSetupScreen() {
 
             {/* Purpose */}
             <View style={styles.section}>
-                <Text style={styles.label}>Arayışın Ne? *</Text>
+                <Text style={styles.label}>{t('setup.step1.purpose_label')} *</Text>
                 <View style={styles.optionGrid}>
                     {(["CONVERSATION", "PRACTICE", "COFFEE"] as Purpose[]).map((p) => (
                         <TouchableOpacity
@@ -549,7 +573,7 @@ export default function ProfileSetupScreen() {
                                         purpose === p && styles.optionTextSelected,
                                     ]}
                                 >
-                                    {p === "CONVERSATION" ? "Sohbet" : p === "PRACTICE" ? "Pratik" : "Kahve"}
+                                    {t(`setup.step1.purpose_${p.toLowerCase()}`)}
                                 </Text>
                             </View>
                             {purpose === p && (
@@ -567,17 +591,17 @@ export default function ProfileSetupScreen() {
     const renderStep2 = () => (
         <View style={styles.stepContainer}>
             <View style={styles.headerSection}>
-                <Text style={styles.stepTitle}>Dillerin</Text>
+                <Text style={styles.stepTitle}>{t('setup.step2.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Hangi dilleri konuşuyorsun ve hangilerini öğrenmek istiyorsun?
+                    {t('setup.step2.subtitle')}
                 </Text>
             </View>
 
             {/* Native Languages */}
             <View style={styles.section}>
-                <Text style={styles.label}>Ana Dillerin *</Text>
+                <Text style={styles.label}>{t('setup.step2.native_label')} *</Text>
                 <Text style={styles.helperText}>
-                    Anadili olarak konuştuğun dilleri seç
+                    {t('setup.step2.native_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
                     {LANGUAGES.map((lang) => {
@@ -598,7 +622,7 @@ export default function ProfileSetupScreen() {
                                         isSelected && styles.tagTextSelected,
                                     ]}
                                 >
-                                    {lang}
+                                    {t(`languages.${lang}`)}
                                 </Text>
                                 {isSelected && (
                                     <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
@@ -611,9 +635,9 @@ export default function ProfileSetupScreen() {
 
             {/* Practice Languages */}
             <View style={styles.section}>
-                <Text style={styles.label}>Öğrenmek İstediğin Diller *</Text>
+                <Text style={styles.label}>{t('setup.step2.practice_label')} *</Text>
                 <Text style={styles.helperText}>
-                    Pratik yapmak istediğin dilleri seç
+                    {t('setup.step2.practice_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
                     {LANGUAGES.map((lang) => {
@@ -634,7 +658,7 @@ export default function ProfileSetupScreen() {
                                         isSelected && styles.tagTextSelected,
                                     ]}
                                 >
-                                    {lang}
+                                    {t(`languages.${lang}`)}
                                 </Text>
                                 {isSelected && (
                                     <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
@@ -650,21 +674,21 @@ export default function ProfileSetupScreen() {
     const renderStep3 = () => (
         <View style={styles.stepContainer}>
             <View style={styles.headerSection}>
-                <Text style={styles.stepTitle}>Hobilerin ve Biografi</Text>
+                <Text style={styles.stepTitle}>{t('setup.step3.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Kendinden bahset ve ilgi alanlarını paylaş
+                    {t('setup.step3.subtitle')}
                 </Text>
             </View>
 
             {/* Bio */}
             <View style={styles.section}>
-                <Text style={styles.label}>Kendinden Bahset</Text>
+                <Text style={styles.label}>{t('setup.step3.bio_label')}</Text>
                 <View style={styles.bioCard}>
                     <TextInput
                         style={styles.bioInput}
                         value={bio}
                         onChangeText={setBio}
-                        placeholder="İnsanlara senden bahset. Nelerden hoşlanırsın, burada olma amacın ne?"
+                        placeholder={t('setup.step3.bio_placeholder')}
                         placeholderTextColor={colors.textSecondaryDark}
                         multiline
                         maxLength={500}
@@ -686,9 +710,9 @@ export default function ProfileSetupScreen() {
 
             {/* Interests */}
             <View style={styles.section}>
-                <Text style={styles.label}>İlgi Alanları</Text>
+                <Text style={styles.label}>{t('setup.step3.interests_label')}</Text>
                 <Text style={styles.helperText}>
-                    Hobilerinizi ve ilgi alanlarınızı seçin
+                    {t('setup.step3.interests_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
                     {INTERESTS.map((interest) => {
@@ -710,7 +734,7 @@ export default function ProfileSetupScreen() {
                                         isSelected && styles.tagTextSelected,
                                     ]}
                                 >
-                                    {interest}
+                                    {t(`interests.${interest}`)}
                                 </Text>
                                 {isSelected && (
                                     <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
@@ -726,9 +750,9 @@ export default function ProfileSetupScreen() {
     const renderStep4 = () => (
         <View style={styles.stepContainer}>
             <View style={styles.headerSection}>
-                <Text style={styles.stepTitle}>Fotoğrafların</Text>
+                <Text style={styles.stepTitle}>{t('setup.step4.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    En iyi fotoğraflarını seç. Yüzünün net göründüğü fotoğraflar tercih edilir.
+                    {t('setup.step4.subtitle')}
                 </Text>
             </View>
 
@@ -760,7 +784,7 @@ export default function ProfileSetupScreen() {
                                     {index === 0 && (
                                         <View style={styles.coverBadge}>
                                             <MaterialIcons name="star" size={14} color="#FFD700" />
-                                            <Text style={styles.coverBadgeText}>KAPAK FOTOĞRAFI</Text>
+                                            <Text style={styles.coverBadgeText}>{t('setup.step4.cover_photo')}</Text>
                                         </View>
                                     )}
                                     <TouchableOpacity
@@ -786,10 +810,14 @@ export default function ProfileSetupScreen() {
                                         styles.addPhotoText,
                                         index === 0 && styles.addPhotoTextLarge
                                     ]}>
-                                        {index === 0 ? "Kapak Fotoğrafı" : `Fotoğraf ${index + 1}`}
+                                        {index === 0
+                                            ? t('setup.step4.photo_placeholder_cover')
+                                            : t('setup.step4.photo_placeholder_other', { index: index + 1 })}
                                     </Text>
                                     <Text style={styles.addPhotoHint}>
-                                        {index === 0 ? "Dokunarak ekle" : "İsteğe bağlı"}
+                                        {index === 0
+                                            ? t('setup.step4.add_hint_cover')
+                                            : t('setup.step4.add_hint_other')}
                                     </Text>
                                 </View>
                             )}
@@ -801,7 +829,7 @@ export default function ProfileSetupScreen() {
             <View style={styles.photoTip}>
                 <MaterialIcons name="info-outline" size={20} color={colors.accent} />
                 <Text style={styles.photoTipText}>
-                    İlk fotoğrafın profil kapak fotoğrafın olacak. Net ve kaliteli fotoğraflar seç.
+                    {t('setup.step4.tip')}
                 </Text>
             </View>
         </View>
@@ -833,6 +861,7 @@ export default function ProfileSetupScreen() {
                     keyboardVerticalOffset={0}
                 >
                     <ScrollView
+                        ref={scrollViewRef}
                         style={styles.scrollView}
                         contentContainerStyle={[
                             styles.scrollContent,
@@ -878,7 +907,7 @@ export default function ProfileSetupScreen() {
                                     activeOpacity={0.7}
                                 >
                                     <MaterialIcons name="arrow-back" size={22} color={colors.textDark} />
-                                    <Text style={styles.backButtonText}>Geri</Text>
+                                    <Text style={styles.backButtonText}>{t('common.back')}</Text>
                                 </TouchableOpacity>
                             )}
 
@@ -898,7 +927,7 @@ export default function ProfileSetupScreen() {
                                         end={{ x: 1, y: 0 }}
                                         style={styles.nextButtonGradient}
                                     >
-                                        <Text style={styles.nextButtonText}>Devam Et</Text>
+                                        <Text style={styles.nextButtonText}>{t('common.continue')}</Text>
                                         <MaterialIcons name="arrow-forward" size={22} color="#FFF" />
                                     </LinearGradient>
                                 </TouchableOpacity>
@@ -919,10 +948,10 @@ export default function ProfileSetupScreen() {
                                         style={styles.nextButtonGradient}
                                     >
                                         {loading ? (
-                                            <Text style={styles.nextButtonText}>Kaydediliyor...</Text>
+                                            <Text style={styles.nextButtonText}>{t('common.saving')}</Text>
                                         ) : (
                                             <>
-                                                <Text style={styles.nextButtonText}>Tamamla</Text>
+                                                <Text style={styles.nextButtonText}>{t('common.complete')}</Text>
                                                 <MaterialIcons name="check-circle" size={22} color="#FFF" />
                                             </>
                                         )}
@@ -937,7 +966,7 @@ export default function ProfileSetupScreen() {
                             disabled={loading || isAnimating}
                             activeOpacity={0.7}
                         >
-                            <Text style={styles.cancelButtonText}>İptal Et</Text>
+                            <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
@@ -957,9 +986,9 @@ export default function ProfileSetupScreen() {
                 >
                     <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Fotoğraf Seç</Text>
+                            <Text style={styles.modalTitle}>{t('setup.modal.title')}</Text>
                             <Text style={styles.modalSubtitle}>
-                                Fotoğrafı nereden eklemek istersin?
+                                {t('setup.modal.subtitle')}
                             </Text>
                         </View>
 
@@ -972,8 +1001,8 @@ export default function ProfileSetupScreen() {
                                 <MaterialIcons name="camera-alt" size={26} color={colors.primary} />
                             </View>
                             <View style={styles.modalOptionContent}>
-                                <Text style={styles.modalOptionText}>Kamera</Text>
-                                <Text style={styles.modalOptionDesc}>Yeni fotoğraf çek</Text>
+                                <Text style={styles.modalOptionText}>{t('setup.modal.camera')}</Text>
+                                <Text style={styles.modalOptionDesc}>{t('setup.modal.camera_desc')}</Text>
                             </View>
                             <MaterialIcons name="chevron-right" size={24} color={colors.textSecondaryDark} />
                         </TouchableOpacity>
@@ -987,8 +1016,8 @@ export default function ProfileSetupScreen() {
                                 <MaterialIcons name="photo-library" size={26} color={colors.accent} />
                             </View>
                             <View style={styles.modalOptionContent}>
-                                <Text style={styles.modalOptionText}>Galeri</Text>
-                                <Text style={styles.modalOptionDesc}>Mevcut fotoğraflardan seç</Text>
+                                <Text style={styles.modalOptionText}>{t('setup.modal.gallery')}</Text>
+                                <Text style={styles.modalOptionDesc}>{t('setup.modal.gallery_desc')}</Text>
                             </View>
                             <MaterialIcons name="chevron-right" size={24} color={colors.textSecondaryDark} />
                         </TouchableOpacity>
@@ -998,7 +1027,7 @@ export default function ProfileSetupScreen() {
                             onPress={handleCloseModal}
                             activeOpacity={0.7}
                         >
-                            <Text style={styles.modalCancelText}>İptal</Text>
+                            <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
@@ -1008,6 +1037,7 @@ export default function ProfileSetupScreen() {
 }
 
 const styles = StyleSheet.create({
+
     container: {
         flex: 1,
         backgroundColor: 'transparent',
@@ -1316,12 +1346,9 @@ const styles = StyleSheet.create({
 
     // Bottom Navigation
     bottomNav: {
-        backgroundColor: colors.backgroundDark,
-        borderTopWidth: 1,
-        borderTopColor: colors.borderDark,
+        backgroundColor: 'transparent',
         paddingTop: spacing.sm,
         paddingHorizontal: spacing.lg,
-
     },
     navButtons: {
         flexDirection: "row",

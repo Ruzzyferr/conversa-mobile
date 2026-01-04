@@ -12,6 +12,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -63,6 +64,7 @@ type ChatRequest = {
 
 export default function ChatScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [activeConversations, setActiveConversations] = useState<Conversation[]>([]);
   const [newMatches, setNewMatches] = useState<any[]>([]);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>([]);
@@ -162,7 +164,7 @@ export default function ChatScreen() {
 
   const handleReply = async (requestId: string) => {
     if (replyText.trim().length === 0) {
-      Alert.alert("Uyarı", "Lütfen bir mesaj yazın");
+      Alert.alert(t('chat.warning'), t('chat.write_message'));
       return;
     }
 
@@ -177,7 +179,7 @@ export default function ChatScreen() {
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
-      let errorMessage = error instanceof Error ? error.message : "Mesaj gönderilemedi";
+      let errorMessage = error instanceof Error ? error.message : t('chat.send_error');
 
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;
@@ -185,13 +187,13 @@ export default function ChatScreen() {
         const message = errorData?.message || errorMessage;
 
         if (code === "FIRST_MESSAGE_RESTRICTED" || code === "MALE_CANNOT_SEND_FIRST_MESSAGE" || message.toLowerCase().includes("kadın") || message.toLowerCase().includes("first message")) {
-          errorMessage = "Bu eşleşmede ilk mesajı kadın tarafı göndermelidir. Lütfen karşı tarafın ilk mesajı göndermesini bekleyin.";
+          errorMessage = t('chat.first_message_restriction');
         } else {
           errorMessage = message;
         }
       }
 
-      Alert.alert("Hata", errorMessage);
+      Alert.alert(t('common.error'), errorMessage);
     }
   };
 
@@ -206,8 +208,8 @@ export default function ChatScreen() {
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : "İstek kabul edilemedi";
-      Alert.alert("Hata", message);
+      const message = error instanceof Error ? error.message : t('likes.accept_error');
+      Alert.alert(t('common.error'), message);
     }
   };
 
@@ -217,8 +219,8 @@ export default function ChatScreen() {
       // Reload conversations/requests
       await loadConversations();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : "İstek reddedilemedi";
-      Alert.alert("Hata", message);
+      const message = error instanceof Error ? error.message : t('likes.decline_error');
+      Alert.alert(t('common.error'), message);
     }
   };
 
@@ -232,9 +234,9 @@ export default function ChatScreen() {
     return (
       <SafeAreaView>
         <View style={styles.container}>
-          <ScreenHeader title="Chat" />
+          <ScreenHeader title={t('chat.header')} />
           <View style={styles.loadingContainer}>
-            <EmptyState icon="💬" title="Loading..." description="" />
+            <EmptyState icon="💬" title={t('chat.loading')} description="" />
           </View>
         </View>
       </SafeAreaView>
@@ -244,7 +246,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView>
       <View style={styles.container}>
-        <ScreenHeader title="Chat" />
+        <ScreenHeader title={t('chat.header')} />
 
         <FlatList
           data={activeConversations}
@@ -263,7 +265,7 @@ export default function ChatScreen() {
               {/* Requests Section */}
               {chatRequests.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>İstekler ({chatRequests.length})</Text>
+                  <Text style={styles.sectionTitle}>{t('chat.requests_title')} ({chatRequests.length})</Text>
                   <FlatList
                     data={chatRequests}
                     horizontal
@@ -309,13 +311,13 @@ export default function ChatScreen() {
                               style={styles.declineButton}
                               onPress={() => handleDeclineRequest(item.requestId, item.fromUserId)}
                             >
-                              <Text style={styles.declineButtonText}>Reddet</Text>
+                              <Text style={styles.declineButtonText}>{t('likes.decline')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={styles.acceptButton}
                               onPress={() => handleAcceptRequest(item.requestId, item.fromUserId)}
                             >
-                              <Text style={styles.acceptButtonText}>Kabul Et</Text>
+                              <Text style={styles.acceptButtonText}>{t('likes.accept')}</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -329,7 +331,7 @@ export default function ChatScreen() {
               {/* New Matches Section */}
               {newMatches.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Yeni Eşleşmeler 💖</Text>
+                  <Text style={styles.sectionTitle}>{t('chat.new_matches')}</Text>
                   <FlatList
                     data={newMatches}
                     horizontal
@@ -365,7 +367,7 @@ export default function ChatScreen() {
 
               {/* Messages Header */}
               <Text style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
-                Mesajlar
+                {t('chat.messages_title')}
               </Text>
             </>
           }
@@ -373,9 +375,9 @@ export default function ChatScreen() {
             <View style={{ marginTop: 50 }}>
               <EmptyState
                 icon="💬"
-                title="Henüz mesaj yok"
-                description="Yeni insanlarla tanışmak için keşfetmeye başla!"
-                ctaText="Keşfet"
+                title={t('chat.no_messages')}
+                description={t('chat.no_messages_desc')}
+                ctaText={t('chat.discover')}
                 onCtaPress={handleDiscoverPress}
               />
             </View>
@@ -384,7 +386,7 @@ export default function ChatScreen() {
             <ChatListItem
               conversationId={item.conversationId!}
               otherUser={item.otherUser}
-              lastMessage={item.lastMessage?.audioUrl ? "🎤 Sesli Mesaj" : item.lastMessage?.text}
+              lastMessage={item.lastMessage?.audioUrl ? t('chat.voice_message') : item.lastMessage?.text}
               time={item.lastMessage?.createdAt}
               isMyMessage={currentUserId ? item.lastMessage?.senderUserId === currentUserId : false}
               onPress={handleConversationPress}
@@ -407,12 +409,12 @@ export default function ChatScreen() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Cevapla</Text>
+              <Text style={styles.modalTitle}>{t('chat.reply')}</Text>
               <TextInput
                 style={styles.replyInput}
                 value={replyText}
                 onChangeText={setReplyText}
-                placeholder="Mesajınızı yazın..."
+                placeholder={t('chat.write_placeholder')}
                 placeholderTextColor={colors.textSecondaryDark}
                 multiline
                 numberOfLines={4}
@@ -430,7 +432,7 @@ export default function ChatScreen() {
                     setReplyText("");
                   }}
                 >
-                  <Text style={styles.modalButtonCancelText}>İptal</Text>
+                  <Text style={styles.modalButtonCancelText}>{t('chat.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -441,7 +443,7 @@ export default function ChatScreen() {
                   onPress={() => replyingToRequestId && handleReply(replyingToRequestId)}
                   disabled={replyText.trim().length === 0}
                 >
-                  <Text style={styles.modalButtonConfirmText}>Gönder</Text>
+                  <Text style={styles.modalButtonConfirmText}>{t('chat.send')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

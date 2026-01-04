@@ -98,7 +98,7 @@ DerivedData/
 project.xcworkspace/
 
 # Android
-android/
+# android/
 *.apk
 *.ap_
 *.aab

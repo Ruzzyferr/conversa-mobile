@@ -11,6 +11,7 @@ import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
+import { useTranslation } from "react-i18next";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -22,7 +23,7 @@ export default function WelcomeScreen() {
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  
+
   const hasGoogleConfig = Platform.select({
     ios: !!iosClientId,
     android: !!androidClientId,
@@ -33,10 +34,10 @@ export default function WelcomeScreen() {
   // Only initialize Google auth if Client IDs are configured
   const googleAuthConfig = hasGoogleConfig
     ? {
-        iosClientId: iosClientId || undefined,
-        androidClientId: androidClientId || undefined,
-        webClientId: webClientId || undefined,
-      }
+      iosClientId: iosClientId || undefined,
+      androidClientId: androidClientId || undefined,
+      webClientId: webClientId || undefined,
+    }
     : undefined;
 
   const [request, response, promptAsync] = Google.useAuthRequest(
@@ -123,7 +124,7 @@ export default function WelcomeScreen() {
             style={[styles.button, styles.buttonSecondary]}
             disabled={loading}
           />
-          
+
           {hasGoogleConfig && (
             <>
               <View style={styles.divider}>
