@@ -513,10 +513,41 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <View style={styles.settingsItemLeft}>
-              <View style={[styles.settingsIcon, { backgroundColor: colors.error + '20' }]}>
-                <Ionicons name="log-out-outline" size={20} color={colors.error} />
+              <View style={[styles.settingsIcon, { backgroundColor: colors.textSecondaryDark + '20' }]}>
+                <Ionicons name="log-out-outline" size={20} color={colors.textSecondaryDark} />
               </View>
-              <Text style={[styles.settingsItemText, { color: colors.error }]}>{t('profile.logout')}</Text>
+              <Text style={[styles.settingsItemText, { color: colors.textSecondaryDark }]}>{t('profile.logout')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingsItem} onPress={() => {
+            Alert.alert(
+              "Delete Account",
+              "Are you sure you want to permanently delete your account? This action cannot be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await api.deleteAccount();
+                      await clearToken();
+                      router.replace("/(auth)/welcome");
+                    } catch (e) {
+                      Alert.alert("Error", "Failed to delete account");
+                    }
+                  }
+                }
+              ]
+            );
+          }}>
+            <View style={styles.settingsItemLeft}>
+              <View style={[styles.settingsIcon, { backgroundColor: colors.error + '20' }]}>
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+              </View>
+              <Text style={[styles.settingsItemText, { color: colors.error }]}>Delete Account</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>

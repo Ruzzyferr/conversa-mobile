@@ -155,6 +155,10 @@ class ApiClient {
     await this.client.post("/api/v1/auth/logout");
   }
 
+  async deleteAccount(): Promise<void> {
+    await this.client.delete("/api/v1/auth/me");
+  }
+
   async getMyProfile(): Promise<{
     id: string;
     userId: string;

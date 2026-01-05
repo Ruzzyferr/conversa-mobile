@@ -111,51 +111,43 @@ export default function WelcomeScreen() {
         <Text style={styles.title}>Welcome to Swiip</Text>
         <Text style={styles.subtitle}>Your premium dating experience</Text>
 
-        <View style={styles.buttonContainer}>
-          <PrimaryButton
-            title="Continue with Email"
-            onPress={() => router.push("/(auth)/auth?mode=email")}
-            style={styles.button}
-            disabled={loading}
-          />
-          <PrimaryButton
-            title="Continue with Phone"
-            onPress={() => router.push("/(auth)/auth?mode=phone")}
-            style={[styles.button, styles.buttonSecondary]}
-            disabled={loading}
-          />
+        <PrimaryButton
+          title="Continue with Email"
+          onPress={() => router.push("/(auth)/auth?mode=email")}
+          style={styles.button}
+          disabled={loading}
+        />
 
-          {hasGoogleConfig && (
-            <>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
+        {hasGoogleConfig && (
+          <>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => {
+                if (hasGoogleConfig && request) {
+                  promptAsync();
+                } else {
+                  Alert.alert(
+                    "Google Sign-In Not Available",
+                    "Google authentication is not configured. Please contact support."
+                  );
+                }
+              }}
+              disabled={!request || loading || !hasGoogleConfig}
+              activeOpacity={0.7}
+            >
+              <View style={styles.googleIcon}>
+                <Text style={styles.googleIconText}>G</Text>
               </View>
-
-              <TouchableOpacity
-                style={styles.googleButton}
-                onPress={() => {
-                  if (hasGoogleConfig && request) {
-                    promptAsync();
-                  } else {
-                    Alert.alert(
-                      "Google Sign-In Not Available",
-                      "Google authentication is not configured. Please contact support."
-                    );
-                  }
-                }}
-                disabled={!request || loading || !hasGoogleConfig}
-                activeOpacity={0.7}
-              >
-                <View style={styles.googleIcon}>
-                  <Text style={styles.googleIconText}>G</Text>
-                </View>
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );

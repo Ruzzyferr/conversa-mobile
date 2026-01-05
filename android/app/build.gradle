@@ -81,6 +81,12 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Read version info from version.json
+def versionFile = new File(projectRoot, "version.json")
+def versionConfig = new groovy.json.JsonSlurper().parseText(versionFile.text)
+def appVersionName = versionConfig.version ?: "1.0.0"
+def appVersionCode = versionConfig.versionCode ?: 1
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -92,8 +98,8 @@ android {
         applicationId 'com.swiip.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode appVersionCode
+        versionName appVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -105,12 +111,10 @@ android {
             keyPassword 'android'
         }
         release {
-            if (project.hasProperty('SWIIP_UPLOAD_STORE_FILE')) {
-                storeFile file(SWIIP_UPLOAD_STORE_FILE)
-                storePassword SWIIP_UPLOAD_STORE_PASSWORD
-                keyAlias SWIIP_UPLOAD_KEY_ALIAS
-                keyPassword SWIIP_UPLOAD_KEY_PASSWORD
-            }
+            storeFile file('../swiip-upload.keystore')
+            storePassword 'Annem2121!'
+            keyAlias 'upload'
+            keyPassword 'Annem2121!'
         }
     }
     buildTypes {
@@ -118,8 +122,6 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()

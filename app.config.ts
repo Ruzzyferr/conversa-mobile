@@ -1,9 +1,10 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
+import versionConfig from './version.json';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
     name: "Swiip",
     slug: "swiip",
-    version: "1.0.0",
+    version: versionConfig.version,
     orientation: "portrait",
     icon: "./assets/swiip.png",
     scheme: "swiipmobile",
@@ -26,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     android: {
         package: "com.swiip.mobile",
-        versionCode: 1,
+        versionCode: versionConfig.versionCode,
         adaptiveIcon: {
             foregroundImage: "./assets/swiip.png",
             backgroundColor: "#ffffff"
