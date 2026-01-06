@@ -1,0 +1,68 @@
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
+index 04486e2..a71908a 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
+@@ -175,14 +175,25 @@ class AudioControlsService : MediaSessionService() {
+     val notification = buildNotification() ?: return
+ 
+     if (startInForeground) {
+-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+-        startForeground(
+-          notificationId,
+-          notification,
+-          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
++      try {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
++          startForeground(
++            notificationId,
++            notification,
++            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
++          )
++        } else {
++          startForeground(notificationId, notification)
++        }
++      } catch (e: Exception) {
++        // On Android 15+, foreground service may fail to start in certain contexts
++        // (e.g., when started from BOOT_COMPLETED or background)
++        // Fall back to regular notification
++        android.util.Log.w(
++          "AudioControlsService",
++          "Failed to start foreground service, falling back to notification: ${e.message}"
+         )
+-      } else {
+-        startForeground(notificationId, notification)
++        notificationManager.notify(notificationId, notification)
+       }
+     } else {
+       notificationManager.notify(notificationId, notification)
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioRecordingService.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioRecordingService.kt
+index 8328abb..3ae6a13 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioRecordingService.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/service/AudioRecordingService.kt
+@@ -109,6 +109,8 @@ class AudioRecordingService : Service() {
+   private fun startForegroundWithNotification() {
+     val notification = buildNotification()
+ 
++    // On Android 15+, FOREGROUND_SERVICE_TYPE_MICROPHONE is restricted from BOOT_COMPLETED
++    // Add proper exception handling to gracefully degrade
+     try {
+       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+         startForeground(
+@@ -119,7 +121,16 @@ class AudioRecordingService : Service() {
+       } else {
+         startForeground(notificationId, notification)
+       }
+-    } catch (_: Exception) {
++    } catch (e: Exception) {
++      // On Android 15+, ForegroundServiceStartNotAllowedException may be thrown
++      // when starting microphone foreground service from restricted contexts
++      Log.w(
++        TAG,
++        "Failed to start foreground service for recording. " +
++          "This may happen on Android 15+ when started from restricted context: ${e.message}"
++      )
++      // Service will continue without foreground notification
++      // Recording will still work while app is in foreground
+     }
+   }
+ 

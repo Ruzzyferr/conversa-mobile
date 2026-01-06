@@ -9,6 +9,9 @@ import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Initialize i18n - must be imported early to set up translations
+import '@/src/i18n';
+
 import { useColorScheme } from '@/components/useColorScheme';
 import { colors } from '@/src/theme/colors';
 import { typography } from '@/src/theme/typography';

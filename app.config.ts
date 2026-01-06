@@ -69,7 +69,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "./plugins/withAndroidLaunchMode.js",
         "expo-audio",
         "expo-secure-store",
-        "expo-localization"
+        "expo-localization",
+        // This plugin must run AFTER expo-audio to remove its services
+        "./plugins/withDisableBootCompletedReceivers.js"
     ],
     experiments: {
         typedRoutes: true

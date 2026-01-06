@@ -36,5 +36,18 @@
         <data android:scheme="swiipmobile"/>
       </intent-filter>
     </activity>
+    <receiver
+        android:name="expo.modules.notifications.service.NotificationsService"
+        android:enabled="true"
+        android:exported="false"
+        tools:node="replace">
+      <intent-filter android:priority="-1">
+        <action android:name="expo.modules.notifications.NOTIFICATION_EVENT" />
+        <action android:name="android.intent.action.REBOOT" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

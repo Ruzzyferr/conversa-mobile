@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
@@ -81,12 +82,6 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-// Read version info from version.json
-def versionFile = new File(projectRoot, "version.json")
-def versionConfig = new groovy.json.JsonSlurper().parseText(versionFile.text)
-def appVersionName = versionConfig.version ?: "1.0.0"
-def appVersionCode = versionConfig.versionCode ?: 1
-
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -98,8 +93,11 @@ android {
         applicationId 'com.swiip.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode appVersionCode
-        versionName appVersionName
+        def versionFile = new File(rootProject.projectDir, "../version.json")
+        def versionData = new groovy.json.JsonSlurper().parseText(versionFile.text)
+
+        versionCode versionData.versionCode
+        versionName versionData.version
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -111,10 +109,12 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('../swiip-upload.keystore')
-            storePassword 'Annem2121!'
-            keyAlias 'upload'
-            keyPassword 'Annem2121!'
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            }
         }
     }
     buildTypes {
@@ -122,6 +122,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/src/services/api';
 import { getToken } from '@/src/services/authStore';
 import { badgeUpdater } from '@/src/utils/badgeUpdater';
+import { useDeviceType } from '@/src/hooks/useDeviceType';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,7 +18,7 @@ import Animated, {
 const TAB_COUNT = 4;
 
 // Custom Tab Bar with sliding indicator
-function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin }: any) {
+function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin, isTablet }: any) {
   const [tabWidth, setTabWidth] = useState(0);
 
   // Animated indicator position
@@ -49,8 +50,13 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin }
     { name: 'profile', icon: 'person', outlineIcon: 'person-outline', label: 'Profile' },
   ];
 
+  // On tablets, center the tab bar with a max width
+  const tabBarStyle = isTablet
+    ? [styles.tabBarContainer, styles.tabBarTablet, { bottom: bottomMargin }]
+    : [styles.tabBarContainer, { bottom: bottomMargin }];
+
   return (
-    <View style={[styles.tabBarContainer, { bottom: bottomMargin }]} onLayout={handleLayout}>
+    <View style={tabBarStyle} onLayout={handleLayout}>
       {/* Sliding Indicator */}
       {tabWidth > 0 && (
         <Animated.View style={[styles.indicatorWrapper, indicatorStyle]}>
@@ -118,6 +124,7 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin }
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { isTablet } = useDeviceType();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
   const bottomMargin = Math.max(insets.bottom, 16);
 
@@ -155,6 +162,7 @@ export default function TabLayout() {
           {...props}
           incomingRequestsCount={incomingRequestsCount}
           bottomMargin={bottomMargin}
+          isTablet={isTablet}
         />
       )}
       screenOptions={{
@@ -187,6 +195,13 @@ const styles = StyleSheet.create({
     elevation: 15,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  tabBarTablet: {
+    maxWidth: 500,
+    left: 'auto' as const,
+    right: 'auto' as const,
+    alignSelf: 'center',
+    width: '60%',
   },
   indicatorWrapper: {
     position: 'absolute',
