@@ -15,6 +15,7 @@ type ChatListItemProps = {
   lastMessage?: string;
   time?: string;
   unread?: boolean;
+  unreadCount?: number;
   isMyMessage?: boolean;
   onPress: (conversationId: string) => void;
 };
@@ -25,6 +26,7 @@ export function ChatListItem({
   lastMessage,
   time,
   unread = false,
+  unreadCount = 0,
   isMyMessage = false,
   onPress,
 }: ChatListItemProps) {
@@ -87,7 +89,13 @@ export function ChatListItem({
               {isMyMessage && <Text style={styles.senderPrefix}>Sen: </Text>}
               {lastMessage || <Text style={styles.placeholderText}>{otherUser.city || "Sohbete başla"}</Text>}
             </Text>
-            {unread && <View style={styles.unreadDot} />}
+            {unread && unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -187,6 +195,21 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: colors.primary,
     marginLeft: spacing.xs,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    marginLeft: spacing.xs,
+  },
+  unreadBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: typography.fontWeight.bold,
   },
 });
 

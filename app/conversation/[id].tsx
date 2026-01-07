@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
+import React, { useEffect, useState, useRef, useLayoutEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   ActionSheetIOS,
   Animated,
   Pressable,
+  Keyboard,
 } from "react-native";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,6 +27,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
+import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
 import { MaterialIcons } from "@expo/vector-icons";
 import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
@@ -108,10 +110,76 @@ export default function ConversationScreen() {
     isPremium: boolean;
   } | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Keyboard listener for better UX
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   useEffect(() => {
     checkAuthAndLoadMessages();
   }, [conversationId]);
+
+  // Real-time message polling - fetch new messages every 3 seconds
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number>(0);
+  
+  useEffect(() => {
+    // Start polling only after initial load is complete
+    if (!loading && conversationId && currentUserId) {
+      pollingRef.current = setInterval(async () => {
+        // Skip if rate limited
+        if (Date.now() < rateLimitedUntil) {
+          console.log("Skipping poll - rate limited");
+          return;
+        }
+        
+        try {
+          const newMessages = await api.getMessages(conversationId, 50);
+          // Only update if there are new messages
+          if (newMessages.length !== messages.length) {
+            setMessages(newMessages);
+            setHasMessages(newMessages.length > 0);
+            // Mark new messages as read
+            try {
+              await api.markConversationAsRead(conversationId);
+              badgeUpdater.trigger();
+            } catch (e) {
+              // Ignore read errors during polling
+            }
+          }
+        } catch (error: any) {
+          // If rate limited, pause polling for 30 seconds
+          if (error?.response?.status === 429) {
+            console.warn("Rate limited during polling - pausing for 30s");
+            setRateLimitedUntil(Date.now() + 30000);
+          }
+          // Silently fail on other polling errors to avoid disrupting UX
+          console.log("Polling error (ignored):", error?.message);
+        }
+      }, 3000); // Poll every 3 seconds
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [loading, conversationId, currentUserId, messages.length, rateLimitedUntil]);
 
   const handleAvatarPress = async () => {
     if (!otherUser) {
@@ -234,8 +302,27 @@ export default function ConversationScreen() {
       setHasMessages(conversationDetails.hasMessages || false);
 
       await loadMessages();
-    } catch (error) {
-      console.error("Failed to load messages:", error);
+
+      // Mark messages as read when opening conversation
+      try {
+        await api.markConversationAsRead(conversationId);
+        // Trigger badge update to refresh unread count in tab bar
+        badgeUpdater.trigger();
+      } catch (error) {
+        console.error("Failed to mark messages as read:", error);
+      }
+    } catch (error: any) {
+      console.error("Failed to load conversation:", error);
+      // Handle rate limit - show error but don't break UI
+      if (error?.response?.status === 429) {
+        Alert.alert(
+          "Çok Fazla İstek",
+          "Lütfen birkaç saniye bekleyip tekrar deneyin.",
+          [{ text: "Tamam", onPress: () => router.back() }]
+        );
+      }
+      // Always set loading to false on error
+      setLoading(false);
     }
   };
 
@@ -245,8 +332,16 @@ export default function ConversationScreen() {
       const data = await api.getMessages(conversationId, 50);
       setMessages(data);
       setHasMessages(data.length > 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load messages:", error);
+      // Handle rate limit gracefully - don't break the UI
+      if (error?.response?.status === 429) {
+        console.warn("Rate limited - will retry later");
+        // Set messages to empty array to show the UI
+        if (messages.length === 0) {
+          setMessages([]);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -875,7 +970,7 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <FlatList
@@ -886,12 +981,14 @@ export default function ConversationScreen() {
         ListHeaderComponent={renderFirstMessage}
         contentContainerStyle={[
           styles.messagesContent,
-          { paddingBottom: spacing.lg + 200 },
+          { paddingBottom: spacing.lg + 100 },
         ]}
         inverted={false}
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: false });
         }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       />
 
       {isFirstMessage && messageText.length > 0 && messageText.length < 20 && (
@@ -915,7 +1012,7 @@ export default function ConversationScreen() {
                 placeholder="Mesaj yaz..."
                 placeholderTextColor={colors.textTertiary}
                 multiline
-                maxLength={2000}
+                maxLength={8000}
                 editable={!sending && !polishing}
                 scrollEnabled={true}
               />

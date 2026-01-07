@@ -90,9 +90,10 @@ export default function PremiumScreen() {
 
       // Auto-select WEEKLY package if available, otherwise MONTHLY
       if (currentOffering) {
-        // Prioritize specific packages from screenshot
+        // Match RevenueCat package identifiers
         const weeklyPackage = currentOffering.availablePackages.find(
           (pkg) =>
+            pkg.identifier === "$rc_weekly" ||
             pkg.identifier === "swiip_plus_weekly" ||
             pkg.product.identifier === "swiip_premium_weekly:weekly-plan" ||
             pkg.product.identifier === "swiip_premium_weekly" ||
@@ -100,6 +101,7 @@ export default function PremiumScreen() {
         );
         const monthlyPackage = currentOffering.availablePackages.find(
           (pkg) =>
+            pkg.identifier === "$rc_monthly" ||
             pkg.identifier === "swiip_plus_monthly" ||
             pkg.product.identifier === "swiip_premium_monthly:monthly-plan" ||
             pkg.product.identifier === "swiip_premium_monthly" ||
@@ -234,8 +236,20 @@ export default function PremiumScreen() {
   };
 
   const getPackageLabel = (packageToFormat: PurchasesPackage): string => {
-    if (packageToFormat.identifier === "swiip_plus_weekly" || packageToFormat.product.identifier === "swiip_premium_weekly:weekly-plan" || packageToFormat.product.identifier === "swiip_premium_weekly") return "Haftalık";
-    if (packageToFormat.identifier === "swiip_plus_monthly" || packageToFormat.product.identifier === "swiip_premium_monthly:monthly-plan" || packageToFormat.product.identifier === "swiip_premium_monthly") return "Aylık";
+    // Match RevenueCat package identifiers
+    if (
+      packageToFormat.identifier === "$rc_weekly" ||
+      packageToFormat.identifier === "swiip_plus_weekly" ||
+      packageToFormat.product.identifier === "swiip_premium_weekly:weekly-plan" ||
+      packageToFormat.product.identifier === "swiip_premium_weekly"
+    ) return "Haftalık";
+    
+    if (
+      packageToFormat.identifier === "$rc_monthly" ||
+      packageToFormat.identifier === "swiip_plus_monthly" ||
+      packageToFormat.product.identifier === "swiip_premium_monthly:monthly-plan" ||
+      packageToFormat.product.identifier === "swiip_premium_monthly"
+    ) return "Aylık";
 
     switch (packageToFormat.packageType) {
       case "WEEKLY":
@@ -426,6 +440,8 @@ export default function PremiumScreen() {
               {offering.availablePackages
                 .filter(
                   (pkg) =>
+                    pkg.identifier === "$rc_weekly" ||
+                    pkg.identifier === "$rc_monthly" ||
                     pkg.identifier === "swiip_plus_weekly" ||
                     pkg.identifier === "swiip_plus_monthly" ||
                     pkg.product.identifier === "swiip_premium_weekly:weekly-plan" ||
@@ -437,18 +453,20 @@ export default function PremiumScreen() {
                 )
                 .sort((a, b) => {
                   // Weekly first, then Monthly
-                  if (
+                  const isAWeekly =
+                    a.identifier === "$rc_weekly" ||
                     a.identifier === "swiip_plus_weekly" ||
                     a.product.identifier === "swiip_premium_weekly:weekly-plan" ||
                     a.product.identifier === "swiip_premium_weekly" ||
-                    a.packageType === "WEEKLY"
-                  ) return -1;
-                  if (
+                    a.packageType === "WEEKLY";
+                  const isBWeekly =
+                    b.identifier === "$rc_weekly" ||
                     b.identifier === "swiip_plus_weekly" ||
                     b.product.identifier === "swiip_premium_weekly:weekly-plan" ||
                     b.product.identifier === "swiip_premium_weekly" ||
-                    b.packageType === "WEEKLY"
-                  ) return 1;
+                    b.packageType === "WEEKLY";
+                  if (isAWeekly) return -1;
+                  if (isBWeekly) return 1;
                   return 0;
                 })
                 .map((pkg: PurchasesPackage) => {

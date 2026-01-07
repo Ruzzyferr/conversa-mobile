@@ -18,7 +18,7 @@ import Animated, {
 const TAB_COUNT = 4;
 
 // Custom Tab Bar with sliding indicator
-function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin, isTablet }: any) {
+function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessagesCount, bottomMargin, isTablet }: any) {
   const [tabWidth, setTabWidth] = useState(0);
 
   // Animated indicator position
@@ -107,6 +107,13 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, bottomMargin, 
                     </Text>
                   </View>
                 )}
+                {tab.name === 'chat' && unreadMessagesCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={[
                 styles.label,
@@ -126,6 +133,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isTablet } = useDeviceType();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const bottomMargin = Math.max(insets.bottom, 16);
 
   const loadIncomingRequestsCount = async () => {
@@ -139,19 +147,37 @@ export default function TabLayout() {
     }
   };
 
+  const loadUnreadMessagesCount = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const result = await api.getUnreadMessageCount();
+      setUnreadMessagesCount(result.unreadCount);
+    } catch (error) {
+      setUnreadMessagesCount(0);
+    }
+  };
+
+  const loadAllCounts = async () => {
+    await Promise.all([
+      loadIncomingRequestsCount(),
+      loadUnreadMessagesCount(),
+    ]);
+  };
+
   useFocusEffect(
     React.useCallback(() => {
-      loadIncomingRequestsCount();
+      loadAllCounts();
     }, [])
   );
 
   useEffect(() => {
-    const interval = setInterval(loadIncomingRequestsCount, 30000);
+    const interval = setInterval(loadAllCounts, 30000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    const unsubscribe = badgeUpdater.subscribe(loadIncomingRequestsCount);
+    const unsubscribe = badgeUpdater.subscribe(loadAllCounts);
     return unsubscribe;
   }, []);
 
@@ -161,6 +187,7 @@ export default function TabLayout() {
         <CustomTabBar
           {...props}
           incomingRequestsCount={incomingRequestsCount}
+          unreadMessagesCount={unreadMessagesCount}
           bottomMargin={bottomMargin}
           isTablet={isTablet}
         />

@@ -43,6 +43,7 @@ type Conversation = {
     createdAt: string;
     senderUserId: string;
   } | null;
+  unreadCount?: number;
 };
 
 type ChatRequest = {
@@ -389,6 +390,8 @@ export default function ChatScreen() {
               lastMessage={item.lastMessage?.audioUrl ? t('chat.voice_message') : item.lastMessage?.text}
               time={item.lastMessage?.createdAt}
               isMyMessage={currentUserId ? item.lastMessage?.senderUserId === currentUserId : false}
+              unread={(item.unreadCount || 0) > 0}
+              unreadCount={item.unreadCount}
               onPress={handleConversationPress}
             />
           )}

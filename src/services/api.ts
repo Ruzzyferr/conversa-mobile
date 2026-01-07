@@ -67,6 +67,12 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
+        // Handle 429 Rate Limit - log and continue without breaking the app
+        if (error.response?.status === 429) {
+          console.warn("[API] 429 Rate limit hit - slowing down requests");
+          // Don't throw, just log - the calling code should handle gracefully
+        }
+
         if (error.response?.status === 401 && !isLoggingOut) {
           // Invalid session token - auto logout
           const errorData = error.response.data as any;
@@ -383,9 +389,20 @@ class ApiClient {
         senderUserId: string;
       } | null;
       createdAt: string;
+      unreadCount?: number;
     }>
   > {
     const response = await this.client.get("/api/v1/chat/conversations");
+    return response.data;
+  }
+
+  async getUnreadMessageCount(): Promise<{ unreadCount: number }> {
+    const response = await this.client.get("/api/v1/chat/unread-count");
+    return response.data;
+  }
+
+  async markConversationAsRead(conversationId: string): Promise<{ success: boolean; markedAsRead: number }> {
+    const response = await this.client.post(`/api/v1/chat/conversations/${conversationId}/read`);
     return response.data;
   }
 

@@ -64,9 +64,12 @@ export default function ProfileScreen() {
     try {
       const offerings = await getOfferings();
       if (offerings?.availablePackages) {
-        // Look for a package with "boost" in the identifier
+        // Look for boost package - match RevenueCat identifier
         const foundPackage = offerings.availablePackages.find(
-          pkg => pkg.identifier === "swiip_boost_2pack"
+          pkg => 
+            pkg.identifier === "Boost Pack" ||
+            pkg.identifier === "swiip_boost_2pack" ||
+            pkg.product.identifier === "swiip_boost_2pack"
         );
         if (foundPackage) {
           setBoostPackage(foundPackage);

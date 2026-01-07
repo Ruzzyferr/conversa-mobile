@@ -126,9 +126,12 @@ export default function HomeScreen() {
     try {
       const offerings = await getOfferings();
       if (offerings?.availablePackages) {
-        // Look for favorite pack (e.g., swiip_favorite_5pack)
+        // Look for favorite pack - match RevenueCat identifier
         const foundPackage = offerings.availablePackages.find(
-          pkg => pkg.identifier === "swiip_favorite_5pack"
+          pkg => 
+            pkg.identifier === "Favorite Pack" ||
+            pkg.identifier === "swiip_favorite_5pack" ||
+            pkg.product.identifier === "swiip_favorite_5pack"
         );
         if (foundPackage) {
           setFavoritePackage(foundPackage);

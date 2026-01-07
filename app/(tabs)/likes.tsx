@@ -148,7 +148,7 @@ export default function RequestsScreen() {
     matchedUserName?: string;
     matchedUserPhoto?: string;
     isFemale?: boolean;
-    t?: any; // Add t to matchData type if needed or just use from scope
+    shouldWaitForFirstMessage?: boolean;
   } | null>(null);
   const matchModalAnim = React.useRef(new Animated.Value(0)).current;
   const sparkleAnim = React.useRef(new Animated.Value(0)).current;
@@ -207,15 +207,28 @@ export default function RequestsScreen() {
       if (result.conversationId) {
         console.log("ConversationId exists, showing match modal"); // Debug log
 
-        // Get user profile to check gender
-        let isFemale = false;
+        // Get BOTH users' profiles to determine who sends first message
+        // In male-female matches, the FEMALE always sends first
+        let matchedUserIsFemale = false;
+        let currentUserIsMale = false;
+        
         try {
-          const profile = await api.getUserProfile(fromUserId);
-          isFemale = profile.gender === "FEMALE";
-          console.log("User gender:", profile.gender, "isFemale:", isFemale); // Debug log
+          // Get matched user's (the one who sent the like) profile
+          const matchedProfile = await api.getUserProfile(fromUserId);
+          matchedUserIsFemale = matchedProfile.gender === "FEMALE";
+          console.log("Matched user gender:", matchedProfile.gender); // Debug log
+          
+          // Get current user's profile
+          const myProfile = await api.getMyProfile();
+          currentUserIsMale = myProfile.gender === "MALE";
+          console.log("Current user gender:", myProfile.gender); // Debug log
         } catch (error) {
-          console.error("Failed to load profile:", error);
+          console.error("Failed to load profiles:", error);
         }
+
+        // Determine if current user should wait for first message
+        // Only show waiting message if: current user is MALE and matched user is FEMALE
+        const shouldWaitForFirstMessage = currentUserIsMale && matchedUserIsFemale;
 
         // It's a match or FAVORITE! Show match modal
         setMatchData({
@@ -223,7 +236,8 @@ export default function RequestsScreen() {
           matchedUserId: fromUserId,
           matchedUserName: matchedUserName,
           matchedUserPhoto: matchedUserPhoto,
-          isFemale,
+          isFemale: matchedUserIsFemale,
+          shouldWaitForFirstMessage,
         });
 
         console.log("Setting showMatchModal to true, matchData:", {
@@ -631,8 +645,8 @@ export default function RequestsScreen() {
                     {t('likes.matched_desc')}
                   </Text>
 
-                  {/* First Message Info */}
-                  {matchData?.isFemale === false && (
+                  {/* First Message Info - Only show if current user (male) should wait for matched user (female) */}
+                  {matchData?.shouldWaitForFirstMessage && (
                     <View style={styles.firstMessageInfo}>
                       <Text style={styles.firstMessageText}>
                         {t('likes.first_message', { name: matchData?.matchedUserName || "karşı taraf" })}

@@ -56,7 +56,7 @@ function getBannerAdUnitId(): string {
     }
     return Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID ||
         process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID ||
-        'ca-app-pub-3940256099942544/6300978111'; // Fallback to test
+        'ca-app-pub-2953141598487358/9667478087'; // Production banner
 }
 
 interface BannerAdComponentProps {
