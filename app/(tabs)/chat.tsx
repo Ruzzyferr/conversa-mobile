@@ -26,6 +26,7 @@ import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
+import { useSocket } from "@/src/state/socket";
 
 type Conversation = {
   conversationId: string | null;
@@ -74,6 +75,56 @@ export default function ChatScreen() {
   const [replyText, setReplyText] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { newMatches: socketNewMatches, chatRequests: socketChatRequests } = useSocket();
+
+  // Add socket new matches to local state (real-time)
+  React.useEffect(() => {
+    if (socketNewMatches.length > 0) {
+      const latestMatch = socketNewMatches[socketNewMatches.length - 1];
+      // Add to newMatches if not already present
+      setNewMatches(prev => {
+        if (prev.some(m => m.matchId === latestMatch.matchId)) return prev;
+        return [{
+          matchId: latestMatch.matchId,
+          conversationId: latestMatch.conversationId,
+          otherUser: {
+            userId: latestMatch.otherUser.userId,
+            displayName: latestMatch.otherUser.displayName,
+            photos: latestMatch.otherUser.photos,
+            city: null,
+          },
+          createdAt: new Date().toISOString(),
+        }, ...prev];
+      });
+    }
+  }, [socketNewMatches]);
+
+  // Add socket chat requests to local state (real-time)
+  React.useEffect(() => {
+    if (socketChatRequests.length > 0) {
+      const latestRequest = socketChatRequests[socketChatRequests.length - 1];
+      // Add to chatRequests if not already present
+      setChatRequests(prev => {
+        if (prev.some(r => r.requestId === latestRequest.requestId)) return prev;
+        return [{
+          requestId: latestRequest.requestId,
+          fromUserId: latestRequest.fromUser.userId,
+          createdAt: latestRequest.firstMessage.createdAt,
+          fromUser: {
+            userId: latestRequest.fromUser.userId,
+            displayName: latestRequest.fromUser.displayName,
+            photos: latestRequest.fromUser.photos,
+            city: null,
+          },
+          firstMessage: {
+            id: latestRequest.requestId,
+            text: latestRequest.firstMessage.text,
+            createdAt: latestRequest.firstMessage.createdAt,
+          },
+        }, ...prev];
+      });
+    }
+  }, [socketChatRequests]);
 
   const loadConversations = useCallback(async () => {
     try {

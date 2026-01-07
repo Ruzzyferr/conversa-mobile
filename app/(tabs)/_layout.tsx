@@ -9,6 +9,8 @@ import { api } from '@/src/services/api';
 import { getToken } from '@/src/services/authStore';
 import { badgeUpdater } from '@/src/utils/badgeUpdater';
 import { useDeviceType } from '@/src/hooks/useDeviceType';
+import { useSocket } from '@/src/state/socket';
+import { MatchPopup } from '@/src/components/MatchPopup';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -132,9 +134,26 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessages
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isTablet } = useDeviceType();
+  const { likesCount: realtimeLikesCount, newMatches, clearNewMatches } = useSocket();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showMatchPopup, setShowMatchPopup] = useState(false);
   const bottomMargin = Math.max(insets.bottom, 16);
+
+  // Combine API count with real-time socket updates
+  const totalLikesCount = incomingRequestsCount + realtimeLikesCount;
+
+  // Show match popup when new match arrives
+  useEffect(() => {
+    if (newMatches.length > 0) {
+      setShowMatchPopup(true);
+    }
+  }, [newMatches]);
+
+  const handleCloseMatchPopup = () => {
+    setShowMatchPopup(false);
+    clearNewMatches();
+  };
 
   const loadIncomingRequestsCount = async () => {
     try {
@@ -182,26 +201,36 @@ export default function TabLayout() {
   }, []);
 
   return (
-    <Tabs
-      tabBar={(props) => (
-        <CustomTabBar
-          {...props}
-          incomingRequestsCount={incomingRequestsCount}
-          unreadMessagesCount={unreadMessagesCount}
-          bottomMargin={bottomMargin}
-          isTablet={isTablet}
-        />
-      )}
-      screenOptions={{
-        headerShown: false,
-        animation: 'fade',
-      }}
-    >
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
-      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
-      <Tabs.Screen name="likes" options={{ title: 'Likes' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-    </Tabs>
+    <>
+      <Tabs
+        tabBar={(props) => (
+          <CustomTabBar
+            {...props}
+            incomingRequestsCount={totalLikesCount}
+            unreadMessagesCount={unreadMessagesCount}
+            bottomMargin={bottomMargin}
+            isTablet={isTablet}
+          />
+        )}
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+        }}
+      >
+        <Tabs.Screen name="home" options={{ title: 'Home' }} />
+        <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+        <Tabs.Screen name="likes" options={{ title: 'Likes' }} />
+        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      </Tabs>
+
+      {/* Match Popup */}
+      <MatchPopup
+        visible={showMatchPopup}
+        match={newMatches[0] || null}
+        onClose={handleCloseMatchPopup}
+        onSendMessage={handleCloseMatchPopup}
+      />
+    </>
   );
 }
 

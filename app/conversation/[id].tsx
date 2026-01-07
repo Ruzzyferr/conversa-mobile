@@ -6,7 +6,6 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   Alert,
@@ -17,6 +16,8 @@ import {
   Pressable,
   Keyboard,
 } from "react-native";
+import Reanimated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -32,6 +33,16 @@ import { AxiosError } from "axios";
 import { MaterialIcons } from "@expo/vector-icons";
 import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
 import { ProfileModal } from "@/src/components/ProfileModal";
+import {
+  connectSocket,
+  joinConversation,
+  leaveConversation,
+  onNewMessage,
+  onTyping,
+  onTypingStop,
+  sendTypingStart,
+  sendTypingStop,
+} from "@/src/services/socket";
 
 type Message = {
   id: string;
@@ -43,6 +54,20 @@ type Message = {
 };
 
 type Tone = "neutral" | "friendly" | "playful";
+
+// Custom hook for smooth keyboard animation using react-native-keyboard-controller
+const useKeyboardAnimation = () => {
+  const height = useSharedValue(0);
+
+  useKeyboardHandler({
+    onMove: (event) => {
+      'worklet';
+      height.value = Math.max(event.height, 0);
+    },
+  }, []);
+
+  return { height };
+};
 
 export default function ConversationScreen() {
   const router = useRouter();
@@ -110,8 +135,10 @@ export default function ConversationScreen() {
     isPremium: boolean;
   } | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keyboard listener for better UX
   useEffect(() => {
@@ -134,19 +161,90 @@ export default function ConversationScreen() {
     checkAuthAndLoadMessages();
   }, [conversationId]);
 
-  // Real-time message polling - fetch new messages every 3 seconds
+  // Socket.IO real-time connection
+  useEffect(() => {
+    if (!conversationId || !currentUserId) return;
+
+    let unsubMessage: (() => void) | undefined;
+    let unsubTyping: (() => void) | undefined;
+    let unsubTypingStop: (() => void) | undefined;
+
+    const setupSocket = async () => {
+      await connectSocket();
+      joinConversation(conversationId);
+
+      // Handle real-time messages
+      unsubMessage = onNewMessage(conversationId, (newMessage) => {
+        // Don't add if it's our own message (already added optimistically)
+        if (newMessage.senderUserId === currentUserId) return;
+
+        setMessages((prev) => {
+          // Check if message already exists
+          if (prev.some((m) => m.id === newMessage.id)) return prev;
+          return [...prev, { ...newMessage, audioUrl: newMessage.audioUrl || undefined }];
+        });
+        setHasMessages(true);
+
+        // Mark as read
+        api.markConversationAsRead(conversationId).catch(() => { });
+        badgeUpdater.update();
+
+        // Scroll to new message
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      });
+
+      // Handle typing indicators
+      unsubTyping = onTyping(conversationId, (data) => {
+        if (data.userId !== currentUserId) {
+          setIsOtherUserTyping(true);
+          // Clear previous timeout
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+          // Auto-clear after 3 seconds
+          typingTimeoutRef.current = setTimeout(() => {
+            setIsOtherUserTyping(false);
+          }, 3000);
+        }
+      });
+
+      unsubTypingStop = onTypingStop(conversationId, (data) => {
+        if (data.userId !== currentUserId) {
+          setIsOtherUserTyping(false);
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+        }
+      });
+    };
+
+    setupSocket();
+
+    return () => {
+      leaveConversation(conversationId);
+      unsubMessage?.();
+      unsubTyping?.();
+      unsubTypingStop?.();
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [conversationId, currentUserId]);
+
+  // Fallback polling - only runs every 15 seconds as backup for missed WebSocket messages
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number>(0);
-  
+
   useEffect(() => {
     // Start polling only after initial load is complete
     if (!loading && conversationId && currentUserId) {
       pollingRef.current = setInterval(async () => {
         // Skip if rate limited
         if (Date.now() < rateLimitedUntil) {
-          console.log("Skipping poll - rate limited");
           return;
         }
-        
+
         try {
           const newMessages = await api.getMessages(conversationId, 50);
           // Only update if there are new messages
@@ -156,21 +254,18 @@ export default function ConversationScreen() {
             // Mark new messages as read
             try {
               await api.markConversationAsRead(conversationId);
-              badgeUpdater.trigger();
+              badgeUpdater.update();
             } catch (e) {
               // Ignore read errors during polling
             }
           }
         } catch (error: any) {
-          // If rate limited, pause polling for 30 seconds
+          // If rate limited, pause polling for 60 seconds
           if (error?.response?.status === 429) {
-            console.warn("Rate limited during polling - pausing for 30s");
-            setRateLimitedUntil(Date.now() + 30000);
+            setRateLimitedUntil(Date.now() + 60000);
           }
-          // Silently fail on other polling errors to avoid disrupting UX
-          console.log("Polling error (ignored):", error?.message);
         }
-      }, 3000); // Poll every 3 seconds
+      }, 15000); // Poll every 15 seconds as fallback (WebSocket handles real-time)
     }
 
     return () => {
@@ -307,7 +402,7 @@ export default function ConversationScreen() {
       try {
         await api.markConversationAsRead(conversationId);
         // Trigger badge update to refresh unread count in tab bar
-        badgeUpdater.trigger();
+        badgeUpdater.update();
       } catch (error) {
         console.error("Failed to mark messages as read:", error);
       }
@@ -967,11 +1062,15 @@ export default function ConversationScreen() {
     );
   }
 
+  // Keyboard animation hook for smooth keyboard following
+  const { height: keyboardHeight } = useKeyboardAnimation();
+  const keyboardSpacerStyle = useAnimatedStyle(() => ({
+    height: keyboardHeight.value,
+  }));
+
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <FlatList
         ref={flatListRef}
@@ -1333,7 +1432,8 @@ export default function ConversationScreen() {
           </Card>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+      <Reanimated.View style={keyboardSpacerStyle} />
+    </View>
   );
 }
 

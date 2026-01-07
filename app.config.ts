@@ -34,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
         edgeToEdgeEnabled: true,
         predictiveBackGestureEnabled: false,
+        softwareKeyboardLayoutMode: "pan",
         permissions: [
             "CAMERA",
             "ACCESS_FINE_LOCATION",
