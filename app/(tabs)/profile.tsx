@@ -169,7 +169,7 @@ export default function ProfileScreen() {
 
       Alert.alert(
         t('profile.boost_no_credits_title'),
-        t('profile.boost_no_credits_msg'), // Modified as per instruction
+        t('profile.boost_no_credits_msg'),
         [
           { text: t('common.cancel'), style: "cancel" },
           !premiumStatus?.isPremium ? {
@@ -177,7 +177,7 @@ export default function ProfileScreen() {
             onPress: () => router.push("/premium")
           } : null,
           {
-            text: t('profile.buy_boost', { price: priceString }), // Modified as per instruction
+            text: t('profile.buy_boost', { price: priceString }),
             onPress: handlePurchaseBoost
           }
         ].filter(Boolean) as any
@@ -190,25 +190,29 @@ export default function ProfileScreen() {
       setLoading(true);
 
       // If we found a real RevenueCat package, use it
-      if (boostPackage) { // Added as per instruction
-        await purchasePremium(boostPackage); // Added as per instruction
+      if (boostPackage) {
+        await purchasePremium(boostPackage);
       } else {
         // Fallback for development/simulators if no package found
-        // In real app, you might want to block this or show error
-        console.warn("No boost package found in offerings. Falling back to mock."); // Added as per instruction
+        console.warn("No Boost package (swiip_boost_2pack) found in RevenueCat offerings. Check your RevenueCat configuration.");
+        Alert.alert("Configuration Error", "Boost package not found. Please contact support.");
+        setLoading(false);
+        return;
       }
 
-      // After successful purchase (or mock fallback), sync with backend
+      // After successful purchase, sync with backend
+      // Note: RevenueCat webhook should ideally handle this, but we call API for immediate UI update if needed
       const result = await api.purchaseBoost();
       if (result.success) {
         await loadBoostStatus();
         Alert.alert(t('profile.purchase_success_title'), t('profile.purchase_success_msg'));
       }
     } catch (error: any) {
-      if (error.message === "Purchase cancelled") { // Added as per instruction
-        return; // User cancelled, do nothing
+      if (error.message === "Purchase cancelled") {
+        return;
       }
-      Alert.alert(t('profile.purchase_error_title'), t('profile.purchase_error_msg'));
+      console.error("Boost purchase error:", error);
+      Alert.alert(t('profile.purchase_error_title'), error.message || t('profile.purchase_error_msg'));
     } finally {
       setLoading(false);
     }

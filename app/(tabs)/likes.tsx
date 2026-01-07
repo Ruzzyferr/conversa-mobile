@@ -71,6 +71,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Expiration Timer Component
 const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
 

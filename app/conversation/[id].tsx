@@ -1082,6 +1082,7 @@ export default function ConversationScreen() {
       />
 
       {/* Safety Modal (Android) */}
+      {/* Safety Modal */}
       <Modal
         visible={showSafetyModal}
         transparent
@@ -1090,21 +1091,26 @@ export default function ConversationScreen() {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Safety Options</Text>
+            <Text style={styles.modalTitle}>Güvenlik İşlemleri</Text>
             <View style={styles.modalActions}>
               <PrimaryButton
-                title="Block User"
+                title="Engelle"
                 onPress={() => {
+                  console.log("Block button pressed");
                   setShowSafetyModal(false);
-                  handleBlock();
+                  setTimeout(() => {
+                    handleBlock();
+                  }, 100);
                 }}
                 style={[styles.modalButton, styles.blockButton]}
               />
               <PrimaryButton
-                title="Report User"
+                title="Bildir"
                 onPress={() => {
                   setShowSafetyModal(false);
-                  setShowReportModal(true);
+                  setTimeout(() => {
+                    setShowReportModal(true);
+                  }, 100);
                 }}
                 style={styles.modalButton}
               />
@@ -1112,7 +1118,7 @@ export default function ConversationScreen() {
                 onPress={() => setShowSafetyModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>Cancel</Text>
+                <Text style={styles.modalCloseText}>İptal</Text>
               </TouchableOpacity>
             </View>
           </Card>
@@ -1132,9 +1138,9 @@ export default function ConversationScreen() {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Report User</Text>
+            <Text style={styles.modalTitle}>Kullanıcıyı Bildir</Text>
             <Text style={styles.modalText}>
-              Why are you reporting this user?
+              Bu kullanıcıyı neden bildiriyorsunuz?
             </Text>
             <View style={styles.reportReasons}>
               {(["SPAM", "HARASSMENT", "NUDITY", "SCAM", "OTHER"] as const).map(
@@ -1154,7 +1160,10 @@ export default function ConversationScreen() {
                         styles.reportReasonTextActive,
                       ]}
                     >
-                      {reason.charAt(0) + reason.slice(1).toLowerCase()}
+                      {reason === "SPAM" ? "Spam" :
+                        reason === "HARASSMENT" ? "Taciz" :
+                          reason === "NUDITY" ? "Çıplaklık" :
+                            reason === "SCAM" ? "Dolandırıcılık" : "Diğer"}
                     </Text>
                   </TouchableOpacity>
                 )
@@ -1165,7 +1174,7 @@ export default function ConversationScreen() {
                 style={styles.reportDetailsInput}
                 value={reportDetails}
                 onChangeText={setReportDetails}
-                placeholder="Additional details (optional)"
+                placeholder="Ek detaylar (opsiyonel)"
                 placeholderTextColor={colors.textTertiary}
                 multiline
                 maxLength={500}
@@ -1173,7 +1182,7 @@ export default function ConversationScreen() {
             )}
             <View style={styles.modalActions}>
               <PrimaryButton
-                title="Submit Report"
+                title="Bildir"
                 onPress={handleReport}
                 disabled={!reportReason}
                 style={styles.modalButton}
@@ -1186,7 +1195,7 @@ export default function ConversationScreen() {
                 }}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>Cancel</Text>
+                <Text style={styles.modalCloseText}>İptal</Text>
               </TouchableOpacity>
             </View>
           </Card>

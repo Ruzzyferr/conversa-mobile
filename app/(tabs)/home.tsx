@@ -604,30 +604,37 @@ export default function HomeScreen() {
   const handlePurchaseFavorites = async () => {
     try {
       setLoading(true);
+
       if (favoritePackage) {
+        // Real purchase
         await purchasePremium(favoritePackage);
+
+        // Only if purchase succeeds (doesn't throw), sync with backend
+        await api.syncBilling();
+
+        Alert.alert(t('home.favorite.success_title'), t('home.favorite.purchase_success'));
+
+        // Refresh limits
+        const usage = await api.getUsage();
+        if (usage.usage) {
+          setFavoriteInfo({
+            favoritesUsed: usage.usage.favoritesUsed || 0,
+            favoritesRemaining: usage.usage.favoritesRemaining || 0,
+            favoritesLimit: usage.usage.favoritesLimit || 5,
+          });
+        }
       } else {
-        console.warn("No favorite package found. Falling back to mock.");
+        // Configuration Error - Do NOT give for free
+        console.warn("No favorite package (swiip_favorite_5pack) found in RevenueCat offerings.");
+        Alert.alert("Configuration Error", "Favorite package not found. Please check App configuration.");
       }
 
-      // Sync with backend
-      await api.syncBilling();
-
-      Alert.alert(t('home.favorite.success_title'), t('home.favorite.purchase_success'));
-
-      // Refresh limits
-      const usage = await api.getUsage();
-      if (usage.usage) {
-        setFavoriteInfo({
-          favoritesUsed: usage.usage.favoritesUsed || 0,
-          favoritesRemaining: usage.usage.favoritesRemaining || 0,
-          favoritesLimit: usage.usage.favoritesLimit || 5,
-        });
-      }
     } catch (error: any) {
-      if (error.message !== "Purchase cancelled") {
-        Alert.alert(t('common.error'), t('home.favorite.purchase_error'));
+      if (error.message === "Purchase cancelled") {
+        return;
       }
+      console.error("Favorite purchase error:", error);
+      Alert.alert(t('common.error'), t('home.favorite.purchase_error'));
     } finally {
       setLoading(false);
     }

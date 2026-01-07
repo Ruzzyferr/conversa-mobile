@@ -84,6 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // Dynamically read from environment variables
         EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID,
         EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID,
+        EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
     },
     owner: "ruzzyfer"
 });
