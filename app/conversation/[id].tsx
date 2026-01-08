@@ -141,6 +141,12 @@ export default function ConversationScreen() {
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Keyboard animation hook - MUST be called before any conditional returns
+  const { height: keyboardHeight } = useKeyboardAnimation();
+  const keyboardSpacerStyle = useAnimatedStyle(() => ({
+    height: keyboardHeight.value,
+  }));
+
   // Keyboard listener for better UX
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -727,6 +733,19 @@ export default function ConversationScreen() {
   const renderMessage = ({ item }: { item: Message }) => {
     const isMyMessage = item.senderUserId === currentUserId;
 
+    if (item.audioUrl) {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
+          ]}
+        >
+          <AudioPlayer audioUrl={item.audioUrl} isMyMessage={isMyMessage} />
+        </View>
+      );
+    }
+
     return (
       <View
         style={[
@@ -740,18 +759,14 @@ export default function ConversationScreen() {
             isMyMessage ? styles.myMessageCard : styles.otherMessageCard,
           ]}
         >
-          {item.audioUrl ? (
-            <AudioPlayer audioUrl={item.audioUrl} isMyMessage={isMyMessage} />
-          ) : (
-            <Text
-              style={[
-                styles.messageText,
-                isMyMessage ? styles.myMessageText : styles.otherMessageText,
-              ]}
-            >
-              {item.text}
-            </Text>
-          )}
+          <Text
+            style={[
+              styles.messageText,
+              isMyMessage ? styles.myMessageText : styles.otherMessageText,
+            ]}
+          >
+            {item.text}
+          </Text>
         </Card>
       </View>
     );
@@ -891,12 +906,6 @@ export default function ConversationScreen() {
       </SafeAreaView>
     );
   }
-
-  // Keyboard animation hook for smooth keyboard following
-  const { height: keyboardHeight } = useKeyboardAnimation();
-  const keyboardSpacerStyle = useAnimatedStyle(() => ({
-    height: keyboardHeight.value,
-  }));
 
   return (
     <View

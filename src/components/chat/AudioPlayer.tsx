@@ -1,226 +1,345 @@
-import React, { useState, useRef, useEffect } from "react";
-import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { View, TouchableOpacity, Text, StyleSheet, Pressable, GestureResponderEvent } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
+import { useFocusEffect } from "expo-router";
+import { generateWaveform } from "@/src/utils/audioUtils";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withTiming,
+    Easing
+} from "react-native-reanimated";
 
 type AudioPlayerProps = {
-  audioUrl: string;
-  isMyMessage: boolean;
+    audioUrl: string;
+    isMyMessage: boolean;
+};
+
+const WAVEFORM_BARS = 28; // Slightly fewer bars for cleaner look
+
+// Animated Waveform Bar Component
+const WaveformBar = ({
+    heightScale,
+    index,
+    progress,
+    isMyMessage
+}: {
+    heightScale: number;
+    index: number;
+    progress: Animated.SharedValue<number>;
+    isMyMessage: boolean;
+}) => {
+    const barPosition = index / WAVEFORM_BARS;
+
+    const animatedStyle = useAnimatedStyle(() => {
+        const isPlayed = barPosition < progress.value;
+
+        // Custom colors for better contrast
+        const activeColor = isMyMessage ? "#FFFFFF" : colors.primary;
+        const inactiveColor = isMyMessage ? "rgba(255,255,255,0.4)" : "rgba(108, 93, 211, 0.3)";
+
+        return {
+            backgroundColor: isPlayed ? activeColor : inactiveColor,
+        };
+    });
+
+    return (
+        <Animated.View
+            style={[
+                styles.waveBar,
+                { height: Math.max(4, heightScale * 24) },
+                animatedStyle
+            ]}
+        />
+    );
 };
 
 export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const playerRef = useRef<any>(null);
-  const intervalRef = useRef<any>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [positionMs, setPositionMs] = useState(0);
+    const playerRef = useRef<any>(null);
+    const intervalRef = useRef<any>(null);
+    const waveformRef = useRef<View>(null);
 
-  // Generate random waveform bars once
-  const waveBars = useRef(
-    Array.from({ length: 20 }, () => Math.floor(Math.random() * 20) + 4)
-  ).current;
+    const progress = useSharedValue(0);
 
-  // Prepare source
-  const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
-  const fullUrl = audioUrl.startsWith("http")
-    ? audioUrl
-    : `${baseUrl}${audioUrl}`;
+    const waveform = useMemo(() =>
+        generateWaveform(audioUrl, WAVEFORM_BARS),
+        [audioUrl]);
 
-  // Initialize player on mount
-  useEffect(() => {
-    let mounted = true;
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+    const fullUrl = audioUrl.startsWith("http")
+        ? audioUrl
+        : `${baseUrl}${audioUrl}`;
 
-    const initPlayer = async () => {
-      try {
-        const { createAudioPlayer, AudioModule } = await import("expo-audio");
+    useFocusEffect(
+        useCallback(() => {
+            return () => {
+                if (playerRef.current) {
+                    playerRef.current.pause();
+                    setIsPlaying(false);
+                }
+            };
+        }, [])
+    );
 
-        // Set audio mode for playback
-        await AudioModule.setAudioModeAsync({
-          playsInSilentMode: true,
-          allowsRecording: false,
-        });
+    useEffect(() => {
+        let mounted = true;
 
-        const player = createAudioPlayer({ uri: fullUrl });
+        const initPlayer = async () => {
+            try {
+                const { createAudioPlayer, AudioModule } = await import("expo-audio");
 
-        if (mounted) {
-          playerRef.current = player;
+                await AudioModule.setAudioModeAsync({
+                    playsInSilentMode: true,
+                    allowsRecording: false,
+                });
 
-          // Wait for player to load
-          const checkLoaded = setInterval(() => {
-            if (player.isLoaded) {
-              setIsLoaded(true);
-              setDuration(player.duration * 1000);
-              clearInterval(checkLoaded);
+                const player = createAudioPlayer({ uri: fullUrl });
+
+                if (mounted) {
+                    playerRef.current = player;
+
+                    const checkLoaded = setInterval(() => {
+                        if (player.isLoaded) {
+                            setDuration(player.duration * 1000);
+                            clearInterval(checkLoaded);
+                        }
+                    }, 100);
+
+                    setTimeout(() => clearInterval(checkLoaded), 5000);
+                }
+            } catch (error) {
+                console.error("Failed to init audio player:", error);
             }
-          }, 100);
+        };
 
-          // Clear after 5 seconds if not loaded
-          setTimeout(() => clearInterval(checkLoaded), 5000);
+        initPlayer();
+
+        return () => {
+            mounted = false;
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (playerRef.current) {
+                try {
+                    playerRef.current.remove();
+                } catch (e) { }
+                playerRef.current = null;
+            }
+        };
+    }, [fullUrl]);
+
+    useEffect(() => {
+        if (isPlaying && playerRef.current) {
+            intervalRef.current = setInterval(() => {
+                if (playerRef.current) {
+                    const currentMs = playerRef.current.currentTime * 1000;
+                    setPositionMs(currentMs);
+
+                    const newProgress = duration > 0 ? currentMs / duration : 0;
+                    progress.value = withTiming(newProgress, {
+                        duration: 80,
+                        easing: Easing.linear
+                    });
+
+                    setIsPlaying(playerRef.current.playing);
+
+                    if (!playerRef.current.playing && currentMs > 0 && currentMs >= (duration - 100)) {
+                        setIsPlaying(false);
+                        setPositionMs(0);
+                        progress.value = withTiming(0, { duration: 200 });
+                    }
+                }
+            }, 50);
         }
-      } catch (error) {
-        console.error("Failed to init audio player:", error);
-      }
-    };
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [isPlaying, duration]);
 
-    initPlayer();
+    const playPause = async () => {
+        const player = playerRef.current;
+        if (!player) return;
 
-    return () => {
-      mounted = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (playerRef.current) {
         try {
-          playerRef.current.remove();
-        } catch (e) { }
-        playerRef.current = null;
-      }
-    };
-  }, [fullUrl]);
-
-  // Position polling
-  useEffect(() => {
-    if (isPlaying && playerRef.current) {
-      intervalRef.current = setInterval(() => {
-        if (playerRef.current) {
-          setPosition(playerRef.current.currentTime * 1000);
-          setIsPlaying(playerRef.current.playing);
-
-          // Check if playback finished
-          if (!playerRef.current.playing && position > 0) {
-            setIsPlaying(false);
-          }
+            if (player.playing) {
+                player.pause();
+                setIsPlaying(false);
+            } else {
+                if (player.currentTime >= player.duration - 0.1) {
+                    player.seekTo(0);
+                    progress.value = 0;
+                }
+                player.volume = 1;
+                player.play();
+                setIsPlaying(true);
+            }
+        } catch (error) {
+            console.error("Playback error:", error);
         }
-      }, 100);
-    }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
     };
-  }, [isPlaying]);
 
-  const playPause = async () => {
-    const player = playerRef.current;
-    if (!player) {
-      console.log("Player not initialized yet");
-      return;
-    }
+    const handleSeekToPosition = (evt: GestureResponderEvent) => {
+        if (!playerRef.current || !duration) return;
 
-    try {
-      if (player.playing) {
-        player.pause();
-        setIsPlaying(false);
-      } else {
-        // If finished, seek to start
-        if (player.currentTime >= player.duration - 0.1) {
-          player.seekTo(0);
-        }
-        player.volume = 1;
-        player.play();
-        setIsPlaying(true);
-      }
-    } catch (error) {
-      console.error("Playback error:", error);
-    }
-  };
+        waveformRef.current?.measure((x, y, width, height, pageX, pageY) => {
+            if (width > 0) {
+                const touchX = evt.nativeEvent.pageX;
+                const localX = touchX - pageX;
+                const percentage = Math.max(0, Math.min(1, localX / width));
+                const time = (percentage * duration) / 1000;
 
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
+                progress.value = percentage;
+                setPositionMs(time * 1000);
 
-  return (
-    <View style={[styles.audioPlayerContainer, !isMyMessage && styles.audioPlayerContainerOther]}>
-      <TouchableOpacity
-        onPress={playPause}
-        style={[styles.audioPlayButton, isMyMessage ? styles.audioPlayButtonMy : styles.audioPlayButtonOther]}
-      >
-        <MaterialIcons
-          name={isPlaying ? "pause" : "play-arrow"}
-          size={24}
-          color={isMyMessage ? colors.primary : colors.text}
-        />
-      </TouchableOpacity>
+                try {
+                    playerRef.current?.seekTo(time);
+                    if (!isPlaying) {
+                        playerRef.current?.play();
+                        setIsPlaying(true);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        });
+    };
 
-      <View style={styles.audioContent}>
-        {/* Simulated Waveform */}
-        <View style={styles.audioWaveformContainer}>
-          {waveBars.map((height, index) => {
-            // Simple progress visualization based on index
-            const progress = duration > 0 ? position / duration : 0;
-            const isPlayed = index / waveBars.length < progress;
+    const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    };
 
-            return (
-              <View
-                key={index}
-                style={[
-                  styles.waveBar,
-                  {
-                    height,
-                    backgroundColor: isPlayed
-                      ? (isMyMessage ? "rgba(255,255,255,0.9)" : colors.primary)
-                      : (isMyMessage ? "rgba(255,255,255,0.4)" : colors.primary + "40")
-                  }
-                ]}
-              />
-            );
-          })}
+    const content = (
+        <View style={styles.innerContainer}>
+            <TouchableOpacity
+                onPress={playPause}
+                style={[styles.playButton, isMyMessage ? styles.playButtonMy : styles.playButtonOther]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+                <MaterialIcons
+                    name={isPlaying ? "pause" : "play-arrow"}
+                    size={20}
+                    color={isMyMessage ? colors.primary : colors.surface}
+                />
+            </TouchableOpacity>
+
+            <View style={styles.visualizationContainer}>
+                <Pressable
+                    ref={waveformRef}
+                    style={styles.waveformContainer}
+                    onPress={handleSeekToPosition}
+                    onLongPress={handleSeekToPosition}
+                    onPressIn={handleSeekToPosition}
+                >
+                    {waveform.map((heightScale, index) => (
+                        <WaveformBar
+                            key={index}
+                            heightScale={heightScale}
+                            index={index}
+                            progress={progress}
+                            isMyMessage={isMyMessage}
+                        />
+                    ))}
+                </Pressable>
+
+                <Text style={[styles.timeText, isMyMessage ? styles.timeTextMy : styles.timeTextOther]}>
+                    {formatTime(positionMs || duration)}
+                </Text>
+            </View>
         </View>
-        <Text style={[styles.audioTime, isMyMessage ? styles.audioTimeMy : styles.audioTimeOther]}>
-          {formatTime(position || duration)}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+
+    if (isMyMessage) {
+        return (
+            <LinearGradient
+                colors={['#818CF8', '#6C5DD3']} // Lighter purple to Primary
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.container, styles.containerMy]}
+            >
+                {content}
+            </LinearGradient>
+        );
+    }
+
+    return (
+        <View style={[styles.container, styles.containerOther]}>
+            {content}
+        </View>
+    );
 };
 
 const styles = StyleSheet.create({
-  audioPlayerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    minWidth: 180,
-    paddingVertical: 4,
-  },
-  audioPlayerContainerOther: {},
-  audioPlayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  audioPlayButtonMy: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  audioPlayButtonOther: {
-    backgroundColor: colors.primary + "20",
-  },
-  audioContent: {
-    flex: 1,
-  },
-  audioWaveformContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 24,
-    gap: 2,
-  },
-  waveBar: {
-    width: 3,
-    borderRadius: 1.5,
-  },
-  audioTime: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  audioTimeMy: {
-    color: "rgba(255,255,255,0.7)",
-  },
-  audioTimeOther: {
-    color: colors.textSecondaryDark,
-  },
+    container: {
+        borderRadius: 18,
+        overflow: 'hidden',
+        width: 170, // Fixed width for consistent look
+    },
+    containerMy: {
+        // Gradient background handles styling
+    },
+    containerOther: {
+        backgroundColor: colors.backgroundSecondaryDark,
+        borderWidth: 1,
+        borderColor: colors.borderDark,
+    },
+    innerContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+    },
+    playButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 10,
+    },
+    playButtonMy: {
+        backgroundColor: "#FFFFFF",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    playButtonOther: {
+        backgroundColor: colors.primary,
+    },
+    visualizationContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        paddingRight: 4,
+    },
+    waveformContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        height: 24,
+        marginBottom: 4,
+    },
+    waveBar: {
+        width: 3,
+        borderRadius: 1.5,
+        minHeight: 3,
+    },
+    timeText: {
+        fontSize: 10,
+        fontWeight: "600",
+        textAlign: 'right',
+        marginTop: 2,
+    },
+    timeTextMy: {
+        color: "rgba(255,255,255,0.9)",
+    },
+    timeTextOther: {
+        color: colors.textSecondary,
+    },
 });
