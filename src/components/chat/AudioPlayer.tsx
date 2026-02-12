@@ -63,6 +63,8 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
     const playerRef = useRef<any>(null);
     const intervalRef = useRef<any>(null);
     const waveformRef = useRef<View>(null);
+    const hasFinishedRef = useRef(false);
+    const isSeekingRef = useRef(false);
 
     const progress = useSharedValue(0);
 
@@ -134,8 +136,13 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
     useEffect(() => {
         if (isPlaying && playerRef.current) {
             intervalRef.current = setInterval(() => {
+                // Skip state sync if we're in the middle of a seek operation
+                if (isSeekingRef.current) return;
+
                 if (playerRef.current) {
                     const currentMs = playerRef.current.currentTime * 1000;
+                    const isActuallyPlaying = playerRef.current.playing;
+
                     setPositionMs(currentMs);
 
                     const newProgress = duration > 0 ? currentMs / duration : 0;
@@ -144,13 +151,16 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
                         easing: Easing.linear
                     });
 
-                    setIsPlaying(playerRef.current.playing);
-
-                    if (!playerRef.current.playing && currentMs > 0 && currentMs >= (duration - 100)) {
+                    // Check if audio finished playing (must have progressed past start)
+                    if (!isActuallyPlaying && currentMs > 100 && currentMs >= (duration - 100)) {
+                        // Audio finished - just stop, don't auto-restart
                         setIsPlaying(false);
+                        hasFinishedRef.current = true;
+                        // Reset UI to beginning
                         setPositionMs(0);
                         progress.value = withTiming(0, { duration: 200 });
                     }
+                    // Removed the else-if that was causing issues during seek
                 }
             }, 50);
         }
@@ -168,9 +178,14 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
                 player.pause();
                 setIsPlaying(false);
             } else {
-                if (player.currentTime >= player.duration - 0.1) {
+                // If audio finished or at the end, seek to beginning first
+                if (hasFinishedRef.current || player.currentTime >= player.duration - 0.2) {
                     player.seekTo(0);
+                    setPositionMs(0);
                     progress.value = 0;
+                    hasFinishedRef.current = false;
+                    // Small delay to ensure seek completes before playing
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 player.volume = 1;
                 player.play();
@@ -181,27 +196,44 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
         }
     };
 
-    const handleSeekToPosition = (evt: GestureResponderEvent) => {
+    const handleSeekToPosition = async (evt: GestureResponderEvent) => {
         if (!playerRef.current || !duration) return;
 
-        waveformRef.current?.measure((x, y, width, height, pageX, pageY) => {
+        waveformRef.current?.measure(async (x, y, width, height, pageX, pageY) => {
             if (width > 0) {
                 const touchX = evt.nativeEvent.pageX;
                 const localX = touchX - pageX;
                 const percentage = Math.max(0, Math.min(1, localX / width));
                 const time = (percentage * duration) / 1000;
 
+                // Mark that we're seeking - interval will ignore state changes
+                isSeekingRef.current = true;
+
+                // Update UI immediately
                 progress.value = percentage;
                 setPositionMs(time * 1000);
+                hasFinishedRef.current = false;
 
                 try {
-                    playerRef.current?.seekTo(time);
-                    if (!isPlaying) {
-                        playerRef.current?.play();
+                    // Use React state to determine if we should continue playing
+                    const wasPlaying = isPlaying;
+
+                    playerRef.current.seekTo(time);
+
+                    // Small delay to let seek complete
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // Only continue playing if it was already playing
+                    if (wasPlaying) {
+                        playerRef.current.play();
                         setIsPlaying(true);
                     }
+                    // If it wasn't playing, just seek and stay paused
                 } catch (e) {
                     console.error(e);
+                } finally {
+                    // Clear seeking flag after operation completes
+                    isSeekingRef.current = false;
                 }
             }
         });
@@ -233,8 +265,6 @@ export const AudioPlayer = ({ audioUrl, isMyMessage }: AudioPlayerProps) => {
                     ref={waveformRef}
                     style={styles.waveformContainer}
                     onPress={handleSeekToPosition}
-                    onLongPress={handleSeekToPosition}
-                    onPressIn={handleSeekToPosition}
                 >
                     {waveform.map((heightScale, index) => (
                         <WaveformBar
