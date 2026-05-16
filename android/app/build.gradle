@@ -88,9 +88,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.swiip.mobile'
+    namespace 'com.conversa.app'
     defaultConfig {
-        applicationId 'com.swiip.mobile'
+        applicationId 'com.conversa.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         def versionFile = new File(rootProject.projectDir, "../version.json")

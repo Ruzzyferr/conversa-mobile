@@ -1,5 +1,5 @@
 /**
- * Premium theme colors for Swiip (Light + Dark support)
+ * Premium theme colors for Conversa (Light + Dark support)
  */
 export const colors = {
   // Primary colors (updated to match HTML mock)

@@ -2,21 +2,21 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 import versionConfig from './version.json';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
-    name: "Swiip",
-    slug: "swiip",
+    name: "Conversa",
+    slug: "conversa",
     version: versionConfig.version,
     orientation: "portrait",
-    icon: "./assets/swiip.png",
-    scheme: "swiipmobile",
+    icon: "./assets/conversa.png",
+    scheme: "conversa",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     splash: {
-        image: "./assets/swiip.png",
+        image: "./assets/conversa.png",
         resizeMode: "contain",
         backgroundColor: "#ffffff"
     },
     ios: {
-        bundleIdentifier: "com.swiip.mobile",
+        bundleIdentifier: "com.conversa.app",
         supportsTablet: true,
         infoPlist: {
             NSCameraUsageDescription: "Profil fotoğraflarınızı çekmek için kamera erişimine ihtiyacımız var.",
@@ -26,10 +26,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         }
     },
     android: {
-        package: "com.swiip.mobile",
+        package: "com.conversa.app",
         versionCode: versionConfig.versionCode,
         adaptiveIcon: {
-            foregroundImage: "./assets/swiip.png",
+            foregroundImage: "./assets/conversa.png",
             backgroundColor: "#ffffff"
         },
         edgeToEdgeEnabled: true,

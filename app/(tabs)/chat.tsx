@@ -205,7 +205,7 @@ export default function ChatScreen() {
       // Assuming backend creates conversation on match or on first message.
       // If null, we might need an endpoint to "start" conversation or passing user ID.
       // For now, let's assume we can navigate to conversation/new?userId=... or similar.
-      // Actually swiip usually has conversationId.
+      // Conversation almost always has a conversationId on this surface.
       console.warn("No conversation ID for match", match);
     }
   };

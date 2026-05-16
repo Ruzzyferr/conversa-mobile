@@ -1,7 +1,7 @@
 // Lazy import to avoid errors in Expo Go
 let SecureStore: any = null;
 
-const TOKEN_KEY = "swiip_auth_token";
+const TOKEN_KEY = "conversa_auth_token";
 
 /**
  * Load SecureStore module (lazy)

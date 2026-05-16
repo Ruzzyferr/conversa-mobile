@@ -4,7 +4,7 @@
 # ... (diğer ayarlar gradle.properties'ten kopyalanabilir)
 
 # Release signing - Sadece release build için gerekli
-MYAPP_UPLOAD_STORE_FILE=swiip-upload.keystore
+MYAPP_UPLOAD_STORE_FILE=conversa-upload.keystore
 MYAPP_UPLOAD_KEY_ALIAS=upload
 MYAPP_UPLOAD_STORE_PASSWORD=your_keystore_password_here
 MYAPP_UPLOAD_KEY_PASSWORD=your_key_password_here

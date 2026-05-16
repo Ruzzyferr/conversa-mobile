@@ -1,5 +1,5 @@
 /**
- * Typography system for Swiip
+ * Typography system for Conversa
  */
 export const typography = {
   // Font families

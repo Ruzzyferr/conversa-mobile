@@ -1,4 +1,4 @@
-package com.swiip.mobile
+package com.conversa.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -68,8 +68,8 @@ export default function ProfileScreen() {
         const foundPackage = offerings.availablePackages.find(
           pkg => 
             pkg.identifier === "Boost Pack" ||
-            pkg.identifier === "swiip_boost_2pack" ||
-            pkg.product.identifier === "swiip_boost_2pack"
+            pkg.identifier === "conversa_boost_2pack" ||
+            pkg.product.identifier === "conversa_boost_2pack"
         );
         if (foundPackage) {
           setBoostPackage(foundPackage);
@@ -197,7 +197,7 @@ export default function ProfileScreen() {
         await purchasePremium(boostPackage);
       } else {
         // Fallback for development/simulators if no package found
-        console.warn("No Boost package (swiip_boost_2pack) found in RevenueCat offerings. Check your RevenueCat configuration.");
+        console.warn("No Boost package (conversa_boost_2pack) found in RevenueCat offerings. Check your RevenueCat configuration.");
         Alert.alert("Configuration Error", "Boost package not found. Please contact support.");
         setLoading(false);
         return;

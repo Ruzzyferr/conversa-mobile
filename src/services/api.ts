@@ -15,7 +15,7 @@ function getApiUrl(): string {
   // as it will almost certainly fail on a physical device.
   if (!__DEV__) {
     // Optional: You could return a default production URL here if you have one hardcoded
-    // return "https://api.swiip.app";
+    // return "https://api.conversa.app";
     console.warn("EXPO_PUBLIC_API_URL is not set in production build! Request will likely fail.");
   }
 

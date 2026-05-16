@@ -33,7 +33,7 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="swiipmobile"/>
+        <data android:scheme="conversa"/>
       </intent-filter>
     </activity>
     <receiver

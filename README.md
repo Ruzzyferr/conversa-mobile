@@ -1,4 +1,4 @@
-# Swiip Mobile - Kapsamlı Rehber
+# Conversa Mobile - Kapsamlı Rehber
 
 ## 📋 İçindekiler
 
@@ -15,13 +15,13 @@
 
 ### ⚠️ ÖNEMLİ: Development Build Gerekli
 
-Swiip uygulaması **native modüller** kullanıyor (AdMob, RevenueCat, SecureStore, Clipboard). Bu yüzden **Expo Go çalışmaz**. Development build oluşturmanız gerekiyor.
+Conversa uygulaması **native modüller** kullanıyor (AdMob, RevenueCat, SecureStore, Clipboard). Bu yüzden **Expo Go çalışmaz**. Development build oluşturmanız gerekiyor.
 
 ### İlk Kurulum
 
 ```bash
 # 1. Dependencies yükle
-cd Swiip-mobile
+cd Conversa-mobile
 npm install
 
 # 2. Environment dosyalarını oluştur
@@ -37,7 +37,7 @@ cp env.example .env.prod
 **Seçenek 1: Local Build (Önerilen - Daha Hızlı)**
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 cp .env.dev .env
 npx expo run:android
 ```
@@ -55,7 +55,7 @@ npm install -g eas-cli
 eas login
 
 # Build oluştur
-cd Swiip-mobile
+cd Conversa-mobile
 cp .env.dev .env
 npm run build:android:dev
 ```
@@ -65,7 +65,7 @@ npm run build:android:dev
 Build tamamlandıktan sonra:
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 npm run start:dev
 # veya
 npx expo start --dev-client
@@ -82,13 +82,13 @@ Artık tüm native modüller çalışacak! ✅
 | Ortam | Platform | Backend | Kullanım |
 |-------|----------|---------|----------|
 | **TEST** | Expo Go | `localhost:4000` | UI testleri, hızlı iteration |
-| **DEV** | Development Build (APK) | `api-dev.swiip.app` | Kendi telefonunda test, native modüller |
-| **PROD** | Production Build (AAB) | `api.swiip.app` | Google Play Store |
+| **DEV** | Development Build (APK) | `api-dev.conversa.app` | Kendi telefonunda test, native modüller |
+| **PROD** | Production Build (AAB) | `api.conversa.app` | Google Play Store |
 
 ### Environment Dosyalarını Oluştur
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 
 # Test ortamı (Expo Go)
 cp env.example .env.test
@@ -114,7 +114,7 @@ EXPO_PUBLIC_PROJECT_ID=
 
 #### `.env.dev` (Development Build)
 ```ini
-EXPO_PUBLIC_API_URL=https://api-dev.swiip.app
+EXPO_PUBLIC_API_URL=https://api-dev.conversa.app
 EXPO_PUBLIC_ENV=dev
 EXPO_PUBLIC_RC_IOS_API_KEY=your_dev_revenuecat_ios_key
 EXPO_PUBLIC_RC_ANDROID_API_KEY=your_dev_revenuecat_android_key
@@ -124,7 +124,7 @@ EXPO_PUBLIC_PROJECT_ID=your_expo_project_id
 
 #### `.env.prod` (Production Build)
 ```ini
-EXPO_PUBLIC_API_URL=https://api.swiip.app
+EXPO_PUBLIC_API_URL=https://api.conversa.app
 EXPO_PUBLIC_ENV=prod
 EXPO_PUBLIC_RC_IOS_API_KEY=your_prod_revenuecat_ios_key
 EXPO_PUBLIC_RC_ANDROID_API_KEY=your_prod_revenuecat_android_key
@@ -154,7 +154,7 @@ npm run build:android:prod
 
 ## ⚠️ Expo Go Desteklenmiyor
 
-Swiip uygulaması şu native modülleri kullanıyor:
+Conversa uygulaması şu native modülleri kullanıyor:
 - `expo-secure-store` - Token storage
 - `expo-clipboard` - Referral code kopyalama
 - `react-native-google-mobile-ads` - Rewarded ads
@@ -177,7 +177,7 @@ Swiip uygulaması şu native modülleri kullanıyor:
 
 ### Neden Development Build?
 
-Swiip uygulaması şu native modülleri kullanıyor:
+Conversa uygulaması şu native modülleri kullanıyor:
 - **AdMob** (`react-native-google-mobile-ads`) - Rewarded ads
 - **RevenueCat** (`react-native-purchases`) - Premium satın alma
 - **Push Notifications** (`expo-notifications`) - Bildirimler
@@ -198,7 +198,7 @@ eas login
 #### APK Oluşturma
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 cp .env.dev .env
 npm run build:android:dev
 ```
@@ -212,7 +212,7 @@ npm run build:android:dev
 #### Uygulamayı Başlatma
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 npm run start:dev
 # veya
 npx expo start --dev-client
@@ -240,7 +240,7 @@ QR kodu tarayın veya cihazınızı USB ile bağlayın.
 #### Build
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 cp .env.dev .env
 npx expo run:android
 ```
@@ -317,12 +317,12 @@ PowerShell'de:
 ```powershell
 $sdkPath = "$env:LOCALAPPDATA\Android\Sdk"
 $content = "sdk.dir=$($sdkPath.Replace('\', '\\'))"
-Set-Content -Path ".\Swiip-mobile\android\local.properties" -Value $content
+Set-Content -Path ".\Conversa-mobile\android\local.properties" -Value $content
 ```
 
 **Manuel:**
 ```bash
-# Swiip-mobile/android/local.properties
+# Conversa-mobile/android/local.properties
 sdk.dir=C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
 ```
 
@@ -333,7 +333,7 @@ sdk.dir=C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
 ### AAB Oluşturma (Google Play için)
 
 ```bash
-cd Swiip-mobile
+cd Conversa-mobile
 cp .env.prod .env
 npm run build:android:prod
 ```
@@ -429,16 +429,16 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 # local.properties oluştur
 $sdkPath = "$env:LOCALAPPDATA\Android\Sdk"
 $content = "sdk.dir=$($sdkPath -replace '\\', '\\')"
-[System.IO.File]::WriteAllText("$PWD\Swiip-mobile\android\local.properties", $content, [System.Text.Encoding]::ASCII)
+[System.IO.File]::WriteAllText("$PWD\Conversa-mobile\android\local.properties", $content, [System.Text.Encoding]::ASCII)
 
 # Build'i tekrar dene
-cd Swiip-mobile
+cd Conversa-mobile
 npx expo run:android
 ```
 
 **Kontrol:**
 - Android SDK kurulu olmalı: `$env:LOCALAPPDATA\Android\Sdk`
-- `local.properties` dosyası: `Swiip-mobile\android\local.properties`
+- `local.properties` dosyası: `Conversa-mobile\android\local.properties`
 - `ANDROID_HOME` environment variable (opsiyonel ama önerilir)
 
 ---
@@ -452,8 +452,8 @@ npx expo run:android
 
 2. **Backend URL:**
    - Test: `http://localhost:4000` (sadece local)
-   - Dev: `https://api-dev.swiip.app` (test backend)
-   - Prod: `https://api.swiip.app` (production backend)
+   - Dev: `https://api-dev.conversa.app` (test backend)
+   - Prod: `https://api.conversa.app` (production backend)
 
 3. **Build Profiles:**
    - `development`: Dev build (APK, internal)

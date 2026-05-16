@@ -14,7 +14,7 @@ let initPromise: Promise<void> | null = null;
 
 /**
  * Initialize RevenueCat Purchases SDK
- * @param userId - Swiip user ID to sync across devices
+ * @param userId - Conversa user ID to sync across devices
  */
 export async function initPurchases(userId: string): Promise<void> {
   if (isInitialized) {

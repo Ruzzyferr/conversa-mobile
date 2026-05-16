@@ -1,6 +1,6 @@
 # RevenueCat Yapılandırma Rehberi
 
-Bu rehber, Swiip uygulamasında RevenueCat'i nasıl yapılandıracağınızı adım adım açıklar.
+Bu rehber, Conversa uygulamasında RevenueCat'i nasıl yapılandıracağınızı adım adım açıklar.
 
 ## 📋 Adımlar
 
@@ -15,20 +15,20 @@ Bu rehber, Swiip uygulamasında RevenueCat'i nasıl yapılandıracağınızı ad
 #### iOS Uygulaması
 1. Dashboard'da **"Apps"** bölümüne gidin
 2. **"Add new app"** butonuna tıklayın
-3. App Name: `Swiip iOS` (veya istediğiniz isim)
+3. App Name: `Conversa iOS` (veya istediğiniz isim)
 4. Platform: **iOS**
 5. Bundle ID: Apple Developer hesabınızdaki Bundle ID'yi girin
-   - Örnek: `com.swiip.app` veya `app.swiip.mobile`
+   - Örnek: `com.conversa.app` veya `app.conversa.mobile`
 6. **"Create"** butonuna tıklayın
 7. Açılan sayfada **"API Keys"** sekmesine gidin
 8. **Public API Key** değerini kopyalayın (başında `appl_` ile başlar)
 
 #### Android Uygulaması
 1. Aynı projede **"Add new app"** butonuna tıklayın
-2. App Name: `Swiip Android`
+2. App Name: `Conversa Android`
 3. Platform: **Android**
 4. Package Name: Android uygulamanızın package name'ini girin
-   - Örnek: `com.swiip.app` veya `app.swiip.mobile`
+   - Örnek: `com.conversa.app` veya `app.conversa.mobile`
    - Bu bilgiyi `android/app/build.gradle` dosyasındaki `applicationId` değerinden bulabilirsiniz
 5. **"Create"** butonuna tıklayın
 6. **"API Keys"** sekmesine gidin

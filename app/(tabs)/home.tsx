@@ -151,8 +151,8 @@ export default function HomeScreen() {
         const foundPackage = offerings.availablePackages.find(
           pkg => 
             pkg.identifier === "Favorite Pack" ||
-            pkg.identifier === "swiip_favorite_5pack" ||
-            pkg.product.identifier === "swiip_favorite_5pack"
+            pkg.identifier === "conversa_favorite_5pack" ||
+            pkg.product.identifier === "conversa_favorite_5pack"
         );
         if (foundPackage) {
           setFavoritePackage(foundPackage);
@@ -649,7 +649,7 @@ export default function HomeScreen() {
         }
       } else {
         // Configuration Error - Do NOT give for free
-        console.warn("No favorite package (swiip_favorite_5pack) found in RevenueCat offerings.");
+        console.warn("No favorite package (conversa_favorite_5pack) found in RevenueCat offerings.");
         Alert.alert("Configuration Error", "Favorite package not found. Please check App configuration.");
       }
 
@@ -744,7 +744,7 @@ export default function HomeScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>Swiip</Text>
+              <Text style={styles.title}>Conversa</Text>
               {isUserPremium && (
                 <LinearGradient
                   colors={[colors.primary, colors.primaryLight]}
@@ -816,7 +816,7 @@ export default function HomeScreen() {
         {/* Compact Premium Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>Swiip</Text>
+            <Text style={styles.title}>Conversa</Text>
             {isUserPremium && (
               <LinearGradient
                 colors={[colors.primary, colors.primaryLight]}

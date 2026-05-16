@@ -94,17 +94,17 @@ export default function PremiumScreen() {
         const weeklyPackage = currentOffering.availablePackages.find(
           (pkg) =>
             pkg.identifier === "$rc_weekly" ||
-            pkg.identifier === "swiip_plus_weekly" ||
-            pkg.product.identifier === "swiip_premium_weekly:weekly-plan" ||
-            pkg.product.identifier === "swiip_premium_weekly" ||
+            pkg.identifier === "conversa_plus_weekly" ||
+            pkg.product.identifier === "conversa_premium_weekly:weekly-plan" ||
+            pkg.product.identifier === "conversa_premium_weekly" ||
             pkg.packageType === "WEEKLY"
         );
         const monthlyPackage = currentOffering.availablePackages.find(
           (pkg) =>
             pkg.identifier === "$rc_monthly" ||
-            pkg.identifier === "swiip_plus_monthly" ||
-            pkg.product.identifier === "swiip_premium_monthly:monthly-plan" ||
-            pkg.product.identifier === "swiip_premium_monthly" ||
+            pkg.identifier === "conversa_plus_monthly" ||
+            pkg.product.identifier === "conversa_premium_monthly:monthly-plan" ||
+            pkg.product.identifier === "conversa_premium_monthly" ||
             pkg.packageType === "MONTHLY"
         );
 
@@ -239,16 +239,16 @@ export default function PremiumScreen() {
     // Match RevenueCat package identifiers
     if (
       packageToFormat.identifier === "$rc_weekly" ||
-      packageToFormat.identifier === "swiip_plus_weekly" ||
-      packageToFormat.product.identifier === "swiip_premium_weekly:weekly-plan" ||
-      packageToFormat.product.identifier === "swiip_premium_weekly"
+      packageToFormat.identifier === "conversa_plus_weekly" ||
+      packageToFormat.product.identifier === "conversa_premium_weekly:weekly-plan" ||
+      packageToFormat.product.identifier === "conversa_premium_weekly"
     ) return "Haftalık";
     
     if (
       packageToFormat.identifier === "$rc_monthly" ||
-      packageToFormat.identifier === "swiip_plus_monthly" ||
-      packageToFormat.product.identifier === "swiip_premium_monthly:monthly-plan" ||
-      packageToFormat.product.identifier === "swiip_premium_monthly"
+      packageToFormat.identifier === "conversa_plus_monthly" ||
+      packageToFormat.product.identifier === "conversa_premium_monthly:monthly-plan" ||
+      packageToFormat.product.identifier === "conversa_premium_monthly"
     ) return "Aylık";
 
     switch (packageToFormat.packageType) {
@@ -442,12 +442,12 @@ export default function PremiumScreen() {
                   (pkg) =>
                     pkg.identifier === "$rc_weekly" ||
                     pkg.identifier === "$rc_monthly" ||
-                    pkg.identifier === "swiip_plus_weekly" ||
-                    pkg.identifier === "swiip_plus_monthly" ||
-                    pkg.product.identifier === "swiip_premium_weekly:weekly-plan" ||
-                    pkg.product.identifier === "swiip_premium_weekly" ||
-                    pkg.product.identifier === "swiip_premium_monthly:monthly-plan" ||
-                    pkg.product.identifier === "swiip_premium_monthly" ||
+                    pkg.identifier === "conversa_plus_weekly" ||
+                    pkg.identifier === "conversa_plus_monthly" ||
+                    pkg.product.identifier === "conversa_premium_weekly:weekly-plan" ||
+                    pkg.product.identifier === "conversa_premium_weekly" ||
+                    pkg.product.identifier === "conversa_premium_monthly:monthly-plan" ||
+                    pkg.product.identifier === "conversa_premium_monthly" ||
                     pkg.packageType === "WEEKLY" ||
                     pkg.packageType === "MONTHLY"
                 )
@@ -455,15 +455,15 @@ export default function PremiumScreen() {
                   // Weekly first, then Monthly
                   const isAWeekly =
                     a.identifier === "$rc_weekly" ||
-                    a.identifier === "swiip_plus_weekly" ||
-                    a.product.identifier === "swiip_premium_weekly:weekly-plan" ||
-                    a.product.identifier === "swiip_premium_weekly" ||
+                    a.identifier === "conversa_plus_weekly" ||
+                    a.product.identifier === "conversa_premium_weekly:weekly-plan" ||
+                    a.product.identifier === "conversa_premium_weekly" ||
                     a.packageType === "WEEKLY";
                   const isBWeekly =
                     b.identifier === "$rc_weekly" ||
-                    b.identifier === "swiip_plus_weekly" ||
-                    b.product.identifier === "swiip_premium_weekly:weekly-plan" ||
-                    b.product.identifier === "swiip_premium_weekly" ||
+                    b.identifier === "conversa_plus_weekly" ||
+                    b.product.identifier === "conversa_premium_weekly:weekly-plan" ||
+                    b.product.identifier === "conversa_premium_weekly" ||
                     b.packageType === "WEEKLY";
                   if (isAWeekly) return -1;
                   if (isBWeekly) return 1;

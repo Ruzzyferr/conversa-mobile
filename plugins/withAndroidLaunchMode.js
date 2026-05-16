@@ -22,7 +22,7 @@ module.exports = function withAndroidLaunchMode(config) {
       if (
         activityName.includes('MainActivity') ||
         activityName === '.MainActivity' ||
-        activityName === 'com.swiip.mobile.MainActivity' ||
+        activityName === 'com.conversa.app.MainActivity' ||
         (application.activity.indexOf(activity) === 0 && !activity.$['android:launchMode'])
       ) {
         activity.$['android:launchMode'] = 'singleTask';

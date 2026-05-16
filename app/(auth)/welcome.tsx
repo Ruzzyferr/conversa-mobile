@@ -108,7 +108,7 @@ export default function WelcomeScreen() {
     <SafeAreaView style={styles.container}>
       <RainBackground />
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Swiip</Text>
+        <Text style={styles.title}>Welcome to Conversa</Text>
         <Text style={styles.subtitle}>Your premium dating experience</Text>
 
         <PrimaryButton
