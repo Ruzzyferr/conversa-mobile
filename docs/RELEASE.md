@@ -22,6 +22,17 @@ her iki mağazanın **test kanalına** gönderir. Marketlere çıkmak elle kalı
 Bu iki adım bilerek otomatikleştirilmedi: ikisi de geri alınamayan, kullanıcıya
 açılan işlemler.
 
+## İnceleme sürerken push atmak
+
+Kapalı test kanalına yeni bir sürüm yüklemek, o kanalda **incelemede bekleyen
+sürümün yerine geçer** ve incelemeyi baştan başlatır. Play bunu uyarmadan yapar.
+
+Bir sürüm incelemedeyken master'a bir şey göndermen gerekiyorsa:
+
+- ya inceleme bitene kadar bekle,
+- ya da commit başlığına `[skip ci]` ekle (iş akışı hiç çalışmaz),
+- ya da Actions sekmesinden **kuru çalıştırma** ile sadece derlemeyi doğrula.
+
 ## Notların kalitesi
 
 Notlar commit başlıklarından üretiliyor, yani **commit başlığı = kullanıcıya
