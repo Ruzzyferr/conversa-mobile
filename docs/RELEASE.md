@@ -30,12 +30,15 @@ sürümün yerine geçer** ve incelemeyi baştan başlatır. Play bunu uyarmadan
 Bir sürüm incelemedeyken master'a bir şey göndermen gerekiyorsa:
 
 - ya inceleme bitene kadar bekle,
-- ya da commit başlığına `[skip ci]` ekle (iş akışı hiç çalışmaz),
-- ya da Actions sekmesinden **"Play yüklemesini atla"** ile çalıştır: iOS
-  derlenip TestFlight'a gider, Play'deki inceleme bozulmaz.
+- ya da commit başlığına `[skip ci]` ekle (iş akışı hiç çalışmaz).
 
-TestFlight'ta böyle bir sorun yok. Yeni bir build, App Store incelemesindeki
+TestFlight'ta böyle bir sorun yok: yeni bir build, App Store incelemesindeki
 sürümü etkilemez — inceleme belirli bir build'e bağlıdır.
+
+**Mağaza bazında atlama yoktur.** Çıkan her sürüm iki mağazaya da gider; tek
+tek atlanabilseydi iki mağaza farklı kodda kalırdı. Bir şey göndermeden sadece
+derlemeyi görmek istersen **kuru çalıştırma** ikisini birden atlar, yani
+aralarında fark oluşmaz.
 
 ## Notların kalitesi
 
@@ -132,6 +135,6 @@ iOS derlemesi kimlik hatasıyla düşer; profili yenileyip
 
 ## EAS dakikası
 
-Her push bir iOS bulut derlemesi başlatır. Sadece Android'e ihtiyacın olduğu bir
-değişiklikte Actions sekmesinden iş akışını elle çalıştırıp **"iOS derlemesini
-atla"** kutusunu işaretle.
+Her sürüm bir iOS bulut derlemesi başlatır — iki mağazanın aynı kodda kalması
+bunu gerektiriyor. Bir değişikliğin sürüm çıkarmasını istemiyorsan commit
+başlığına `[skip ci]` ekle; iş akışı hiç çalışmaz ve dakika harcanmaz.
