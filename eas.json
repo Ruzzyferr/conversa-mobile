@@ -49,8 +49,7 @@
         "EXPO_PUBLIC_ADMOB_IOS_REWARDED_UNIT_ID": "ca-app-pub-2953141598487358/4452840734",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1027785860729-epk36snpb3l8c1ksjj3bvlko3sheh55f.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1027785860729-ruj1t1tv2t55me2kb9ilo7snrvekhlh3.apps.googleusercontent.com",
-        "EXPO_PUBLIC_WEB_URL": "https://conversa.swiip.app",
-        "EXPO_PUBLIC_API_URL_NOTE": "api url below points at the real domain; the sslip.io host stays served for older installs"
+        "EXPO_PUBLIC_WEB_URL": "https://conversa.swiip.app"
       },
       "android": {
         "buildType": "app-bundle",

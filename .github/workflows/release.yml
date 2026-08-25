@@ -79,6 +79,11 @@ jobs:
       - name: Sürüm notları
         run: node scripts/ci/release-notes.mjs
 
+      # EXPO_PUBLIC_* degerleri paket derlenirken gomuluyor. EAS bunlari
+      # eas.json'dan kendi veriyor; duz gradle vermiyor ve .env depoda yok.
+      - name: Derleme ortamı
+        run: node scripts/ci/build-env.mjs
+
       # --- Android ---------------------------------------------------------
       # android/ depoda duruyor ve doğrudan gradle ile derleniyor. `expo
       # prebuild` çalıştırma: usesCleartextTraffic, depolama izni sınırı ve
@@ -103,6 +108,9 @@ jobs:
       - name: AAB derle
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon
+
+      - name: Paketi doğrula
+        run: node scripts/ci/verify-bundle.mjs
 
       - name: Play kapalı testine yükle
         id: play

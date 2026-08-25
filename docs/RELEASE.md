@@ -58,6 +58,31 @@ manifest'teki elle yapılmış sertleştirmeleri sessizce geri alır — ayrınt
 `app.config.ts` başındaki nottadır. iOS'ta `ios/` klasörü yok; onu EAS bulutta
 üretiyor, orada sorun değil.
 
+## Ortam değişkenleri
+
+`EXPO_PUBLIC_*` değerleri **paket derlenirken koda gömülür**; çalışma anında
+okunmaz. Tek doğru kaynak `eas.json` → `build.production.env`:
+
+- **iOS:** EAS bu bloğu kendisi uygular.
+- **Android:** düz `gradlew` uygulamaz. `scripts/ci/build-env.mjs` aynı bloğu
+  okuyup derleme ortamına aktarır.
+
+Depodaki `.env` yalnızca yerel geliştirme kolaylığıdır ve git'e girmez; bu
+yüzden CI'da yoktur. İkisi arasında değer kopyalamak yerine `eas.json`'ı
+güncelle — Android ve iOS'un birbirinden ayrışmasının tek yolu budur.
+
+`EXPO_PUBLIC_API_URL` boşken uygulama açılışta bilerek hata fırlatır
+(`src/services/api.ts`), yani eksik yapılandırma sessiz bir hata değil,
+çöken bir uygulamadır. Bu yüzden `scripts/ci/verify-bundle.mjs` her derlemeden
+sonra üretilen AAB'nin içindeki paketi açıp API adresini, web adresini ve
+RevenueCat anahtarını arar; biri yoksa koşuyu düşürür ve mağazaya yükleme
+yapılmaz. **versionCode 20 tam olarak bu yüzden bozuk çıktı** — derleme,
+imzalama ve yükleme sorunsuz geçmişti.
+
+> Not: `api.conversa.swiip.app` gerçek alan adıdır. Caddy eski
+> `*.sslip.io` adreslerini de sunmaya devam ediyor; kurulu eski sürümler oradan
+> konuşuyor, o host kapatılmamalı.
+
 ## Bildirimler
 
 Her koşunun sonunda — başarılı ya da başarısız — **bulutruzgaremir@gmail.com**
