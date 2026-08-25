@@ -17,6 +17,10 @@ on:
         description: 'iOS derlemesini atla (EAS dakikası harcamamak için)'
         type: boolean
         default: false
+      skip_play:
+        description: 'Play yüklemesini atla (incelemedeki sürümü değiştirmemek için)'
+        type: boolean
+        default: false
       dry_run:
         description: 'Kuru çalıştırma: derle ama hiçbir mağazaya gönderme'
         type: boolean
@@ -52,6 +56,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Gradle önbelleği
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Bağımlılıklar
         run: npm ci
@@ -92,7 +105,7 @@ jobs:
         run: ./gradlew bundleRelease --no-daemon
 
       - name: Play kapalı testine yükle
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && !inputs.skip_play }}
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}

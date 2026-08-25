@@ -31,7 +31,11 @@ Bir sürüm incelemedeyken master'a bir şey göndermen gerekiyorsa:
 
 - ya inceleme bitene kadar bekle,
 - ya da commit başlığına `[skip ci]` ekle (iş akışı hiç çalışmaz),
-- ya da Actions sekmesinden **kuru çalıştırma** ile sadece derlemeyi doğrula.
+- ya da Actions sekmesinden **"Play yüklemesini atla"** ile çalıştır: iOS
+  derlenip TestFlight'a gider, Play'deki inceleme bozulmaz.
+
+TestFlight'ta böyle bir sorun yok. Yeni bir build, App Store incelemesindeki
+sürümü etkilemez — inceleme belirli bir build'e bağlıdır.
 
 ## Notların kalitesi
 
