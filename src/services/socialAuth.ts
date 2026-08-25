@@ -81,6 +81,29 @@ export async function signInWithGoogle(): Promise<SocialResult> {
 
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+    // Drop any cached native account before starting an interactive sign-in.
+    //
+    // Google's SDK hands back the previously signed-in account with no UI at
+    // all, so tapping "Continue with Google" silently reused whichever account
+    // had signed in on this device before — the person never got to choose,
+    // and on a shared or multi-account phone that is the wrong account. That
+    // path does not reliably mint a fresh ID token either, so the attempt then
+    // died at "Google did not return an identity token" without ever reaching
+    // our server.
+    //
+    // Someone tapping a sign-in button is asking to pick an account, so the
+    // picker should always appear. This only clears the local session — it
+    // does not revoke the grant, so no repeated consent screen — and it is
+    // unconditional because hasPreviousSignIn() reads this app's own record,
+    // which "clear data" or a reinstall wipes even when the Play services
+    // session it would have reused survives.
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // Best effort — a stale cache must not block a fresh sign-in attempt.
+    }
+
     const response = await GoogleSignin.signIn();
 
     // v13+ returns { type: 'success' | 'cancelled', data }; older builds
