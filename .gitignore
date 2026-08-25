@@ -151,3 +151,6 @@ google-services.json
 *.mobileprovision
 credentials.json
 google-services.json
+
+# CI'nin ürettiği sürüm notları (scripts/ci/release-notes.mjs)
+build-output/

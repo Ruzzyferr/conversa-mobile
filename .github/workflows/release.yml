@@ -1,0 +1,186 @@
+name: Test sürümü
+
+# master'a her gerçek değişiklik gittiğinde: sürümü artır, notları commit'lerden
+# yaz, Android'i Play kapalı testine, iOS'u TestFlight'a gönder. Marketlere
+# çıkmak (production / App Store release) elle kalır.
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      skip_ios:
+        description: 'iOS derlemesini atla (EAS dakikası harcamamak için)'
+        type: boolean
+        default: false
+
+# İki sürüm aynı anda yükselirse versionCode çakışır.
+concurrency:
+  group: conversa-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release-notes.mjs önceki etiketi arıyor
+
+      - name: Node kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Java kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Tip kontrolü
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Sürümü artır
+        id: version
+        run: node scripts/ci/version.mjs bump
+
+      - name: Sürüm notları
+        run: node scripts/ci/release-notes.mjs
+
+      # --- Android ---------------------------------------------------------
+      # android/ depoda duruyor ve doğrudan gradle ile derleniyor. `expo
+      # prebuild` çalıştırma: usesCleartextTraffic, depolama izni sınırı ve
+      # version.json bağlantısı geri alınıyor (bkz. app.config.ts başındaki not).
+
+      - name: İmzalama anahtarını yaz
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/conversa-upload.keystore
+          mkdir -p ~/.gradle
+          {
+            echo "MYAPP_UPLOAD_STORE_FILE=conversa-upload.keystore"
+            echo "MYAPP_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+            echo "MYAPP_UPLOAD_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "MYAPP_UPLOAD_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> ~/.gradle/gradle.properties
+
+      - name: AAB derle
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Play kapalı testine yükle
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: node scripts/ci/play-upload.mjs
+
+      # --- iOS -------------------------------------------------------------
+      # iOS projesi depoda yok; EAS bulutta prebuild edip derliyor.
+
+      - name: iOS kimlik bilgilerini yaz
+        if: ${{ !inputs.skip_ios }}
+        env:
+          DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          mkdir -p ios-credentials
+          echo "$DIST_P12_BASE64" | base64 -d > ios-credentials/dist.p12
+          echo "$PROFILE_BASE64" | base64 -d > ios-credentials/conversa-appstore.mobileprovision
+          printf '%s' "$ASC_API_KEY_P8" > ios-credentials/AuthKey.p8
+          # credentials.json depoda yok (imza malzemesi .gitignore'da) — kur.
+          node -e '
+            const fs = require("fs");
+            fs.writeFileSync("credentials.json", JSON.stringify({
+              android: {
+                keystore: {
+                  keystorePath: "android/app/conversa-upload.keystore",
+                  keystorePassword: process.env.KEYSTORE_PASSWORD,
+                  keyAlias: process.env.KEY_ALIAS,
+                  keyPassword: process.env.KEYSTORE_PASSWORD,
+                },
+              },
+              ios: {
+                provisioningProfilePath: "ios-credentials/conversa-appstore.mobileprovision",
+                distributionCertificate: {
+                  path: "ios-credentials/dist.p12",
+                  password: process.env.DIST_P12_PASSWORD,
+                },
+              },
+            }, null, 2));
+          '
+
+      - name: iOS derle ve TestFlight'a gönder
+        if: ${{ !inputs.skip_ios }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli@latest build --platform ios --profile production --non-interactive --auto-submit
+
+      - name: TestFlight sürüm notları
+        if: ${{ !inputs.skip_ios }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: node scripts/ci/testflight-notes.mjs
+
+      # --- Kayıt -----------------------------------------------------------
+
+      - name: Sürüm artışını işle ve etiketle
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json app.config.ts
+          # [skip ci] olmazsa bu commit iş akışını yeniden tetikler.
+          git commit -m "Release $VERSION_NAME (Android $VERSION_CODE, iOS $BUILD_NUMBER) [skip ci]"
+          git tag "v$VERSION_NAME+$VERSION_CODE"
+          git push origin HEAD:${{ github.ref_name }} --follow-tags
+
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## Conversa ${{ steps.version.outputs.version_name }}"
+            echo ""
+            echo "- Android **${{ steps.version.outputs.version_code }}** -> Play kapalı test"
+            echo "- iOS build **${{ steps.version.outputs.build_number }}** -> TestFlight"
+            echo ""
+            echo "### Sürüm notları"
+            echo '```'
+            cat build-output/notes-short.txt 2>/dev/null || echo "(yok)"
+            echo '```'
+            echo ""
+            echo "Marketlere çıkmak elle yapılır: Play'de production'a terfi, App Store'da yeni sürüm gönderimi."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Anahtarları temizle
+        if: always()
+        run: rm -f android/app/conversa-upload.keystore ios-credentials/dist.p12 ios-credentials/AuthKey.p8 credentials.json ~/.gradle/gradle.properties
