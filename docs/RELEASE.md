@@ -58,6 +58,31 @@ manifest'teki elle yapılmış sertleştirmeleri sessizce geri alır — ayrınt
 `app.config.ts` başındaki nottadır. iOS'ta `ios/` klasörü yok; onu EAS bulutta
 üretiyor, orada sorun değil.
 
+## Bildirimler
+
+Her koşunun sonunda — başarılı ya da başarısız — **bulutruzgaremir@gmail.com**
+adresine e-posta gider. Gönderim backend'in kullandığı Resend hesabı üzerinden,
+`noreply@swiip.app` adresinden yapılır. Mesajda sürüm numaraları, hangi mağazaya
+neyin gittiği, sürüm notları ve koşu bağlantısı bulunur.
+
+GitHub'ın kendi bildirimi yalnızca **başarısız** koşular için ve yalnızca hesap
+sahibine gider; bu yüzden başarı bildirimi ayrıca kuruldu — asıl görmek
+istediğin durum, testçilerin eline yeni bir sürüm geçtiği andır.
+
+**Telegram istersen** iki secret eklemen yeterli, kod hazır:
+
+1. Telegram'da `@BotFather` ile konuşup `/newbot` de, çıkan token'ı al.
+2. Bota bir mesaj yaz, sonra
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` adresinden `chat.id`'yi oku.
+3. Depoya ekle:
+   ```
+   gh secret set TELEGRAM_BOT_TOKEN --repo Ruzzyferr/conversa-mobile
+   gh secret set TELEGRAM_CHAT_ID   --repo Ruzzyferr/conversa-mobile
+   ```
+
+İkisi yoksa Telegram adımı sessizce atlanır. Bildirim hiçbir durumda koşuyu
+düşürmez.
+
 ## Secret'lar
 
 Hepsi `Ruzzyferr/conversa-mobile` deposunun Actions secret'larında duruyor.
@@ -71,6 +96,8 @@ Hepsi `Ruzzyferr/conversa-mobile` deposunun Actions secret'larında duruyor.
 | `IOS_PROVISIONING_PROFILE_BASE64` | `ios-credentials/conversa-appstore.mobileprovision` |
 | `ASC_API_KEY_P8` / `ASC_KEY_ID` / `ASC_ISSUER_ID` | App Store Connect API anahtarı |
 | `EXPO_TOKEN` | expo.dev → Settings → Access tokens (kuruldu) |
+| `RESEND_API_KEY` / `NOTIFY_EMAIL` / `NOTIFY_FROM` | bildirim e-postası (kuruldu) |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | isteğe bağlı, yoksa atlanır |
 
 Bunların hiçbiri depoda durmuyor; `.gitignore` imza malzemesini kapsıyor.
 
