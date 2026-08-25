@@ -66,7 +66,7 @@ Hepsi `Ruzzyferr/conversa-mobile` deposunun Actions secret'larında duruyor.
 | `IOS_DIST_P12_BASE64` / `IOS_DIST_P12_PASSWORD` | `ios-credentials/dist.p12` |
 | `IOS_PROVISIONING_PROFILE_BASE64` | `ios-credentials/conversa-appstore.mobileprovision` |
 | `ASC_API_KEY_P8` / `ASC_KEY_ID` / `ASC_ISSUER_ID` | App Store Connect API anahtarı |
-| `EXPO_TOKEN` | expo.dev → Settings → Access tokens |
+| `EXPO_TOKEN` | expo.dev → Settings → Access tokens (kuruldu) |
 
 Bunların hiçbiri depoda durmuyor; `.gitignore` imza malzemesini kapsıyor.
 
