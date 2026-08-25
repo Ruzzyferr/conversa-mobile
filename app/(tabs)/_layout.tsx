@@ -283,7 +283,6 @@ export default function TabLayout() {
         visible={showMatchPopup}
         match={newMatches[0] || null}
         onClose={handleCloseMatchPopup}
-        onSendMessage={handleCloseMatchPopup}
       />
 
       {/* Moderation Warning Modal */}

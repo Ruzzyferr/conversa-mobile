@@ -31,11 +31,11 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 interface MatchPopupProps {
     visible: boolean;
     match: NewMatchEvent | null;
+    /** Also fires when a starter is tapped — the popup navigates itself. */
     onClose: () => void;
-    onSendMessage: () => void;
 }
 
-export function MatchPopup({ visible, match, onClose, onSendMessage }: MatchPopupProps) {
+export function MatchPopup({ visible, match, onClose }: MatchPopupProps) {
     const router = useRouter();
     const { t } = useTranslation();
     const reducedMotion = useReducedMotion();
@@ -193,7 +193,13 @@ export function MatchPopup({ visible, match, onClose, onSendMessage }: MatchPopu
                                 accessibilityLabel={t("home.match.say_hi")}
                             >
                                 <LinearGradient
-                                    colors={[colors.onMedia, colors.surfaceHover]}
+                                    // White -> near-white. The second stop used
+                                    // to be `surfaceHover` (#252A40), a *dark*
+                                    // surface token, so the primary CTA faded
+                                    // from white into near-black and its purple
+                                    // label went unreadable across the bottom
+                                    // half — it read as a disabled button.
+                                    colors={[colors.onMedia, colors.onMediaSubtle]}
                                     style={styles.messageButtonGradient}
                                 >
                                     <Ionicons name="chatbubble" size={20} color={colors.primary} />

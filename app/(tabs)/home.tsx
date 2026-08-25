@@ -36,6 +36,8 @@ import { usePremium } from "@/src/state/premium";
 import { getOfferings, purchasePremium, PurchasesPackage } from "@/src/services/purchases";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
+import { MatchPopup } from "@/src/components/MatchPopup";
+import { useSocket, NewMatchEvent } from "@/src/state/socket";
 
 type DiscoveryCard = {
   userId: string;
@@ -67,11 +69,13 @@ export default function HomeScreen() {
     active: boolean;
     endsAt?: string;
   } | null>(null);
-  const [matchData, setMatchData] = useState<{
-    conversationId?: string;
-    matchedUserId?: string;
-    matchedUserName?: string;
-  } | null>(null);
+  // Shaped as the socket's NewMatchEvent so the same rich MatchPopup renders
+  // whichever way the match arrives.
+  const [matchData, setMatchData] = useState<NewMatchEvent | null>(null);
+  // The server emits "new match" to BOTH sides, so liking someone back also
+  // wakes the global MatchPopup in _layout. Clearing it here keeps a single
+  // celebration on screen instead of two stacked ones (likes.tsx does the same).
+  const { clearNewMatches } = useSocket();
   const [showFilterModal, setShowFilterModal] = useState(false);
   const defaultFilters: FilterParams = {
     ageRange: [18, 60],
@@ -466,11 +470,16 @@ export default function HomeScreen() {
       if (result.matched && result.matchId && result.conversationId) {
         // It's a match! Show match modal
         setMatchData({
+          matchId: result.matchId,
           conversationId: result.conversationId,
-          matchedUserId: likedUserId,
-          matchedUserName: currentCard.profile.displayName,
+          otherUser: {
+            userId: likedUserId,
+            displayName: currentCard.profile.displayName,
+            photos: currentCard.profile.photos ?? [],
+          },
         });
         setShowMatchModal(true);
+        clearNewMatches();
       }
 
       // Refresh like limit info
@@ -741,21 +750,8 @@ export default function HomeScreen() {
   const handleMatchModalClose = () => {
     setShowMatchModal(false);
     // Card was already removed in handleLike, but remove it again if somehow still there
-    if (matchData?.matchedUserId) {
-      setFeed((prevFeed) => prevFeed.filter((card) => card.userId !== matchData.matchedUserId));
-    }
-    setMatchData(null);
-    moveToNext();
-  };
-
-  const handleGoToChat = () => {
-    setShowMatchModal(false);
-    // Card was already removed in handleLike, but remove it again if somehow still there
-    if (matchData?.matchedUserId) {
-      setFeed((prevFeed) => prevFeed.filter((card) => card.userId !== matchData.matchedUserId));
-    }
-    if (matchData?.conversationId) {
-      router.push(`/conversation/${matchData.conversationId}`);
+    if (matchData?.otherUser.userId) {
+      setFeed((prevFeed) => prevFeed.filter((card) => card.userId !== matchData.otherUser.userId));
     }
     setMatchData(null);
     moveToNext();
@@ -1025,35 +1021,16 @@ export default function HomeScreen() {
           isPremium={isUserPremium}
         />
 
-        {/* Match Modal */}
-        <Modal
+        {/*
+          The same celebration the socket path shows. This screen used to render
+          its own stripped-down dialog, so one match could produce two different
+          popups back to back — a plain card here and the rich one from _layout.
+        */}
+        <MatchPopup
           visible={showMatchModal}
-          transparent
-          animationType="fade"
-          onRequestClose={handleMatchModalClose}
-        >
-          <View style={styles.modalOverlay}>
-            <Card style={styles.modalCard}>
-              <Text style={styles.matchTitle}>{t('home.match.title')}</Text>
-              <Text style={styles.matchSubtitle}>
-                {t('home.match.subtitle', { name: matchData?.matchedUserName || "someone" })}
-              </Text>
-              <View style={styles.modalActions}>
-                <PrimaryButton
-                  title={t('home.match.say_hi')}
-                  onPress={handleGoToChat}
-                  style={styles.modalButton}
-                />
-                <TouchableOpacity
-                  onPress={handleMatchModalClose}
-                  style={styles.modalCloseButton}
-                >
-                  <Text style={styles.modalCloseText}>{t('home.match.continue')}</Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          </View>
-        </Modal>
+          match={matchData}
+          onClose={handleMatchModalClose}
+        />
 
         {/* Boost Modal */}
         <Modal

@@ -142,7 +142,14 @@
     },
     "likes_left_title": "Daily likes",
     "likes_left_msg": "You have {{remaining}} of {{limit}} likes left today. Likes reset every day at midnight (UTC). You can earn +3 extra by watching an ad when you run out.",
-    "load_feed_error": "Couldn't load profiles. Check your connection and try again."
+    "load_feed_error": "Couldn't load profiles. Check your connection and try again.",
+    "like_limit": {
+      "title": "Daily like limit reached",
+      "body": "You've used {{used}} of {{limit}} likes today.",
+      "go_premium": "Go Premium",
+      "watch_ad": "Watch an ad → +3 likes",
+      "later": "Come back tomorrow"
+    }
   },
   "profile": {
     "loading": "Loading...",
@@ -595,6 +602,12 @@
       "coffee_tea": "Coffee or tea? This says a lot about a person ☕",
       "dream_country": "If you could live in any country for a year, which one?",
       "teach_me": "Teach me how to say something nice in your language!"
+    },
+    "time": {
+      "now": "Now",
+      "minutes": "{{count}}m",
+      "hours": "{{count}}h",
+      "days": "{{count}}d"
     }
   },
   "safety": {
@@ -838,6 +851,10 @@
     "sending": "Sending...",
     "invalid_code": "That code is not right. Please try again.",
     "expired_code": "That code has expired. Request a new one.",
-    "generic_error": "We couldn't verify the code. Please try again."
+    "generic_error": "We couldn't verify the code. Please try again.",
+    "resent": "A new code is on its way.",
+    "resend_failed": "We couldn't resend the code.",
+    "incomplete": "Please enter the 6-digit code.",
+    "digit_label": "Code digit {{n}}"
   }
 }

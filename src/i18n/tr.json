@@ -142,7 +142,14 @@
     },
     "likes_left_title": "Günlük beğeni hakkın",
     "likes_left_msg": "Bugün {{limit}} haktan {{remaining}} beğenin kaldı. Haklar her gün gece yarısı (UTC) yenilenir. Bittiğinde reklam izleyerek +3 kazanabilirsin.",
-    "load_feed_error": "Profiller yüklenemedi. Bağlantını kontrol edip tekrar dene."
+    "load_feed_error": "Profiller yüklenemedi. Bağlantını kontrol edip tekrar dene.",
+    "like_limit": {
+      "title": "Günlük beğeni hakkın bitti",
+      "body": "Bugün {{limit}} beğeninin {{used}} tanesini kullandın.",
+      "go_premium": "Premium'a geç",
+      "watch_ad": "Reklam izle → +3 beğeni",
+      "later": "Yarın tekrar gel"
+    }
   },
   "profile": {
     "loading": "Yükleniyor...",
@@ -594,6 +601,12 @@
       "coffee_tea": "Kahve mi çay mı? Bu bir insan hakkında çok şey söyler ☕",
       "dream_country": "Bir yıl istediğin ülkede yaşayabilsen hangisini seçerdin?",
       "teach_me": "Bana kendi dilinde güzel bir şey söylemeyi öğret!"
+    },
+    "time": {
+      "now": "Şimdi",
+      "minutes": "{{count}} dk",
+      "hours": "{{count}} sa",
+      "days": "{{count}} g"
     }
   },
   "safety": {
@@ -837,6 +850,10 @@
     "sending": "Gönderiliyor...",
     "invalid_code": "Kod hatalı. Lütfen tekrar dene.",
     "expired_code": "Kodun süresi doldu. Yeni bir kod iste.",
-    "generic_error": "Doğrulama tamamlanamadı. Lütfen tekrar dene."
+    "generic_error": "Doğrulama tamamlanamadı. Lütfen tekrar dene.",
+    "resent": "Yeni kod gönderildi.",
+    "resend_failed": "Kod yeniden gönderilemedi.",
+    "incomplete": "Lütfen 6 haneli kodu gir.",
+    "digit_label": "Kodun {{n}}. hanesi"
   }
 }

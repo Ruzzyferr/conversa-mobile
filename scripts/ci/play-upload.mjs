@@ -97,6 +97,22 @@ if (VERSION_CODE && String(uploaded.versionCode) !== String(VERSION_CODE)) {
 
 // Release notes only go out for languages the listing actually has; Play
 // rejects the edit for any other locale.
+/** One release-notes entry per listing language. */
+function releaseNotesFor(languages) {
+  if (!languages.length) return undefined;
+  if (notes) return languages.map((language) => ({ language, text: notes }));
+  let fallback = {};
+  try {
+    fallback = JSON.parse(fs.readFileSync('build-output/notes-fallback.json', 'utf8'));
+  } catch {
+    return undefined;
+  }
+  const entries = languages
+    .map((language) => ({ language, text: fallback[language] }))
+    .filter((e) => e.text);
+  return entries.length ? entries : undefined;
+}
+
 const listings = await api(token, `/edits/${edit.id}/listings`);
 const languages = (listings.listings || []).map((l) => l.language);
 console.log('listeleme dilleri:', languages.join(', ') || '(yok)');
@@ -109,7 +125,10 @@ await api(token, `/edits/${edit.id}/tracks/${TRACK}`, {
       name: `${uploaded.versionCode} (${VERSION_NAME})`,
       versionCodes: [String(uploaded.versionCode)],
       status: 'completed',
-      releaseNotes: notes ? languages.map((language) => ({ language, text: notes })) : undefined,
+      // With commit-derived notes every language gets the same text (the
+      // subjects are English by convention). With none, each language gets its
+      // own fallback so the tr-TR listing is not left showing English.
+      releaseNotes: releaseNotesFor(languages),
     }],
   },
 });

@@ -42,36 +42,67 @@ export default function VerifyCodeScreen() {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
+  // A React state update is asynchronous, but the keyboard fires one
+  // onChangeText per keystroke without waiting for a re-render. Reading `code`
+  // from the render closure therefore copied a *stale* array on fast input and
+  // dropped digits — typing 534322 landed as 53322. The ref always holds the
+  // newest value, so every handler builds on what actually got typed.
+  const codeRef = useRef<string[]>(["", "", "", "", "", ""]);
+  const submittingRef = useRef(false);
+
+  const applyCode = (next: string[]) => {
+    codeRef.current = next;
+    setCode(next);
+  };
+
   useEffect(() => {
     // Focus first input on mount
     inputRefs.current[0]?.focus();
   }, []);
 
   const handleCodeChange = (value: string, index: number) => {
-    // Only allow digits
-    const digit = value.replace(/[^0-9]/g, "");
-    if (digit.length > 1) return;
+    const digits = value.replace(/[^0-9]/g, "");
+    const next = [...codeRef.current];
 
-    const newCode = [...code];
-    newCode[index] = digit;
-    setCode(newCode);
-
-    // Auto-focus next input
-    if (digit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    if (digits.length === 0) {
+      // Deletion inside a filled box.
+      next[index] = "";
+      applyCode(next);
+      return;
     }
 
-    // Auto-submit when all digits are entered
-    if (digit && index === 5) {
-      const fullCode = newCode.join("");
-      if (fullCode.length === 6) {
-        handleVerify(fullCode);
-      }
+    // A pasted or auto-filled code arrives in a single box as one string.
+    // The old handler bailed out on anything longer than one character, so
+    // pasting the e-mailed code did nothing at all. Spread it across the
+    // boxes instead, starting where the paste landed.
+    let cursor = index;
+    for (const d of digits) {
+      if (cursor > 5) break;
+      next[cursor] = d;
+      cursor += 1;
+    }
+    applyCode(next);
+
+    const focusAt = Math.min(cursor, 5);
+    inputRefs.current[focusAt]?.focus();
+
+    // Submit as soon as all six are present, no matter which box completed
+    // them — a paste fills the last box without ever "typing" into it.
+    const fullCode = next.join("");
+    if (fullCode.length === 6 && !next.includes("")) {
+      handleVerify(fullCode);
     }
   };
 
   const handleKeyPress = (key: string, index: number) => {
-    if (key === "Backspace" && !code[index] && index > 0) {
+    if (key !== "Backspace") return;
+    // Backspace on an empty box steps back AND clears the previous digit;
+    // stepping back without clearing left the code un-editable, because the
+    // box you land on is already full and maxLength blocks re-typing.
+    if (!codeRef.current[index] && index > 0) {
+      const next = [...codeRef.current];
+      next[index - 1] = "";
+      applyCode(next);
       inputRefs.current[index - 1]?.focus();
     }
   };
@@ -80,9 +111,12 @@ export default function VerifyCodeScreen() {
     const fullCode = codeToVerify || code.join("");
 
     if (fullCode.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code");
+      Alert.alert(t("common.error"), t("otp.incomplete"));
       return;
     }
+    // Auto-submit and a tap on "Doğrula" can both fire for the last digit.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
     setLoading(true);
     try {
@@ -110,9 +144,10 @@ export default function VerifyCodeScreen() {
       setErrorMessage(message);
       setShowErrorModal(true);
       // Clear code on error
-      setCode(["", "", "", "", "", ""]);
+      applyCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -124,13 +159,13 @@ export default function VerifyCodeScreen() {
         mode === "email" ? identifier : undefined,
         mode === "phone" ? identifier : undefined
       );
-      Alert.alert("Success", "Verification code sent!");
-      setCode(["", "", "", "", "", ""]);
+      Alert.alert(t("common.success"), t("otp.resent"));
+      applyCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to resend code";
-      Alert.alert("Error", errorMessage);
+        error instanceof Error ? error.message : t("otp.resend_failed");
+      Alert.alert(t("common.error"), errorMessage);
     } finally {
       setResending(false);
     }
@@ -165,8 +200,16 @@ export default function VerifyCodeScreen() {
                     handleKeyPress(nativeEvent.key, index)
                   }
                   keyboardType="number-pad"
-                  maxLength={1}
+                  // maxLength must exceed 1 or the platform truncates a pasted
+                  // / auto-filled code to its first character before the
+                  // handler ever sees it. handleCodeChange spreads the extra
+                  // digits across the remaining boxes and keeps each at one.
+                  maxLength={6}
                   selectTextOnFocus
+                  autoComplete={index === 0 ? "sms-otp" : "off"}
+                  textContentType={index === 0 ? "oneTimeCode" : "none"}
+                  importantForAutofill={index === 0 ? "yes" : "no"}
+                  accessibilityLabel={t("otp.digit_label", { n: index + 1 })}
                   editable={!loading}
                 />
               ))}

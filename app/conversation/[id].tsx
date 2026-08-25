@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
-import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -30,6 +30,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
+import { setActiveConversation } from "@/src/services/pushNotifications";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -194,6 +195,15 @@ export default function ConversationScreen() {
   useEffect(() => {
     checkAuthAndLoadMessages();
   }, [conversationId]);
+
+  // While this thread is on screen its own pushes are silenced — the socket
+  // has already put the message in the list, so a banner over it is noise.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveConversation(conversationId);
+      return () => setActiveConversation(null);
+    }, [conversationId])
+  );
 
   // Socket.IO real-time connection
   useEffect(() => {

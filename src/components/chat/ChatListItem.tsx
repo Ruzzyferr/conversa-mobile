@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
+import i18n from "@/src/i18n";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -44,13 +45,20 @@ function ChatListItemBase({
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return "Şimdi";
-      if (diffMins < 60) return `${diffMins}d`;
-      if (diffHours < 24) return `${diffHours}s`;
-      if (diffDays < 7) return `${diffDays}g`;
+      // These were hardcoded Turkish initials that also read as the wrong unit:
+      // "46d" for 46 *dakika* is "46 days" to an English reader, and "s" for
+      // saat is "seconds". Both the abbreviations and the date format now
+      // follow the active language.
+      if (diffMins < 1) return t("chat.time.now");
+      if (diffMins < 60) return t("chat.time.minutes", { count: diffMins });
+      if (diffHours < 24) return t("chat.time.hours", { count: diffHours });
+      if (diffDays < 7) return t("chat.time.days", { count: diffDays });
 
       // Show date if older
-      return date.toLocaleDateString("tr-TR", { month: "short", day: "numeric" });
+      return date.toLocaleDateString(i18n.language || "en", {
+        month: "short",
+        day: "numeric",
+      });
     } catch {
       return null;
     }

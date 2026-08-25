@@ -13,6 +13,7 @@ import { typography } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 
 type LikeLimitModalProps = {
   visible: boolean;
@@ -34,6 +35,7 @@ export function LikeLimitModal({
   watchingAd,
 }: LikeLimitModalProps) {
   const router = useRouter();
+  const { t } = useTranslation();
 
   if (isPremium) {
     return null; // Premium users shouldn't see this
@@ -48,14 +50,14 @@ export function LikeLimitModal({
     >
       <View style={styles.overlay}>
         <Card style={styles.modalCard}>
-          <Text style={styles.title}>Daily Like Limit Reached</Text>
+          <Text style={styles.title}>{t("home.like_limit.title")}</Text>
           <Text style={styles.description}>
-            You've used {likesUsed} of {likesLimit} likes today.
+            {t("home.like_limit.body", { used: likesUsed, limit: likesLimit })}
           </Text>
 
           <View style={styles.options}>
             <PrimaryButton
-              title="Go Premium"
+              title={t("home.like_limit.go_premium")}
               onPress={() => {
                 onClose();
                 router.push("/premium");
@@ -71,12 +73,12 @@ export function LikeLimitModal({
               {watchingAd ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Text style={styles.adButtonText}>Watch Ad → Get +3 Likes</Text>
+                <Text style={styles.adButtonText}>{t("home.like_limit.watch_ad")}</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>Come Back Tomorrow</Text>
+              <Text style={styles.cancelText}>{t("home.like_limit.later")}</Text>
             </TouchableOpacity>
           </View>
         </Card>

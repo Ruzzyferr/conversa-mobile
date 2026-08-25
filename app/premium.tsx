@@ -139,11 +139,10 @@ export default function PremiumScreen() {
       if (error.code) {
         console.error(`RevenueCat Error Code: ${error.code}, Message: ${error.message}, UserInfo: ${JSON.stringify(error.userInfo)}`);
       }
-      showStatus(
-        "error",
-        t('common.error'),
-        t('premium.not_available')
-      );
+      // No modal here on purpose. The empty-state card below already renders
+      // `premium.not_available` together with a Retry button and the legal
+      // links, so raising a blocking dialog printed the same sentence twice
+      // and put a dismiss step in front of the retry.
     } finally {
       setLoading(false);
     }

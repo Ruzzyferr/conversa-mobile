@@ -80,16 +80,29 @@ const picked = subjects(tag)
   .map(clean);
 
 const unique = [...new Set(picked)];
-const fallback = 'Stability and performance improvements.';
 
-const short = render(unique, PLAY_LIMIT) || `- ${fallback}`;
-const long = render(unique, TESTFLIGHT_LIMIT) || `- ${fallback}`;
+// The store listing is tr-TR, so a Turkish tester should not be handed English
+// release notes. Commit subjects are written in English and are shipped as-is,
+// but the fallback — which is what a release with no user-facing commits
+// actually ships, as versionCode 23 did — is written per language.
+const FALLBACK = {
+  'en-US': 'Stability and performance improvements.',
+  'tr-TR': 'Kararlılık ve performans iyileştirmeleri.',
+};
+
+const short = render(unique, PLAY_LIMIT);
+const long = render(unique, TESTFLIGHT_LIMIT);
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
-fs.writeFileSync(path.join(OUT_DIR, 'notes-short.txt'), short);
-fs.writeFileSync(path.join(OUT_DIR, 'notes-long.txt'), long);
+fs.writeFileSync(path.join(OUT_DIR, 'notes-short.txt'), short || `- ${FALLBACK['en-US']}`);
+fs.writeFileSync(path.join(OUT_DIR, 'notes-long.txt'), long || `- ${FALLBACK['en-US']}`);
+// Consumed by play-upload.mjs, which needs one text per listing language.
+fs.writeFileSync(
+  path.join(OUT_DIR, 'notes-fallback.json'),
+  JSON.stringify(Object.fromEntries(Object.entries(FALLBACK).map(([k, v]) => [k, `- ${v}`])), null, 2)
+);
 
 console.log(`önceki etiket: ${tag ?? '(yok)'}`);
 console.log(`commit: ${unique.length} adet, kısa not ${short.length}/${PLAY_LIMIT} karakter`);
 console.log('---');
-console.log(short);
+console.log(short || `- ${FALLBACK['en-US']}`);

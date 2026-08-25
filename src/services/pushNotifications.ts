@@ -8,6 +8,20 @@ let isConfigured = false;
 let tokenRegistered = false;
 
 /**
+ * Conversation currently on screen, if any.
+ *
+ * A push still arrives for a chat the user is already reading — the server has
+ * no idea which screen is open — so the banner fired over the very thread the
+ * message had just been inserted into. Tracking the open conversation lets the
+ * foreground handler drop those quietly; every other notification is unchanged.
+ */
+let activeConversationId: string | null = null;
+
+export function setActiveConversation(conversationId: string | null): void {
+  activeConversationId = conversationId;
+}
+
+/**
  * Configure foreground notification behavior + Android channel.
  * Safe to call multiple times. Never throws.
  */
@@ -15,12 +29,22 @@ export async function configureNotifications(): Promise<void> {
   if (isConfigured) return;
   try {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
+      handleNotification: async (notification) => {
+        const data = notification.request.content.data as
+          | { conversationId?: string }
+          | undefined;
+        const isOpenThread =
+          !!activeConversationId && data?.conversationId === activeConversationId;
+
+        return {
+          // Silent for the thread being read; the message is already on screen
+          // via the socket. It still lands in the tray for later reference.
+          shouldShowBanner: !isOpenThread,
+          shouldShowList: true,
+          shouldPlaySound: !isOpenThread,
+          shouldSetBadge: !isOpenThread,
+        };
+      },
     });
 
     if (Platform.OS === "android") {
