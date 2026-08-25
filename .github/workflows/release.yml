@@ -182,7 +182,8 @@ jobs:
           git add version.json app.config.ts
           # [skip ci] olmazsa bu commit iş akışını yeniden tetikler.
           git commit -m "Release $VERSION_NAME (Android $VERSION_CODE, iOS $BUILD_NUMBER) [skip ci]"
-          git tag "v$VERSION_NAME+$VERSION_CODE"
+          # Annotated, cunku --follow-tags lightweight etiketleri gondermez.
+          git tag -a "v$VERSION_NAME+$VERSION_CODE"             -m "Android $VERSION_CODE / iOS build $BUILD_NUMBER"
           git push origin HEAD:${{ github.ref_name }} --follow-tags
 
       - name: Özet
