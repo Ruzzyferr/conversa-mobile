@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Dimensions, LayoutChangeEvent } from "react-native";
 import { ScrollView, RectButton, TouchableOpacity } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { languageLabel } from "@/src/data/languages";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -21,6 +22,7 @@ type DiscoveryCardProps = {
   card: {
     userId: string;
     distanceKm?: number;
+    isVerified?: boolean;
     profile: {
       displayName: string;
       birthYear: number | null;
@@ -30,12 +32,15 @@ type DiscoveryCardProps = {
       photos: string[];
       languagesNative: string[];
       languagesPractice: string[];
+      interests?: string[];
       createdAt?: string;
     };
   };
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onFavorite?: () => void;
+  onBlock?: () => void;
+  onReport?: () => void;
   favoritesRemaining?: number;
   isPremium?: boolean;
   // True only for the top card of the SwipeDeck stack. Off-stack cards skip the
@@ -49,22 +54,37 @@ function DiscoveryCardBase({
   onSwipeLeft,
   onSwipeRight,
   onFavorite,
+  onBlock,
+  onReport,
   favoritesRemaining,
   isPremium,
   isActive = true,
 }: DiscoveryCardProps) {
   const { profile, distanceKm } = card;
   const [bioExpanded, setBioExpanded] = useState(false);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The hero photo is a share of the card, not a fixed 500dp block, so the
+  // name/age/city overlay stays visible on small phones too.
+  const [cardHeight, setCardHeight] = React.useState(0);
+  const onCardLayout = React.useCallback((e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    setCardHeight((prev) => (h > 0 && h !== prev ? h : prev));
+  }, []);
+  const HERO_RATIO = 0.62;
+  const heroHeight = cardHeight > 0
+    ? Math.max(240, Math.round(cardHeight * HERO_RATIO))
+    : 360;
 
   const age = profile.birthYear
     ? new Date().getFullYear() - profile.birthYear
     : null;
 
+  // "km away" was hardcoded English on an otherwise localized card.
   const formatDistance = (km?: number) => {
     if (!km) return null;
-    if (km < 1) return `${Math.round(km * 1000)}m away`;
-    return `${Math.round(km)} km away`;
+    return km < 1
+      ? t("discovery_card.distance_m", { value: Math.round(km * 1000) })
+      : t("discovery_card.distance_km", { value: Math.round(km) });
   };
 
   // "New" badge: user profile created within the last 7 days.
@@ -87,8 +107,13 @@ function DiscoveryCardBase({
     >
       <View style={styles.nameContainer}>
         <View style={styles.nameRow}>
-          <Text style={styles.name}>{profile.displayName}</Text>
+          <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+            {profile.displayName}
+          </Text>
           {age && <Text style={styles.age}>{age}</Text>}
+          {card.isVerified && (
+            <MaterialIcons name="verified" size={22} color="#4C9EEB" />
+          )}
           {isNewUser && (
             <View
               style={styles.newBadge}
@@ -126,7 +151,7 @@ function DiscoveryCardBase({
                 {profile.languagesNative.map((lang, index) => (
                   <Chip
                     key={`native-${index}`}
-                    label={lang}
+                    label={languageLabel(lang, i18n.language)}
                     icon={renderLanguageFlag(lang)}
                     variant="primary"
                   />
@@ -141,7 +166,7 @@ function DiscoveryCardBase({
                 {profile.languagesPractice.map((lang, index) => (
                   <Chip
                     key={`practice-${index}`}
-                    label={lang}
+                    label={languageLabel(lang, i18n.language)}
                     icon={renderLanguageFlag(lang)}
                     variant="default"
                   />
@@ -149,6 +174,27 @@ function DiscoveryCardBase({
               </View>
             </View>
           )}
+        </View>
+      </View>
+    )
+  );
+
+  // Helper to render interests (slug -> i18n label, raw fallback for legacy
+  // free-text values stored before the categorized picker existed)
+  const renderInterests = () => (
+    profile.interests && profile.interests.length > 0 && (
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>{t("discovery_card.interests")}</Text>
+        <View style={styles.sectionContent}>
+          <View style={styles.chipsContainer}>
+            {profile.interests.map((interest, index) => (
+              <Chip
+                key={`interest-${index}`}
+                label={t(`interests.${interest}`, { defaultValue: interest })}
+                variant="default"
+              />
+            ))}
+          </View>
         </View>
       </View>
     )
@@ -219,7 +265,7 @@ function DiscoveryCardBase({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onCardLayout}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -227,7 +273,7 @@ function DiscoveryCardBase({
         bounces={false}
       >
         {/* First Photo with Info Overlay */}
-        <View style={styles.mainImageContainer}>
+        <View style={[styles.mainImageContainer, { height: heroHeight }]}>
           {photos.length > 0 ? (
             <OptimizedImage
               source={{ uri: photos[0] }}
@@ -246,27 +292,12 @@ function DiscoveryCardBase({
           )}
           {renderBasicInfo()}
 
-          {/* Favorite Button - Inside photo area */}
-          {onFavorite && (
-            <RectButton
-              style={styles.favoriteButtonOnPhoto}
-              onPress={onFavorite}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.accent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.favoriteButtonGradient}
-              >
-                <MaterialIcons name="star" size={24} color={colors.onMedia} />
-              </LinearGradient>
-              {!isPremium && favoritesRemaining !== undefined && (
-                <View style={styles.favoriteBadge}>
-                  <Text style={styles.favoriteBadgeText}>{favoritesRemaining}</Text>
-                </View>
-              )}
-            </RectButton>
-          )}
+          {/*
+            The favorite (star) action lives in the persistent DeckActionBar
+            now. Keeping a second star floating over the photo meant two
+            controls doing the same thing, each with its own remaining-count
+            badge.
+          */}
 
           {/* Scroll Indicator */}
           <View style={styles.scrollIndicator}>
@@ -280,6 +311,9 @@ function DiscoveryCardBase({
 
           {/* About Me Section */}
           {renderBio()}
+
+          {/* Interests Section */}
+          {renderInterests()}
 
           {/* Languages Section */}
           {renderLanguages()}
@@ -314,51 +348,19 @@ function DiscoveryCardBase({
             </View>
           </View>
 
-          {/* Action Buttons Row - Dark Theme */}
-          <View style={styles.actionButtonsRow}>
-            <TouchableOpacity
-              style={[styles.actionButtonCircle, styles.declineButton]}
-              onPress={onSwipeLeft}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.pass")}
-            >
-              <MaterialIcons name="close" size={32} color={colors.passRed} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButtonCircle, styles.starButton]}
-              onPress={onFavorite}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.favorite")}
-            >
-              <LinearGradient
-                colors={[colors.accent, colors.primary]}
-                style={styles.starGradient}
-              >
-                <MaterialIcons name="star" size={26} color={colors.onMedia} />
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButtonCircle, styles.heartButton]}
-              onPress={onSwipeRight}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={t("a11y.like")}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryLight]}
-                style={styles.heartGradient}
-              >
-                <MaterialIcons name="favorite" size={28} color={colors.onMedia} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          {/*
+            The like / pass / favorite buttons used to live here, at the very
+            bottom of the card's scroll — a user had to scroll past the bio,
+            interests, languages and every extra photo before the primary
+            actions of the app came into view. They are now a persistent bar
+            rendered by the discovery screen, always on screen.
+          */}
 
           {/* Block & Report Section */}
           <View style={styles.safetySection}>
             <TouchableOpacity
               style={styles.safetyButton}
+              onPress={onBlock}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel={t("safety.block")}
@@ -367,6 +369,7 @@ function DiscoveryCardBase({
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.safetyButton}
+              onPress={onReport}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel={t("safety.report")}
@@ -379,6 +382,14 @@ function DiscoveryCardBase({
           <View style={{ height: spacing.xl * 2 }} />
         </View>
       </ScrollView>
+
+      {/* Bottom fade: signals that the card scrolls instead of leaving text
+          sheared off at the edge. */}
+      <LinearGradient
+        colors={["transparent", colors.backgroundSecondaryDark]}
+        style={styles.bottomFade}
+        pointerEvents="none"
+      />
     </View>
   );
 }
@@ -410,9 +421,17 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
   },
+  bottomFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 40,
+  },
   mainImageContainer: {
     width: "100%",
-    height: 500, // Large main photo
+    // Height is set at render time from the measured card height; see
+    // HERO_RATIO. A fixed value cannot work across phone sizes.
     position: "relative",
   },
   mainImage: {
@@ -451,6 +470,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 28,
     fontWeight: "bold",
+    flexShrink: 1,
     color: colors.onMedia,
     textShadowColor: colors.shadowStrong,
     textShadowOffset: { width: 0, height: 1 },
@@ -622,16 +642,18 @@ const styles = StyleSheet.create({
   },
   favoriteBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
+    top: -6,
+    right: -6,
+    zIndex: 30,
+    elevation: 6,
     backgroundColor: colors.accent,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 11,
+    minWidth: 22,
+    height: 22,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 4,
-    borderWidth: 1,
+    paddingHorizontal: 5,
+    borderWidth: 1.5,
     borderColor: colors.onMedia,
   },
   favoriteBadgeText: {

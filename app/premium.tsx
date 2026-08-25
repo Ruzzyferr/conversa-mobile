@@ -26,8 +26,26 @@ import {
 import { api } from "@/src/services/api";
 import { useRouter } from "expo-router";
 import { StatusModal } from "@/src/components/StatusModal";
+import { useTranslation } from "react-i18next";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
+import { LEGAL_URLS } from "@/src/config/legal";
+
+/**
+ * Paywall benefits. These were emoji glyphs rendered as text, which pick up
+ * the platform emoji font and read as clip art on the single screen where the
+ * app asks to be paid — the rest of the product uses the vector icon set.
+ */
+const BENEFITS = [
+  { icon: "robot-happy-outline", titleKey: "premium.ai_polish_title", descKey: "premium.ai_polish_desc" },
+  { icon: "message-text-outline", titleKey: "premium.messages_title", descKey: "premium.messages_desc" },
+  { icon: "eye-outline", titleKey: "premium.who_liked_title", descKey: "premium.who_liked_desc" },
+  { icon: "rocket-launch-outline", titleKey: "premium.boost_title", descKey: "premium.boost_desc" },
+  { icon: "tune-variant", titleKey: "premium.filters_title", descKey: "premium.filters_desc" },
+] as const;
 
 export default function PremiumScreen() {
+  const { t } = useTranslation();
   const { premiumEnabled, refreshPremiumStatus } = usePremium();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -41,14 +59,14 @@ export default function PremiumScreen() {
   const [statusType, setStatusType] = useState<"success" | "error" | "info">("info");
   const [statusTitle, setStatusTitle] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
-  const [statusButtonText, setStatusButtonText] = useState("Tamam");
+  const [statusButtonText, setStatusButtonText] = useState(t('common.ok'));
   const [statusAction, setStatusAction] = useState<(() => void) | undefined>(undefined);
 
   const showStatus = (
     type: "success" | "error" | "info",
     title: string,
     message: string,
-    buttonText = "Tamam",
+    buttonText = t('common.ok'),
     action?: () => void
   ) => {
     setStatusType(type);
@@ -123,8 +141,8 @@ export default function PremiumScreen() {
       }
       showStatus(
         "error",
-        "Hata",
-        "Paketler yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
+        t('common.error'),
+        t('premium.not_available')
       );
     } finally {
       setLoading(false);
@@ -135,7 +153,7 @@ export default function PremiumScreen() {
     // ... (existing handlePurchase code)
     const packageToPurchase = pkg || selectedPackage;
     if (!packageToPurchase) {
-      showStatus("info", "Uyarı", "Lütfen bir paket seçin");
+      showStatus("info", t('premium.select_package_title'), t('premium.select_package_msg'));
       return;
     }
 
@@ -163,16 +181,16 @@ export default function PremiumScreen() {
 
         showStatus(
           "success",
-          "Başarılı",
-          "Premium'a Hoş Geldin! 🎉",
-          "Tamam",
+          t('common.success'),
+          t('premium.purchase_success_msg'),
+          t('common.ok'),
           () => router.back()
         );
       } else {
         showStatus(
           "error",
-          "Hata",
-          "Satın alma tamamlandı ancak premium aktif edilemedi."
+          t('common.error'),
+          t('premium.purchase_incomplete')
         );
       }
     } catch (error: any) {
@@ -182,8 +200,8 @@ export default function PremiumScreen() {
       console.error("Purchase failed:", error);
       showStatus(
         "error",
-        "Satın Alma Başarısız",
-        error.message || "Satın alma işlemi başarısız oldu."
+        t('premium.purchase_failed_title'),
+        error.message || t('premium.purchase_failed_msg')
       );
     } finally {
       setPurchasing(false);
@@ -211,21 +229,21 @@ export default function PremiumScreen() {
         await refreshPremiumStatus();
         showStatus(
           "success",
-          "Başarılı",
-          "Satın alımlar geri yüklendi! 🎉",
-          "Tamam",
+          t('common.success'),
+          t('premium.restore_success_msg'),
+          t('common.ok'),
           () => router.back()
         );
       } else {
         showStatus(
           "info",
-          "Bilgi",
-          "Geri yüklenecek satın alım bulunamadı."
+          t('premium.restore_none_title'),
+          t('premium.restore_none_msg')
         );
       }
     } catch (error) {
       console.error("Restore failed:", error);
-      showStatus("error", "Hata", "Geri yükleme başarısız oldu.");
+      showStatus("error", t('common.error'), t('premium.restore_failed_msg'));
     } finally {
       setRestoring(false);
     }
@@ -242,40 +260,40 @@ export default function PremiumScreen() {
       packageToFormat.identifier === "conversa_plus_weekly" ||
       packageToFormat.product.identifier === "conversa_premium_weekly:weekly-plan" ||
       packageToFormat.product.identifier === "conversa_premium_weekly"
-    ) return "Haftalık";
+    ) return t("premium.weekly");
     
     if (
       packageToFormat.identifier === "$rc_monthly" ||
       packageToFormat.identifier === "conversa_plus_monthly" ||
       packageToFormat.product.identifier === "conversa_premium_monthly:monthly-plan" ||
       packageToFormat.product.identifier === "conversa_premium_monthly"
-    ) return "Aylık";
+    ) return t("premium.monthly");
 
     switch (packageToFormat.packageType) {
       case "WEEKLY":
-        return "Haftalık";
+        return t("premium.weekly");
       case "MONTHLY":
-        return "Aylık";
+        return t("premium.monthly");
       case "ANNUAL":
-        return "Yıllık";
+        return t("premium.annual");
       case "LIFETIME":
-        return "Ömür Boyu";
+        return t("premium.lifetime");
       default:
-        return "Pro";
+        return t("premium.pro");
     }
   };
 
   const getPackageSubtitle = (packageToFormat: PurchasesPackage): string => {
-    return "Everything on Basic plus:";
+    return t('premium.subtitle');
   };
 
   const getPackageFeatures = (): string[] => {
     return [
-      "Unlimited AI Polish",
-      "Unlimited Messages",
-      "Who Liked You",
-      "Boost Profile",
-      "Advanced Filters",
+      t('premium.ai_polish_title'),
+      t('premium.messages_title'),
+      t('premium.who_liked_title'),
+      t('premium.boost_profile'),
+      t('premium.filters_title'),
     ];
   };
 
@@ -299,57 +317,19 @@ export default function PremiumScreen() {
           contentContainerStyle={styles.contentContainer}
         >
           <Card style={styles.benefitsCard}>
-            <Text style={styles.benefitsTitle}>Your Premium Benefits</Text>
+            <Text style={styles.benefitsTitle}>{t("premium.benefits_title_active")}</Text>
 
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🤖</Text>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Unlimited AI Polish</Text>
-                <Text style={styles.benefitDescription}>
-                  Polish your messages with AI unlimited times
-                </Text>
+            {BENEFITS.map(({ icon, titleKey, descKey }) => (
+              <View style={styles.benefitItem} key={titleKey}>
+                <View style={styles.benefitIconWrap}>
+                  <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
+                </View>
+                <View style={styles.benefitContent}>
+                  <Text style={styles.benefitTitle}>{t(titleKey)}</Text>
+                  <Text style={styles.benefitDescription}>{t(descKey)}</Text>
+                </View>
               </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>💬</Text>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Unlimited Messages</Text>
-                <Text style={styles.benefitDescription}>
-                  Send as many messages as you want, no daily limits
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>👀</Text>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Who Liked You</Text>
-                <Text style={styles.benefitDescription}>
-                  See who liked your profile
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🚀</Text>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Boost</Text>
-                <Text style={styles.benefitDescription}>
-                  Boost your profile to get more visibility
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>⚙️</Text>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Advanced Filters</Text>
-                <Text style={styles.benefitDescription}>
-                  Exclude countries, verified only, recently active, minimum photos
-                </Text>
-              </View>
-            </View>
+            ))}
           </Card>
         </ScrollView>
         <StatusModal
@@ -371,63 +351,25 @@ export default function PremiumScreen() {
         contentContainerStyle={styles.contentContainer}
       >
         <Card style={styles.benefitsCard}>
-          <Text style={styles.benefitsTitle}>Premium Benefits</Text>
+          <Text style={styles.benefitsTitle}>{t("premium.benefits_title")}</Text>
 
-          <View style={styles.benefitItem}>
-            <Text style={styles.benefitIcon}>🤖</Text>
-            <View style={styles.benefitContent}>
-              <Text style={styles.benefitTitle}>Unlimited AI Polish</Text>
-              <Text style={styles.benefitDescription}>
-                Polish your messages with AI unlimited times
-              </Text>
+          {BENEFITS.map(({ icon, titleKey, descKey }) => (
+            <View style={styles.benefitItem} key={titleKey}>
+              <View style={styles.benefitIconWrap}>
+                <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
+              </View>
+              <View style={styles.benefitContent}>
+                <Text style={styles.benefitTitle}>{t(titleKey)}</Text>
+                <Text style={styles.benefitDescription}>{t(descKey)}</Text>
+              </View>
             </View>
-          </View>
-
-          <View style={styles.benefitItem}>
-            <Text style={styles.benefitIcon}>💬</Text>
-            <View style={styles.benefitContent}>
-              <Text style={styles.benefitTitle}>Unlimited Messages</Text>
-              <Text style={styles.benefitDescription}>
-                Send as many messages as you want, no daily limits
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.benefitItem}>
-            <Text style={styles.benefitIcon}>👀</Text>
-            <View style={styles.benefitContent}>
-              <Text style={styles.benefitTitle}>Who Liked You</Text>
-              <Text style={styles.benefitDescription}>
-                See who liked your profile
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.benefitItem}>
-            <Text style={styles.benefitIcon}>🚀</Text>
-            <View style={styles.benefitContent}>
-              <Text style={styles.benefitTitle}>Boost</Text>
-              <Text style={styles.benefitDescription}>
-                Boost your profile to get more visibility
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.benefitItem}>
-            <Text style={styles.benefitIcon}>⚙️</Text>
-            <View style={styles.benefitContent}>
-              <Text style={styles.benefitTitle}>Advanced Filters</Text>
-              <Text style={styles.benefitDescription}>
-                Exclude countries, verified only, recently active, minimum photos
-              </Text>
-            </View>
-          </View>
+          ))}
         </Card>
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Loading packages...</Text>
+            <Text style={styles.loadingText}>{t("premium.loading_packages")}</Text>
           </View>
         ) : offering && offering.availablePackages.length > 0 ? (
           <>
@@ -479,7 +421,7 @@ export default function PremiumScreen() {
                       priceTime={time}
                       subtitle={getPackageSubtitle(pkg)}
                       features={getPackageFeatures()}
-                      buttonText={purchasing ? "Processing..." : "Get pro now"}
+                      buttonText={purchasing ? t("premium.processing") : t("premium.get_pro")}
                       onPress={() => {
                         setSelectedPackage(pkg);
                         handlePurchase(pkg);
@@ -499,16 +441,73 @@ export default function PremiumScreen() {
               {restoring ? (
                 <ActivityIndicator size="small" color={colors.textSecondary} />
               ) : (
-                <Text style={styles.restoreText}>Restore Purchases</Text>
+                <Text style={styles.restoreText}>{t("premium.restore")}</Text>
               )}
             </TouchableOpacity>
+
+            {/*
+              Required on any screen selling an auto-renewable subscription:
+              renewal terms plus working links to the Terms of Use and Privacy
+              Policy (App Store Review Guideline 3.1.2 / Play subscription
+              policy). Their absence is a routine rejection reason.
+            */}
+            <View style={styles.legalBlock}>
+              <Text style={styles.legalText}>{t("premium.renewal_disclosure")}</Text>
+              <View style={styles.legalLinks}>
+                <TouchableOpacity
+                  onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.legalLink}>{t("premium.terms")}</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalSeparator}>·</Text>
+                <TouchableOpacity
+                  onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </>
         ) : (
           <Card style={styles.errorCard}>
             <Text style={styles.errorText}>
-              Premium packages are not available at the moment. Please try again later.
+              {t("premium.not_available")}
             </Text>
+            <TouchableOpacity
+              onPress={loadOfferings}
+              style={styles.retryButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.retryText}>{t("common.retry")}</Text>
+            </TouchableOpacity>
           </Card>
+        )}
+
+        {/*
+          Terms + Privacy stay on the screen even when the packages fail to
+          load, so the required links are never missing from the purchase
+          surface.
+        */}
+        {!loading && !(offering && offering.availablePackages.length > 0) && (
+          <View style={styles.legalBlock}>
+            <View style={styles.legalLinks}>
+              <TouchableOpacity
+                onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
+                accessibilityRole="link"
+              >
+                <Text style={styles.legalLink}>{t("premium.terms")}</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSeparator}>·</Text>
+              <TouchableOpacity
+                onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
+                accessibilityRole="link"
+              >
+                <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
       </ScrollView>
       <StatusModal
@@ -567,6 +566,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: spacing.lg,
     alignItems: "flex-start",
+  },
+  benefitIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.primaryTint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignSelf: "center",
+  },
+  retryText: {
+    color: colors.primary,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  legalBlock: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  legalText: {
+    fontSize: typography.fontSize.xs,
+    lineHeight: 18,
+    color: colors.textSecondaryDark,
+    textAlign: "center",
+  },
+  legalLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  legalLink: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    textDecorationLine: "underline",
+  },
+  legalSeparator: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondaryDark,
   },
   benefitIcon: {
     fontSize: 32,

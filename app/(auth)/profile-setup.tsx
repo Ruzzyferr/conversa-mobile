@@ -14,7 +14,7 @@ import {
     Animated,
     Dimensions,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,55 +29,29 @@ import { RainBackground } from "@/src/components/RainBackground";
 import { AnimatedStepIndicator } from "@/src/components/AnimatedStepIndicator";
 import { api } from "@/src/services/api";
 import { clearToken } from "@/src/services/authStore";
+import { InterestPicker } from "@/src/components/InterestPicker";
+// Languages are stored as ISO codes; the label shown is derived from the UI
+// language so a Turkish and an English phone write the same value.
+import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languages";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
 type Gender = "MALE" | "FEMALE" | "OTHER";
 
-const LANGUAGES = [
-    "Türkçe",
-    "İngilizce",
-    "Almanca",
-    "Fransızca",
-    "İspanyolca",
-    "İtalyanca",
-    "Rusça",
-    "Arapça",
-    "Japonca",
-    "Korece",
-    "Çince",
-    "Portekizce",
-    "Hollandaca",
-    "Yunanca",
-    "İsveççe",
-    "Norveççe",
-    "Fince",
-    "Lehçe",
-    "Çekçe",
-    "Macarca",
-];
-
-const INTERESTS = [
-    "Müzik",
-    "Seyahat",
-    "Sanat",
-    "Dil Öğrenimi",
-    "Yemek",
-    "Fotoğrafçılık",
-    "Spor",
-    "Kitap",
-    "Sinema",
-    "Teknoloji",
-];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProfileSetupScreen() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
     // Form state
-    const [displayName, setDisplayName] = useState("");
+    // Apple returns the user's name only on the first authorization; the
+    // welcome screen forwards it so this field is not blank for those users.
+    const { suggestedName } = useLocalSearchParams<{ suggestedName?: string }>();
+    const [displayName, setDisplayName] = useState(
+        typeof suggestedName === "string" ? suggestedName : ""
+    );
     const [birthYear, setBirthYear] = useState<string>("");
     const [gender, setGender] = useState<Gender | null>(null);
     const [purpose, setPurpose] = useState<Purpose>("CONVERSATION");
@@ -86,6 +60,7 @@ export default function ProfileSetupScreen() {
     const [photos, setPhotos] = useState<string[]>([]);
     const [bio, setBio] = useState("");
     const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+    const [showInterestPicker, setShowInterestPicker] = useState(false);
     const [loading, setLoading] = useState(false);
     const [showImagePickerModal, setShowImagePickerModal] = useState(false);
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
@@ -572,6 +547,9 @@ export default function ProfileSetupScreen() {
                                         styles.optionText,
                                         purpose === p && styles.optionTextSelected,
                                     ]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.7}
                                 >
                                     {t(`setup.step1.purpose_${p.toLowerCase()}`)}
                                 </Text>
@@ -604,7 +582,7 @@ export default function ProfileSetupScreen() {
                     {t('setup.step2.native_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
-                    {LANGUAGES.map((lang) => {
+                    {LANGUAGES.map(({ code: lang }) => {
                         const isSelected = languagesNative.includes(lang);
                         return (
                             <TouchableOpacity
@@ -622,7 +600,7 @@ export default function ProfileSetupScreen() {
                                         isSelected && styles.tagTextSelected,
                                     ]}
                                 >
-                                    {t(`languages.${lang}`)}
+                                    {languageLabel(lang, i18n.language)}
                                 </Text>
                                 {isSelected && (
                                     <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
@@ -640,7 +618,7 @@ export default function ProfileSetupScreen() {
                     {t('setup.step2.practice_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
-                    {LANGUAGES.map((lang) => {
+                    {LANGUAGES.map(({ code: lang }) => {
                         const isSelected = languagesPractice.includes(lang);
                         return (
                             <TouchableOpacity
@@ -658,7 +636,7 @@ export default function ProfileSetupScreen() {
                                         isSelected && styles.tagTextSelected,
                                     ]}
                                 >
-                                    {t(`languages.${lang}`)}
+                                    {languageLabel(lang, i18n.language)}
                                 </Text>
                                 {isSelected && (
                                     <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
@@ -715,35 +693,38 @@ export default function ProfileSetupScreen() {
                     {t('setup.step3.interests_helper')}
                 </Text>
                 <View style={styles.tagsContainer}>
-                    {INTERESTS.map((interest) => {
-                        const isSelected = selectedInterests.includes(interest);
-                        return (
-                            <TouchableOpacity
-                                key={interest}
-                                style={[
-                                    styles.tag,
-                                    styles.interestTag,
-                                    isSelected && styles.tagSelectedAccent,
-                                ]}
-                                onPress={() => toggleInterest(interest)}
-                                activeOpacity={0.7}
-                            >
-                                <Text
-                                    style={[
-                                        styles.tagText,
-                                        isSelected && styles.tagTextSelected,
-                                    ]}
-                                >
-                                    {t(`interests.${interest}`)}
-                                </Text>
-                                {isSelected && (
-                                    <MaterialIcons name="check-circle" size={16} color="#FFF" style={styles.tagIcon} />
-                                )}
-                            </TouchableOpacity>
-                        );
-                    })}
+                    {selectedInterests.map((interest) => (
+                        <TouchableOpacity
+                            key={interest}
+                            style={[styles.tag, styles.interestTag, styles.tagSelectedAccent]}
+                            onPress={() => toggleInterest(interest)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.tagText, styles.tagTextSelected]}>
+                                {t(`interests.${interest}`, { defaultValue: interest })}
+                            </Text>
+                            <MaterialIcons name="close" size={16} color="#FFF" style={styles.tagIcon} />
+                        </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity
+                        style={[styles.tag, styles.interestTag]}
+                        onPress={() => setShowInterestPicker(true)}
+                        activeOpacity={0.7}
+                    >
+                        <MaterialIcons name="add" size={16} color={colors.primaryTintText} />
+                        <Text style={[styles.tagText, { color: colors.primaryTintText }]}>
+                            {t('interest_picker.title')}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </View>
+
+            <InterestPicker
+                visible={showInterestPicker}
+                selected={selectedInterests}
+                onClose={() => setShowInterestPicker(false)}
+                onSave={setSelectedInterests}
+            />
         </View>
     );
 

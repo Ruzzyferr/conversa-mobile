@@ -17,7 +17,7 @@ const getLanguage = () => {
     try {
         const locales = Localization.getLocales();
         if (locales && locales.length > 0) {
-            return locales[0].languageCode; // e.g., 'en', 'tr'
+            return locales[0].languageCode ?? 'en'; // e.g., 'en', 'tr'
         }
     } catch (e) {
         console.warn("Could not detect locale", e);
@@ -34,7 +34,7 @@ i18n
         interpolation: {
             escapeValue: false, // react already safes from xss
         },
-        compatibilityJSON: 'v3' // Required for Android
+        compatibilityJSON: 'v4' // i18next v25 uses v4 plural keys (translations use *_other)
     });
 
 // Handle language change if needed when app comes to foreground

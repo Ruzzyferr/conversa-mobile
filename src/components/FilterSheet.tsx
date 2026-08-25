@@ -17,6 +17,10 @@ import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+// The filter used to send English labels while profiles stored localized
+// labels, so language filtering matched nothing. Both sides use codes now.
+import { LANGUAGES, languageLabel } from "@/src/data/languages";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SLIDER_WIDTH = SCREEN_WIDTH - spacing.lg * 4;
@@ -42,11 +46,6 @@ type FilterSheetProps = {
   isPremium: boolean;
 };
 
-const LANGUAGES = [
-  "English", "Turkish", "German", "French", "Spanish",
-  "Italian", "Russian", "Portuguese", "Japanese", "Korean",
-  "Chinese", "Arabic", "Dutch", "Swedish", "Greek"
-];
 
 const COUNTRIES = [
   // Europe
@@ -98,6 +97,7 @@ export function FilterSheet({
 }: FilterSheetProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation();
   const [filters, setFilters] = useState<FilterParams>(initialFilters);
 
   useEffect(() => {
@@ -156,8 +156,8 @@ export function FilterSheet({
         />
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Filters</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.title}>{t('filter_sheet.title')}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <MaterialIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -169,7 +169,7 @@ export function FilterSheet({
           >
             {/* Age Range */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Age</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.age')}</Text>
               <Text style={styles.sliderValue}>
                 {filters.ageRange[0]} - {filters.ageRange[1] >= 60 ? "60+" : filters.ageRange[1]}
               </Text>
@@ -192,12 +192,12 @@ export function FilterSheet({
 
             {/* Gender */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Gender</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.gender')}</Text>
               <View style={styles.segmentedControl}>
                 {[
-                  { label: "All", value: "ALL" as const },
-                  { label: "Women", value: "FEMALE" as const },
-                  { label: "Men", value: "MALE" as const },
+                  { label: t('filter_sheet.gender_all'), value: "ALL" as const },
+                  { label: t('filter_sheet.gender_women'), value: "FEMALE" as const },
+                  { label: t('filter_sheet.gender_men'), value: "MALE" as const },
                 ].map((option) => (
                   <TouchableOpacity
                     key={option.value}
@@ -224,7 +224,7 @@ export function FilterSheet({
 
             {/* Distance Range */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Distance</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.distance')}</Text>
               <Text style={styles.sliderValue}>
                 {filters.distanceRange[0]} - {filters.distanceRange[1] >= 100 ? "100+" : filters.distanceRange[1]} km
               </Text>
@@ -247,12 +247,12 @@ export function FilterSheet({
 
             {/* Native Language */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Native Language</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.native_language')}</Text>
               <Text style={styles.sectionDescription}>
-                Show people who speak these languages natively
+                {t('filter_sheet.native_language_desc')}
               </Text>
               <View style={styles.chipContainer}>
-                {LANGUAGES.map((lang) => (
+                {LANGUAGES.map(({ code: lang }) => (
                   <TouchableOpacity
                     key={`native-${lang}`}
                     style={[
@@ -267,7 +267,7 @@ export function FilterSheet({
                         filters.nativeLanguages.includes(lang) && styles.chipTextActive,
                       ]}
                     >
-                      {lang}
+                      {languageLabel(lang, i18n.language)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -276,12 +276,12 @@ export function FilterSheet({
 
             {/* Target Language */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Learning Language</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.learning_language')}</Text>
               <Text style={styles.sectionDescription}>
-                Show people who are learning these languages
+                {t('filter_sheet.learning_language_desc')}
               </Text>
               <View style={styles.chipContainer}>
-                {LANGUAGES.map((lang) => (
+                {LANGUAGES.map(({ code: lang }) => (
                   <TouchableOpacity
                     key={`target-${lang}`}
                     style={[
@@ -296,7 +296,7 @@ export function FilterSheet({
                         filters.targetLanguages.includes(lang) && styles.chipTextActive,
                       ]}
                     >
-                      {lang}
+                      {languageLabel(lang, i18n.language)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -305,9 +305,9 @@ export function FilterSheet({
 
             {/* Countries */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Country</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.country')}</Text>
               <Text style={styles.sectionDescription}>
-                Show people from these countries
+                {t('filter_sheet.country_desc')}
               </Text>
               <View style={styles.chipContainer}>
                 {COUNTRIES.map((country) => (
@@ -334,12 +334,12 @@ export function FilterSheet({
 
             {/* Purpose */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Purpose</Text>
+              <Text style={styles.sectionTitle}>{t('filter_sheet.purpose')}</Text>
               <View style={styles.chipContainer}>
                 {[
-                  { label: "Conversation", value: "CONVERSATION" as const },
-                  { label: "Language practice", value: "PRACTICE" as const },
-                  { label: "Coffee", value: "COFFEE" as const },
+                  { label: t('filter_sheet.purpose_conversation'), value: "CONVERSATION" as const },
+                  { label: t('filter_sheet.purpose_practice'), value: "PRACTICE" as const },
+                  { label: t('filter_sheet.purpose_coffee'), value: "COFFEE" as const },
                 ].map((option) => (
                   <TouchableOpacity
                     key={option.value}
@@ -378,11 +378,11 @@ export function FilterSheet({
               >
                 <View style={styles.premiumFilterContent}>
                   <View style={styles.premiumFilterHeader}>
-                    <Text style={styles.premiumFilterTitle}>Verified profiles only</Text>
+                    <Text style={styles.premiumFilterTitle}>{t('filter_sheet.verified_only')}</Text>
                     {!isPremium && <PremiumBadge />}
                   </View>
                   <Text style={styles.premiumFilterDescription}>
-                    Show only users with verified profiles
+                    {t('filter_sheet.verified_only_desc')}
                   </Text>
                 </View>
                 {isPremium ? (
@@ -407,11 +407,11 @@ export function FilterSheet({
               >
                 <View style={styles.premiumFilterContent}>
                   <View style={styles.premiumFilterHeader}>
-                    <Text style={styles.premiumFilterTitle}>Recently active</Text>
+                    <Text style={styles.premiumFilterTitle}>{t('filter_sheet.recently_active')}</Text>
                     {!isPremium && <PremiumBadge />}
                   </View>
                   <Text style={styles.premiumFilterDescription}>
-                    Show only users active in the last 24h
+                    {t('filter_sheet.recently_active_desc')}
                   </Text>
                 </View>
                 {isPremium ? (
@@ -436,11 +436,11 @@ export function FilterSheet({
               >
                 <View style={styles.premiumFilterContent}>
                   <View style={styles.premiumFilterHeader}>
-                    <Text style={styles.premiumFilterTitle}>Minimum photos</Text>
+                    <Text style={styles.premiumFilterTitle}>{t('filter_sheet.min_photos')}</Text>
                     {!isPremium && <PremiumBadge />}
                   </View>
                   <Text style={styles.premiumFilterDescription}>
-                    Require at least 2 photos
+                    {t('filter_sheet.min_photos_desc')}
                   </Text>
                 </View>
                 {isPremium ? (
@@ -461,10 +461,10 @@ export function FilterSheet({
 
           <View style={[styles.footer, { paddingBottom: spacing.md + insets.bottom }]}>
             <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
-              <Text style={styles.resetText}>Reset</Text>
+              <Text style={styles.resetText}>{t('filter_sheet.reset')}</Text>
             </TouchableOpacity>
             <PrimaryButton
-              title="Apply"
+              title={t('filter_sheet.apply')}
               onPress={handleApply}
               style={styles.applyButton}
             />

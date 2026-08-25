@@ -11,12 +11,13 @@ function getApiUrl(): string {
   }
 
 
-  // In production builds, we should NOT fallback to localhost blindly
-  // as it will almost certainly fail on a physical device.
+  // In production builds, fail fast instead of falling back to localhost,
+  // which would silently break every request on a real device.
   if (!__DEV__) {
-    // Optional: You could return a default production URL here if you have one hardcoded
-    // return "https://api.conversa.app";
-    console.warn("EXPO_PUBLIC_API_URL is not set in production build! Request will likely fail.");
+    throw new Error(
+      "EXPO_PUBLIC_API_URL is not set in this production build. " +
+      "Set it in the EAS build profile env before releasing."
+    );
   }
 
   // Default based on platform (mainly for development)
@@ -111,23 +112,17 @@ class ApiClient {
     return response.data;
   }
 
+  /**
+   * Requests a one-time code. The response is identical whether or not the
+   * address already has an account — the server no longer returns a userId,
+   * because doing so revealed which addresses were registered (and the
+   * account is not created until the code is verified).
+   */
   async loginEmail(email: string): Promise<{
-    userId: string;
-    token?: string;
-    requiresCode?: boolean;
+    requiresCode: boolean;
     message?: string;
   }> {
     const response = await this.client.post("/api/v1/auth/login", { email });
-    return response.data;
-  }
-
-  async loginPhone(phone: string): Promise<{
-    userId: string;
-    token?: string;
-    requiresCode?: boolean;
-    message?: string;
-  }> {
-    const response = await this.client.post("/api/v1/auth/login", { phone });
     return response.data;
   }
 
@@ -150,11 +145,65 @@ class ApiClient {
   }
 
   async getMe(): Promise<{
-    user: { id: string; email: string | null; phone: string | null; isPremium: boolean; createdAt: string };
+    user: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      isPremium: boolean;
+      isVerified?: boolean;
+      verificationStatus?: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+      verificationPose?: string | null;
+      createdAt: string;
+    };
     profileExists: boolean;
+    moderationWarning?: { reason: string; warnedAt: string } | null;
   }> {
     const response = await this.client.get("/api/v1/auth/me");
     return response.data;
+  }
+
+  // --- Profile verification (pose selfie) ---
+
+  async startVerification(): Promise<{ pose: string }> {
+    const response = await this.client.post("/api/v1/profiles/verification/start");
+    return response.data;
+  }
+
+  async submitVerificationSelfie(imageUri: string): Promise<{ status: string }> {
+    const token = await getToken();
+    const formData = new FormData();
+
+    let uri = imageUri;
+    if (Platform.OS === "android" && !uri.startsWith("file://") && !uri.startsWith("http")) {
+      uri = `file://${uri}`;
+    }
+    const match = /\.(\w+)$/.exec(uri);
+    const ext = match ? match[1].toLowerCase() : "jpg";
+    formData.append("selfie", {
+      uri,
+      type: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      name: `selfie.${ext}`,
+    } as any);
+
+    const response = await fetch(
+      `${this.client.defaults.baseURL}/api/v1/profiles/verification/selfie`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: formData,
+      }
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Verification upload failed: ${response.status} ${errorText}`);
+    }
+    return await response.json();
+  }
+
+  async ackModerationWarning(): Promise<void> {
+    await this.client.post("/api/v1/auth/ack-warning");
   }
 
   async logout(): Promise<void> {
@@ -177,6 +226,7 @@ class ApiClient {
     bio: string | null;
     photos: string[];
     interests?: string[];
+    gender?: "MALE" | "FEMALE" | "OTHER" | null;
     createdAt: string;
     updatedAt: string;
   }> {
@@ -385,6 +435,7 @@ class ApiClient {
       lastMessage?: {
         text: string;
         audioUrl?: string | null;
+        imageUrl?: string | null;
         createdAt: string;
         senderUserId: string;
       } | null;
@@ -515,6 +566,53 @@ class ApiClient {
       console.error("Audio upload error details:", error);
       throw error;
     }
+  }
+
+  async sendImageMessage(
+    conversationId: string,
+    imageUri: string
+  ): Promise<{
+    id: string;
+    conversationId: string;
+    senderUserId: string;
+    text?: string;
+    imageUrl: string;
+    createdAt: string;
+  }> {
+    const token = await getToken();
+    const formData = new FormData();
+
+    let uri = imageUri;
+    if (Platform.OS === "android" && !uri.startsWith("file://") && !uri.startsWith("http")) {
+      uri = `file://${uri}`;
+    }
+
+    const match = /\.(\w+)$/.exec(uri);
+    const ext = match ? match[1].toLowerCase() : "jpg";
+    formData.append("image", {
+      uri,
+      type: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      name: `photo.${ext}`,
+    } as any);
+
+    const response = await fetch(
+      `${this.client.defaults.baseURL}/api/v1/chat/conversations/${conversationId}/messages/image`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+          // Do NOT set Content-Type, let fetch add the multipart boundary
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} ${errorText}`);
+    }
+
+    return await response.json();
   }
 
   async uploadPhoto(photoUri: string): Promise<string> {
@@ -653,7 +751,7 @@ class ApiClient {
 
   async reportUser(
     userId: string,
-    reason: "SPAM" | "HARASSMENT" | "NUDITY" | "SCAM" | "OTHER",
+    reason: string,
     details?: string
   ): Promise<void> {
     await this.client.post("/api/v1/safety/report", {
@@ -661,6 +759,19 @@ class ApiClient {
       reason,
       details,
     });
+  }
+
+  // Permanently removes the conversation for BOTH participants.
+  async leaveConversation(
+    conversationId: string,
+    reason?: string,
+    details?: string
+  ): Promise<{ ok: boolean }> {
+    const response = await this.client.post(
+      `/api/v1/chat/conversations/${conversationId}/leave`,
+      { reason, details }
+    );
+    return response.data;
   }
 
   // Billing endpoints
@@ -691,9 +802,22 @@ class ApiClient {
   }
 
   // Notifications endpoints
+  async getLikeStatus(): Promise<{
+    isPremium: boolean;
+    likesUsed: number;
+    likesRemaining: number | null;
+    likesLimit: number | null;
+    resetsAt: string;
+  }> {
+    const response = await this.client.get("/api/v1/discovery/like-status");
+    return response.data;
+  }
+
   async registerPushToken(data: {
     token: string;
     platform: "IOS" | "ANDROID";
+    /** Device UI language, so push copy is not sent in a fixed locale. */
+    locale?: string;
   }): Promise<void> {
     await this.client.post("/api/v1/notifications/register-token", data);
   }
@@ -709,7 +833,35 @@ class ApiClient {
   }
 
   // Rewards endpoints
-  async rewardAdLike(): Promise<{
+  /**
+   * Exchange a verified Google/Apple identity token for a session.
+   * The server checks the token's signature against the provider, so no
+   * e-mail code step follows.
+   */
+  async socialLogin(data: {
+    provider: "google" | "apple";
+    idToken: string;
+    fullName?: string;
+  }): Promise<{
+    userId: string;
+    token: string;
+    profileExists: boolean;
+    suggestedName: string | null;
+  }> {
+    const response = await this.client.post("/api/v1/auth/social", data);
+    return response.data;
+  }
+
+  /** Single-use proof-of-ad-view token, handed to AdMob as custom data. */
+  async requestAdRewardToken(kind: "LIKE" | "FAVORITE" = "LIKE"): Promise<{
+    nonce: string;
+    userId: string;
+  }> {
+    const response = await this.client.post("/api/v1/rewards/ad-token", { kind });
+    return response.data;
+  }
+
+  async rewardAdLike(nonce?: string): Promise<{
     success: boolean;
     rewardAmount: number;
     likesInfo: {
@@ -719,7 +871,7 @@ class ApiClient {
       extraLikesFromAds: number;
     };
   }> {
-    const response = await this.client.post("/api/v1/rewards/ad-like");
+    const response = await this.client.post("/api/v1/rewards/ad-like", { nonce });
     return response.data;
   }
 

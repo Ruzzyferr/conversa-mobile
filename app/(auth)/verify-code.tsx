@@ -20,8 +20,10 @@ import { Card } from "@/src/components/Card";
 import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
+import { useTranslation } from "react-i18next";
 
 export default function VerifyCodeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode: "email" | "phone";
@@ -92,14 +94,14 @@ export default function VerifyCodeScreen() {
       await setToken(result.token);
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
-      let message = "Geçersiz doğrulama kodu. Lütfen tekrar deneyin.";
+      let message = t('otp.invalid_code');
 
       if (error instanceof Error) {
         // Try to extract a user-friendly message
         if (error.message.includes("400") || error.message.includes("Invalid")) {
-          message = "Geçersiz doğrulama kodu. Lütfen tekrar deneyin.";
+          message = t('otp.invalid_code');
         } else if (error.message.includes("expired") || error.message.includes("Expired")) {
-          message = "Doğrulama kodu süresi dolmuş. Lütfen yeni bir kod isteyin.";
+          message = t('otp.expired_code');
         } else {
           message = error.message;
         }
@@ -142,9 +144,9 @@ export default function VerifyCodeScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Enter Verification Code</Text>
+          <Text style={styles.title}>{t("otp.title")}</Text>
           <Text style={styles.subtitle}>
-            We sent a 6-digit code to{"\n"}
+            {t("otp.subtitle")}{"\n"}
             <Text style={styles.identifier}>{identifier}</Text>
           </Text>
 
@@ -171,7 +173,7 @@ export default function VerifyCodeScreen() {
             </View>
 
             <PrimaryButton
-              title="Verify"
+              title={t("otp.cta")}
               onPress={() => handleVerify()}
               loading={loading}
               disabled={code.join("").length !== 6}
@@ -179,13 +181,13 @@ export default function VerifyCodeScreen() {
             />
 
             <Text style={styles.resendText}>
-              Didn't receive the code?{" "}
+              {t("otp.no_code")}{" "}
               <Text
                 style={styles.resendLink}
                 onPress={handleResend}
                 disabled={resending}
               >
-                {resending ? "Sending..." : "Resend"}
+                {resending ? t("otp.sending") : t("otp.resend")}
               </Text>
             </Text>
           </Card>
@@ -201,9 +203,9 @@ export default function VerifyCodeScreen() {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Hata</Text>
+            <Text style={styles.modalTitle}>{t('common.error')}</Text>
             <Text style={styles.modalMessage}>
-              {errorMessage || "Bir hata oluştu. Lütfen tekrar deneyin."}
+              {errorMessage || t('otp.generic_error')}
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
@@ -212,7 +214,7 @@ export default function VerifyCodeScreen() {
                 setErrorMessage(null);
               }}
             >
-              <Text style={styles.modalButtonText}>Tamam</Text>
+              <Text style={styles.modalButtonText}>{t('common.ok')}</Text>
             </TouchableOpacity>
           </Card>
         </View>

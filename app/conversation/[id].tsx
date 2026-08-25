@@ -15,10 +15,12 @@ import {
   Animated,
   Pressable,
   Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import Reanimated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
@@ -30,10 +32,13 @@ import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { OptimizedImage } from "@/src/components/ui/OptimizedImage";
 import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
 import { AudioPlayer } from "@/src/components/chat/AudioPlayer";
 import { ProfileModal } from "@/src/components/ProfileModal";
+import { LeaveReasonModal } from "@/src/components/chat/LeaveReasonModal";
 import {
   connectSocket,
   joinConversation,
@@ -51,6 +56,7 @@ type Message = {
   senderUserId: string;
   text: string;
   audioUrl?: string;
+  imageUrl?: string;
   createdAt: string;
 };
 
@@ -71,6 +77,7 @@ const useKeyboardAnimation = () => {
 };
 
 export default function ConversationScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
   const params = useLocalSearchParams<{ id: string; prefill?: string }>();
@@ -100,6 +107,8 @@ export default function ConversationScreen() {
     new Animated.Value(0),
   ]).current;
   const [isRecordingActive, setIsRecordingActive] = useState(false);
+  const [showAttachSheet, setShowAttachSheet] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserGender, setCurrentUserGender] = useState<"MALE" | "FEMALE" | "OTHER" | null>(null);
   const [otherUser, setOtherUser] = useState<{
@@ -120,11 +129,8 @@ export default function ConversationScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLeaveConversationModal, setShowLeaveConversationModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState<
-    "SPAM" | "HARASSMENT" | "NUDITY" | "SCAM" | "OTHER" | null
-  >(null);
-  const [reportDetails, setReportDetails] = useState("");
+  // Report / remove-chat reason picker ("report" | "remove" | null = hidden)
+  const [safetyReasonMode, setSafetyReasonMode] = useState<"report" | "remove" | null>(null);
   const [profileData, setProfileData] = useState<{
     id: string;
     userId: string;
@@ -150,12 +156,23 @@ export default function ConversationScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Outgoing typing state: emit typing_start once, then typing_stop after inactivity
+  const isTypingRef = useRef(false);
+  const typingStopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keyboard animation hook - MUST be called before any conditional returns
   const { height: keyboardHeight } = useKeyboardAnimation();
   const keyboardSpacerStyle = useAnimatedStyle(() => ({
     height: keyboardHeight.value,
   }));
+
+  // 4 random icebreakers, stable per screen mount.
+  // MUST stay above the early returns below — a hook after a conditional
+  // return crashes with "Rendered more hooks than during the previous render".
+  const icebreakers = React.useMemo(() => {
+    const all = ["idiom", "food", "series", "travel", "language_why", "weekend", "music", "funny_word", "city_tip", "coffee_tea", "dream_country", "teach_me"];
+    return all.sort(() => Math.random() - 0.5).slice(0, 4);
+  }, []);
 
   // Keyboard listener for better UX
   useEffect(() => {
@@ -198,7 +215,11 @@ export default function ConversationScreen() {
         setMessages((prev) => {
           // Check if message already exists
           if (prev.some((m) => m.id === newMessage.id)) return prev;
-          return [...prev, { ...newMessage, audioUrl: newMessage.audioUrl || undefined }];
+          return [...prev, {
+            ...newMessage,
+            audioUrl: newMessage.audioUrl || undefined,
+            imageUrl: newMessage.imageUrl || undefined,
+          }];
         });
         setHasMessages(true);
 
@@ -240,6 +261,15 @@ export default function ConversationScreen() {
     setupSocket();
 
     return () => {
+      // Stop our own typing broadcast before leaving the room
+      if (typingStopTimeoutRef.current) {
+        clearTimeout(typingStopTimeoutRef.current);
+        typingStopTimeoutRef.current = null;
+      }
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        sendTypingStop(conversationId);
+      }
       leaveConversation(conversationId);
       unsubMessage?.();
       unsubTyping?.();
@@ -365,6 +395,7 @@ export default function ConversationScreen() {
               <TouchableOpacity
                 onPress={() => setShowSafetyModal(true)}
                 style={styles.headerMenuButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.headerMenuText}>⋯</Text>
@@ -572,6 +603,50 @@ export default function ConversationScreen() {
   };
 
   // Handler for VoiceRecorder - sends audio message
+  const handlePickImage = async (source: "camera" | "gallery") => {
+    setShowAttachSheet(false);
+    try {
+      let result: ImagePicker.ImagePickerResult;
+      if (source === "camera") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(t('common.error'), t('chat.camera_permission'));
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,
+        });
+      }
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await handleSendImage(result.assets[0].uri);
+    } catch (error) {
+      console.error("Image pick failed:", error);
+      Alert.alert(t('common.error'), t('chat.image_send_error'));
+    }
+  };
+
+  const handleSendImage = async (uri: string) => {
+    try {
+      setSending(true);
+      const newMessage = await api.sendImageMessage(conversationId, uri);
+      setMessages((prev) => [...prev, { ...newMessage, text: newMessage.text || "" }]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error) {
+      console.error("Failed to send image:", error);
+      Alert.alert(t('common.error'), t('chat.image_send_error'));
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSendAudio = async (uri: string) => {
     try {
       setSending(true);
@@ -590,11 +665,47 @@ export default function ConversationScreen() {
     }
   };
 
+  // Stop emitting typing status (on send, inactivity or leaving the screen)
+  const stopTypingEmit = () => {
+    if (typingStopTimeoutRef.current) {
+      clearTimeout(typingStopTimeoutRef.current);
+      typingStopTimeoutRef.current = null;
+    }
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      sendTypingStop(conversationId);
+    }
+  };
+
+  const handleMessageTextChange = (text: string) => {
+    setMessageText(text);
+
+    if (!text.trim()) {
+      stopTypingEmit();
+      return;
+    }
+
+    // Emit typing_start once, then typing_stop after ~2s of inactivity
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      sendTypingStart(conversationId);
+    }
+    if (typingStopTimeoutRef.current) {
+      clearTimeout(typingStopTimeoutRef.current);
+    }
+    typingStopTimeoutRef.current = setTimeout(() => {
+      typingStopTimeoutRef.current = null;
+      isTypingRef.current = false;
+      sendTypingStop(conversationId);
+    }, 2000);
+  };
+
   const handleSendMessage = async () => {
     if (!messageText.trim() || sending) return;
 
     const text = messageText.trim();
     setMessageText("");
+    stopTypingEmit();
     setSending(true);
 
     try {
@@ -689,25 +800,28 @@ export default function ConversationScreen() {
     );
   };
 
-  const handleReport = async () => {
-    if (!otherUser || !reportReason) return;
+  // Handles both report (user) and remove (leave chat) submissions
+  // coming from the LeaveReasonModal reason picker.
+  const handleSafetyReasonSubmit = async (reason: string, details?: string) => {
+    if (!safetyReasonMode) return;
 
     try {
-      await api.reportUser(
-        otherUser.userId,
-        reportReason,
-        reportDetails || undefined
-      );
-      Alert.alert("Başarılı", `${otherUser.displayName} rapor edildi.`);
-      setShowReportModal(false);
-      setReportReason(null);
-      setReportDetails("");
+      if (safetyReasonMode === "report") {
+        if (!otherUser) return;
+        await api.reportUser(otherUser.userId, reason, details);
+        setSafetyReasonMode(null);
+        Alert.alert(t('safety.report_thanks'));
+      } else {
+        await api.leaveConversation(conversationId, reason, details);
+        setSafetyReasonMode(null);
+        router.replace("/(tabs)/chat");
+      }
     } catch (error) {
       const errorMessage =
         error instanceof AxiosError && error.response?.data?.error?.message
           ? error.response.data.error.message
-          : "Raporlama başarısız oldu";
-      Alert.alert("Hata", errorMessage);
+          : t('safety.action_error');
+      Alert.alert(t('common.error'), errorMessage);
     }
   };
 
@@ -740,6 +854,57 @@ export default function ConversationScreen() {
     );
   };
 
+  // Shared Leave-Conversation confirmation modal (used by both the waiting screen and the main chat view)
+  const renderLeaveConversationModal = () => (
+    <Modal
+      visible={showLeaveConversationModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowLeaveConversationModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <Card style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{t('conversation.leave_title')}</Text>
+          {otherUser && (
+            <Text style={styles.modalText}>
+              Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
+            </Text>
+          )}
+          <View style={styles.modalActions}>
+            <PrimaryButton
+              title="Konuşmadan Ayrıl"
+              onPress={() => {
+                setShowLeaveConversationModal(false);
+                handleLeaveConversation();
+              }}
+              style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
+            />
+            <TouchableOpacity
+              onPress={() => setShowLeaveConversationModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      </View>
+    </Modal>
+  );
+
+  // Locale-aware HH:mm label for message bubbles
+  const formatMessageTime = (createdAt: string) => {
+    const date = new Date(createdAt);
+    if (isNaN(date.getTime())) return "";
+    try {
+      return new Intl.DateTimeFormat(i18n.language, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    } catch {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMyMessage = item.senderUserId === currentUserId;
 
@@ -752,6 +917,34 @@ export default function ConversationScreen() {
           ]}
         >
           <AudioPlayer audioUrl={item.audioUrl} isMyMessage={isMyMessage} />
+          <Text style={styles.messageTime}>{formatMessageTime(item.createdAt)}</Text>
+        </View>
+      );
+    }
+
+    if (item.imageUrl) {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
+          ]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setViewerImageUrl(item.imageUrl!)}
+          >
+            <OptimizedImage
+              source={{ uri: item.imageUrl }}
+              style={styles.imageMessage}
+              containerStyle={[
+                styles.imageMessageContainer,
+                isMyMessage ? styles.myImageMessage : styles.otherImageMessage,
+              ]}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+          <Text style={styles.messageTime}>{formatMessageTime(item.createdAt)}</Text>
         </View>
       );
     }
@@ -778,6 +971,7 @@ export default function ConversationScreen() {
             {item.text}
           </Text>
         </Card>
+        <Text style={styles.messageTime}>{formatMessageTime(item.createdAt)}</Text>
       </View>
     );
   };
@@ -801,7 +995,7 @@ export default function ConversationScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>{t('conversation.loading')}</Text>
       </View>
     );
   }
@@ -879,39 +1073,7 @@ export default function ConversationScreen() {
           />
 
           {/* Leave Conversation Modal for waiting screen */}
-          <Modal
-            visible={showLeaveConversationModal}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowLeaveConversationModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <Card style={styles.modalCard}>
-                <Text style={styles.modalTitle}>Konuşmadan Ayrıl</Text>
-                {otherUser && (
-                  <Text style={styles.modalText}>
-                    Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
-                  </Text>
-                )}
-                <View style={styles.modalActions}>
-                  <PrimaryButton
-                    title="Konuşmadan Ayrıl"
-                    onPress={() => {
-                      setShowLeaveConversationModal(false);
-                      handleLeaveConversation();
-                    }}
-                    style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowLeaveConversationModal(false)}
-                    style={styles.modalCloseButton}
-                  >
-                    <Text style={styles.modalCloseText}>İptal</Text>
-                  </TouchableOpacity>
-                </View>
-              </Card>
-            </View>
-          </Modal>
+          {renderLeaveConversationModal()}
         </View>
       </SafeAreaView>
     );
@@ -939,6 +1101,15 @@ export default function ConversationScreen() {
         keyboardDismissMode="interactive"
       />
 
+      {/* Typing indicator */}
+      {isOtherUserTyping && (
+        <View style={styles.typingIndicatorContainer}>
+          <Text style={styles.typingIndicatorText}>
+            {otherUser ? `${otherUser.displayName} ${t('chat.typing')}` : t('chat.typing')}
+          </Text>
+        </View>
+      )}
+
       {isFirstMessage && messageText.length > 0 && messageText.length < 20 && (
         <View style={styles.hintContainer}>
           <Text style={styles.hintText}>
@@ -947,17 +1118,50 @@ export default function ConversationScreen() {
         </View>
       )}
 
+      {/* Icebreaker chips: shown while the conversation is young to restart
+          stalled/blank chats (top language-exchange churn cause). Tap fills
+          the input so the user can edit before sending. */}
+      {!isRecordingActive && messages.length < 6 && messageText.length === 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.icebreakerStrip}
+          contentContainerStyle={styles.icebreakerStripContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {icebreakers.map((key) => (
+            <TouchableOpacity
+              key={key}
+              style={styles.icebreakerChip}
+              onPress={() => handleMessageTextChange(t(`chat.icebreakers.${key}`))}
+            >
+              <Text style={styles.icebreakerChipText} numberOfLines={1}>
+                {t(`chat.icebreakers.${key}`)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Input Container - iOS style */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + spacing.sm }]}>
         {/* Hide input and buttons when recording */}
         {!isRecordingActive && (
           <>
+            <TouchableOpacity
+              style={styles.attachButton}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              onPress={() => setShowAttachSheet(true)}
+              disabled={sending}
+            >
+              <MaterialIcons name="add" size={24} color={colors.textSecondaryDark} />
+            </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 value={messageText}
-                onChangeText={setMessageText}
-                placeholder="Mesaj yaz..."
+                onChangeText={handleMessageTextChange}
+                placeholder={t('chat.write_placeholder')}
                 placeholderTextColor={colors.textTertiary}
                 multiline
                 maxLength={8000}
@@ -977,9 +1181,15 @@ export default function ConversationScreen() {
                     onPress={handleAIPress}
                     disabled={polishing}
                   >
-                    <Text style={styles.aiButtonText}>
-                      {polishing ? "..." : "✨"}
-                    </Text>
+                    {polishing ? (
+                      <ActivityIndicator size="small" color={colors.onMedia} />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="auto-fix"
+                        size={20}
+                        color={colors.onMedia}
+                      />
+                    )}
                   </TouchableOpacity>
 
                   {showToneSelector && (
@@ -1050,6 +1260,7 @@ export default function ConversationScreen() {
                     styles.sendButton,
                     (!messageText.trim() || sending) && styles.sendButtonDisabled,
                   ]}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   onPress={handleSendMessage}
                   disabled={!messageText.trim() || sending}
                 >
@@ -1061,10 +1272,11 @@ export default function ConversationScreen() {
             ) : (
               <TouchableOpacity
                 style={styles.aiButton}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 onPress={handleAIPress}
                 disabled={polishing}
               >
-                <Text style={styles.aiButtonText}>✨</Text>
+                <MaterialCommunityIcons name="auto-fix" size={20} color={colors.onMedia} />
               </TouchableOpacity>
             )}
           </>
@@ -1079,6 +1291,65 @@ export default function ConversationScreen() {
         />
       </View>
 
+      {/* Attachment sheet */}
+      <Modal
+        visible={showAttachSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAttachSheet(false)}
+      >
+        <Pressable
+          style={styles.attachSheetOverlay}
+          onPress={() => setShowAttachSheet(false)}
+        >
+          <View style={[styles.attachSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+            <TouchableOpacity
+              style={styles.attachOption}
+              onPress={() => handlePickImage("camera")}
+            >
+              <View style={styles.attachOptionIcon}>
+                <MaterialIcons name="photo-camera" size={24} color={colors.primaryLight} />
+              </View>
+              <Text style={styles.attachOptionText}>{t('chat.attach_camera')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.attachOption}
+              onPress={() => handlePickImage("gallery")}
+            >
+              <View style={styles.attachOptionIcon}>
+                <MaterialIcons name="photo-library" size={24} color={colors.primaryLight} />
+              </View>
+              <Text style={styles.attachOptionText}>{t('chat.attach_gallery')}</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Fullscreen image viewer */}
+      <Modal
+        visible={viewerImageUrl !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerImageUrl(null)}
+      >
+        <View style={styles.imageViewerOverlay}>
+          <TouchableOpacity
+            style={[styles.imageViewerClose, { top: insets.top + spacing.md }]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => setViewerImageUrl(null)}
+          >
+            <MaterialIcons name="close" size={28} color={colors.onMedia} />
+          </TouchableOpacity>
+          {viewerImageUrl && (
+            <Image
+              source={{ uri: viewerImageUrl }}
+              style={styles.imageViewerImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
       {/* Premium Modal */}
       <Modal
         visible={showPremiumModal}
@@ -1088,7 +1359,7 @@ export default function ConversationScreen() {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>AI Limit Aşıldı</Text>
+            <Text style={styles.modalTitle}>{t('conversation.ai_limit_title')}</Text>
             {usageInfo && (
               <View style={styles.usageInfo}>
                 <Text style={styles.usageText}>
@@ -1136,7 +1407,7 @@ export default function ConversationScreen() {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Güvenlik İşlemleri</Text>
+            <Text style={styles.modalTitle}>{t('conversation.safety_title')}</Text>
             <View style={styles.modalActions}>
               <PrimaryButton
                 title="Engelle"
@@ -1150,137 +1421,47 @@ export default function ConversationScreen() {
                 style={[styles.modalButton, styles.blockButton]}
               />
               <PrimaryButton
-                title="Bildir"
+                title={t('safety.report')}
                 onPress={() => {
                   setShowSafetyModal(false);
                   setTimeout(() => {
-                    setShowReportModal(true);
+                    setSafetyReasonMode("report");
                   }, 100);
                 }}
                 style={styles.modalButton}
+              />
+              <PrimaryButton
+                title={t('safety.leave_chat')}
+                onPress={() => {
+                  setShowSafetyModal(false);
+                  setTimeout(() => {
+                    setSafetyReasonMode("remove");
+                  }, 100);
+                }}
+                style={[styles.modalButton, styles.leaveChatButton]}
               />
               <TouchableOpacity
                 onPress={() => setShowSafetyModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>İptal</Text>
+                <Text style={styles.modalCloseText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </Card>
         </View>
       </Modal>
 
-      {/* Report Modal */}
-      <Modal
-        visible={showReportModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowReportModal(false);
-          setReportReason(null);
-          setReportDetails("");
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Kullanıcıyı Bildir</Text>
-            <Text style={styles.modalText}>
-              Bu kullanıcıyı neden bildiriyorsunuz?
-            </Text>
-            <View style={styles.reportReasons}>
-              {(["SPAM", "HARASSMENT", "NUDITY", "SCAM", "OTHER"] as const).map(
-                (reason) => (
-                  <TouchableOpacity
-                    key={reason}
-                    style={[
-                      styles.reportReasonChip,
-                      reportReason === reason && styles.reportReasonChipActive,
-                    ]}
-                    onPress={() => setReportReason(reason)}
-                  >
-                    <Text
-                      style={[
-                        styles.reportReasonText,
-                        reportReason === reason &&
-                        styles.reportReasonTextActive,
-                      ]}
-                    >
-                      {reason === "SPAM" ? "Spam" :
-                        reason === "HARASSMENT" ? "Taciz" :
-                          reason === "NUDITY" ? "Çıplaklık" :
-                            reason === "SCAM" ? "Dolandırıcılık" : "Diğer"}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
-            </View>
-            {reportReason && (
-              <TextInput
-                style={styles.reportDetailsInput}
-                value={reportDetails}
-                onChangeText={setReportDetails}
-                placeholder="Ek detaylar (opsiyonel)"
-                placeholderTextColor={colors.textTertiary}
-                multiline
-                maxLength={500}
-              />
-            )}
-            <View style={styles.modalActions}>
-              <PrimaryButton
-                title="Bildir"
-                onPress={handleReport}
-                disabled={!reportReason}
-                style={styles.modalButton}
-              />
-              <TouchableOpacity
-                onPress={() => {
-                  setShowReportModal(false);
-                  setReportReason(null);
-                  setReportDetails("");
-                }}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalCloseText}>İptal</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        </View>
-      </Modal>
+      {/* Report / Remove-chat reason picker */}
+      <LeaveReasonModal
+        visible={safetyReasonMode !== null}
+        mode={safetyReasonMode ?? "report"}
+        displayName={otherUser?.displayName}
+        onClose={() => setSafetyReasonMode(null)}
+        onSubmit={handleSafetyReasonSubmit}
+      />
 
       {/* Leave Conversation Modal */}
-      <Modal
-        visible={showLeaveConversationModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLeaveConversationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Konuşmadan Ayrıl</Text>
-            {otherUser && (
-              <Text style={styles.modalText}>
-                Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
-              </Text>
-            )}
-            <View style={styles.modalActions}>
-              <PrimaryButton
-                title="Konuşmadan Ayrıl"
-                onPress={() => {
-                  setShowLeaveConversationModal(false);
-                  handleLeaveConversation();
-                }}
-                style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
-              />
-              <TouchableOpacity
-                onPress={() => setShowLeaveConversationModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalCloseText}>İptal</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        </View>
-      </Modal>
+      {renderLeaveConversationModal()}
       <Reanimated.View style={keyboardSpacerStyle} />
     </View>
   );
@@ -1333,12 +1514,53 @@ const styles = StyleSheet.create({
   otherMessageText: {
     color: colors.textDark,
   },
+  messageTime: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondaryDark,
+    marginTop: 2,
+    paddingHorizontal: spacing.xs,
+  },
+  typingIndicatorContainer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  typingIndicatorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryDark,
+    fontStyle: "italic",
+  },
   hintContainer: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.warning + "20",
     borderTopWidth: 1,
     borderTopColor: colors.borderDark,
+  },
+  icebreakerStrip: {
+    maxHeight: 44,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderDark,
+  },
+  icebreakerStripContent: {
+    gap: spacing.xs,
+    // Inset both ends so the strip reads as a scrollable row rather than
+    // chips sliced off by the screen edge.
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  icebreakerChip: {
+    backgroundColor: colors.primaryTint,
+    borderColor: colors.primaryTintBorder,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    maxWidth: 280,
+  },
+  icebreakerChipText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primaryTintText,
   },
   hintText: {
     fontSize: typography.fontSize.sm,
@@ -1367,6 +1589,90 @@ const styles = StyleSheet.create({
     minHeight: 40,
     maxHeight: 120,
     justifyContent: "center",
+  },
+  attachButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.backgroundDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  attachSheetOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  attachSheet: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  attachOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  attachOptionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  attachOptionText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.textDark,
+  },
+  imageMessageContainer: {
+    width: 220,
+    height: 280,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  imageMessage: {
+    width: "100%",
+    height: "100%",
+  },
+  myImageMessage: {
+    borderColor: colors.primaryFaint,
+  },
+  otherImageMessage: {
+    borderColor: colors.borderDark,
+  },
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlayStrong,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageViewerClose: {
+    position: "absolute",
+    right: spacing.md,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surfaceTintStrong,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageViewerImage: {
+    width: "100%",
+    height: "80%",
   },
   input: {
     fontSize: typography.fontSize.base,
@@ -1758,6 +2064,9 @@ const styles = StyleSheet.create({
   },
   blockButton: {
     backgroundColor: colors.warning || "#FF6B6B",
+  },
+  leaveChatButton: {
+    backgroundColor: colors.error,
   },
   reportReasons: {
     flexDirection: "row",

@@ -41,7 +41,7 @@ export function PrimaryButton({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator color={colors.text} size="small" />
+        <ActivityIndicator color={colors.textInverse} size="small" />
       ) : (
         <Text style={[styles.buttonText, textStyle]}>{title}</Text>
       )}
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonText: {
-    color: colors.text,
+    color: colors.textInverse,
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
   },

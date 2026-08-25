@@ -2,7 +2,21 @@ import { io, Socket } from "socket.io-client";
 import { getToken } from "./authStore";
 
 // Get API URL from environment
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+// In production builds, fail fast instead of falling back to localhost
+function getSocketUrl(): string {
+    if (process.env.EXPO_PUBLIC_API_URL) {
+        return process.env.EXPO_PUBLIC_API_URL;
+    }
+    if (!__DEV__) {
+        throw new Error(
+            "EXPO_PUBLIC_API_URL is not set in this production build. " +
+            "Set it in the EAS build profile env before releasing."
+        );
+    }
+    return "http://localhost:4000";
+}
+
+const API_URL = getSocketUrl();
 
 // Socket instance
 let socket: Socket | null = null;
@@ -16,6 +30,7 @@ type MessageHandler = (message: {
     senderUserId: string;
     text: string;
     audioUrl?: string | null;
+    imageUrl?: string | null;
     createdAt: string;
 }) => void;
 

@@ -11,10 +11,12 @@ import {
   ScrollView,
   Animated,
   Dimensions,
+  Image,
 } from "react-native";
 import { OptimizedImage } from "@/src/components/ui/OptimizedImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { languageLabel } from "@/src/data/languages";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
@@ -28,13 +30,16 @@ import { EmptyState } from "@/src/components/ui/EmptyState";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
+import { useSocket } from "@/src/state/socket";
 import { AxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
+import { UpsellModal } from "@/src/components/UpsellModal";
 
 type Request = {
   requestId: string;
-  fromUserId?: string;
+  locked?: boolean;
+  fromUserId?: string | null;
   toUserId?: string;
   kind: "LIKE" | "FAVORITE";
   status: "PENDING" | "ACCEPTED" | "DECLINED";
@@ -71,7 +76,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Expiration Timer Component
 const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [timeLeft, setTimeLeft] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
 
@@ -120,8 +125,12 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
 
 export default function RequestsScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  // Accepting a request triggers a socket "new match" event for BOTH sides,
+  // which would stack the global MatchPopup behind this screen's own match
+  // modal — clear it so only one celebration shows.
+  const { clearNewMatches } = useSocket();
   const [incomingRequests, setIncomingRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -152,6 +161,9 @@ export default function RequestsScreen() {
   } | null>(null);
   const matchModalAnim = React.useRef(new Animated.Value(0)).current;
   const sparkleAnim = React.useRef(new Animated.Value(0)).current;
+
+  // Upsell modal for locked (blurred) likes
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
 
   // LikeLimitModal state
   const [showLikeLimitModal, setShowLikeLimitModal] = useState(false);
@@ -246,8 +258,10 @@ export default function RequestsScreen() {
           matchedUserName: matchedUserName,
         }); // Debug log
 
-        // Set modal visible first
+        // Set modal visible first; suppress the global socket MatchPopup so
+        // the user doesn't get two stacked match celebrations.
         setShowMatchModal(true);
+        clearNewMatches();
 
         // Start with visible state (opacity 1) then animate
         matchModalAnim.setValue(1);
@@ -312,6 +326,7 @@ export default function RequestsScreen() {
       matchModalAnim.setValue(0);
       sparkleAnim.stopAnimation();
       sparkleAnim.setValue(0);
+      clearNewMatches();
     });
   };
 
@@ -334,6 +349,7 @@ export default function RequestsScreen() {
       matchModalAnim.setValue(0);
       sparkleAnim.stopAnimation();
       sparkleAnim.setValue(0);
+      clearNewMatches();
     });
   };
 
@@ -382,6 +398,72 @@ export default function RequestsScreen() {
   };
 
   const renderRequestItem = ({ item }: { item: Request }) => {
+    // Bumble-style locked like: blurred anonymous card for free users.
+    if (item.locked) {
+      return (
+        <View style={styles.requestCardWrapper}>
+          <LinearGradient
+            colors={["rgba(30, 30, 50, 0.9)", "rgba(20, 20, 30, 0.95)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.requestCard}
+          >
+            <TouchableOpacity
+              style={styles.lockedContent}
+              onPress={() => setShowUpsellModal(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t("likes.locked_cta")}
+            >
+              <View style={styles.avatarContainer}>
+                {item.fromUser?.photos && item.fromUser.photos.length > 0 ? (
+                  <Image
+                    source={{ uri: item.fromUser.photos[0] }}
+                    style={styles.avatar}
+                    blurRadius={6}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="heart" size={28} color={colors.onMedia} />
+                  </View>
+                )}
+                <View style={styles.lockBadge}>
+                  <Ionicons name="lock-closed" size={12} color={colors.onMedia} />
+                </View>
+              </View>
+
+              <View style={styles.userDetails}>
+                <Text style={styles.userName}>{t("likes.locked_title")}</Text>
+                <Text style={styles.lockedDesc}>{t("likes.locked_desc")}</Text>
+                {item.expiresAt && item.status === "PENDING" && (
+                  <ExpirationTimer expiresAt={item.expiresAt} />
+                )}
+              </View>
+
+              <Ionicons name="chevron-forward" size={22} color={colors.textSecondaryDark} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowUpsellModal(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.primaryLight]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.actionButton, styles.lockedCta]}
+              >
+                <Ionicons name="diamond" size={18} color={colors.onMedia} />
+                <Text style={styles.acceptButtonText}>{t("likes.locked_cta")}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      );
+    }
+
     const user = item.fromUser;
     const userId = item.fromUserId;
 
@@ -468,7 +550,7 @@ export default function RequestsScreen() {
                       <View style={styles.cardLangRow}>
                         <Ionicons name="chatbubbles-outline" size={12} color={colors.textSecondaryDark} />
                         <Text style={styles.cardLangText} numberOfLines={1}>
-                          {user.languagesNative.join(", ")}
+                          {user.languagesNative.map((l) => languageLabel(l, i18n.language)).join(", ")}
                         </Text>
                       </View>
                     )}
@@ -476,7 +558,7 @@ export default function RequestsScreen() {
                       <View style={styles.cardLangRow}>
                         <Ionicons name="school-outline" size={12} color={colors.textSecondaryDark} />
                         <Text style={styles.cardLangText} numberOfLines={1}>
-                          {user.languagesPractice.join(", ")}
+                          {user.languagesPractice.map((l) => languageLabel(l, i18n.language)).join(", ")}
                         </Text>
                       </View>
                     )}
@@ -551,14 +633,14 @@ export default function RequestsScreen() {
         {loading && incomingRequests.length === 0 ? (
           <View style={styles.loadingContainer}>
             <EmptyState
-              icon="💔"
+              icon="heart-outline"
               title={t('likes.loading')}
               description=""
             />
           </View>
         ) : incomingRequests.length === 0 ? (
           <EmptyState
-            icon="💔"
+            icon="heart-outline"
             title={t('likes.no_requests')}
             description={t('likes.no_requests_desc')}
           />
@@ -683,6 +765,13 @@ export default function RequestsScreen() {
             </Animated.View>
           </View>
         </Modal>
+
+        {/* Upsell modal for locked likes */}
+        <UpsellModal
+          visible={showUpsellModal}
+          variant="whoLiked"
+          onClose={() => setShowUpsellModal(false)}
+        />
 
         {/* Like Limit Modal */}
         <LikeLimitModal
@@ -831,7 +920,7 @@ export default function RequestsScreen() {
 
                   {/* Purpose Chip */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>Aradığım</Text>
+                    <Text style={styles.detailTitle}>{t('likes.looking_for')}</Text>
                     <View style={styles.chipContainer}>
                       <View style={styles.purposeChip}>
                         <Text style={styles.purposeText}>
@@ -844,16 +933,16 @@ export default function RequestsScreen() {
 
                   {/* Languages */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>Konuştuğum Diller</Text>
+                    <Text style={styles.detailTitle}>{t('profile.languages')}</Text>
                     <View style={styles.languageTags}>
                       {profileData.languagesNative.map((lang, index) => (
                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
-                          <Text style={styles.langText}>{lang}</Text>
+                          <Text style={styles.langText}>{languageLabel(lang, i18n.language)}</Text>
                         </View>
                       ))}
                       {profileData.languagesPractice.map((lang, index) => (
                         <View key={`practice-${index}`} style={[styles.langTag, styles.practiceTag]}>
-                          <Text style={styles.langText}>{lang}</Text>
+                          <Text style={styles.langText}>{languageLabel(lang, i18n.language)}</Text>
                           <Ionicons name="school-outline" size={12} color={colors.textSecondaryDark} style={{ marginLeft: 4 }} />
                         </View>
                       ))}
@@ -909,7 +998,7 @@ export default function RequestsScreen() {
             </View>
           ) : (
             <View style={styles.profileErrorContainer}>
-              <Text style={styles.profileErrorText}>Profil yüklenemedi</Text>
+              <Text style={styles.profileErrorText}>{t('likes.profile_failed')}</Text>
               <TouchableOpacity
                 style={styles.profileCloseButton}
                 onPress={() => {
@@ -957,6 +1046,33 @@ const styles = StyleSheet.create({
   },
   requestContent: {
     marginBottom: spacing.md,
+  },
+  lockedContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  lockedDesc: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.6)",
+    marginTop: 2,
+  },
+  lockBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.backgroundSecondaryDark,
+  },
+  lockedCta: {
+    // Uses actionButton base styles
   },
   userInfo: {
     flexDirection: "row",

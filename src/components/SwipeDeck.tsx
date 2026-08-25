@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, forwardRef, useImperativeHandle } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import React, { useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { View, StyleSheet, Dimensions, LayoutChangeEvent } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -27,6 +27,7 @@ type StackCardProps<T> = {
   OverlayLabelLeft?: () => React.ReactElement;
   onTranslateXChange?: (translateX: ReturnType<typeof useSharedValue<number>>) => void;
   cardRef?: React.RefObject<SwipeableCardHandle | null>;
+  cardHeight: number;
 };
 
 function StackCard<T extends { userId?: string }>({
@@ -42,33 +43,36 @@ function StackCard<T extends { userId?: string }>({
   OverlayLabelLeft,
   onTranslateXChange,
   cardRef,
+  cardHeight,
 }: StackCardProps<T>) {
-  // Calculate static values outside worklet
-  const baseScale = 1 - stackDepth * 0.04;
-  const baseTranslateY = stackDepth * 12;
-  const baseOpacity = Math.max(0.9, 1.0 - stackDepth * 0.03);
-
-  // Animated style for cards behind the top card
+  // Animated style for cards behind the top card. Bumble-style: cards behind
+  // are perfectly aligned and INVISIBLE at rest (nothing peeks out around the
+  // top card, even while its content scrolls); the next card fades/scales in
+  // only while the top card is being dragged horizontally.
   const animatedStackStyle = useAnimatedStyle(() => {
     'worklet';
     if (isFirst) {
       return {};
     }
 
-    // Cards behind should scale up slightly when top card is swiped
-    const scaleMultiplier = interpolate(
-      Math.abs(topCardTranslateX.value),
+    const drag = Math.abs(topCardTranslateX.value);
+
+    // Only the card directly behind the top one reveals during the drag;
+    // deeper cards stay hidden until they move up the stack.
+    const revealOpacity = stackDepth === 1
+      ? interpolate(drag, [0, 24, windowWidth / 3], [0, 0.35, 1], Extrapolation.CLAMP)
+      : 0;
+
+    const revealScale = interpolate(
+      drag,
       [0, windowWidth / 2],
-      [1, 1.02],
+      [0.96, 1],
       Extrapolation.CLAMP
     );
 
     return {
-      transform: [
-        { scale: baseScale * scaleMultiplier },
-        { translateY: baseTranslateY },
-      ],
-      opacity: baseOpacity,
+      transform: [{ scale: revealScale }],
+      opacity: revealOpacity,
     };
   });
 
@@ -92,7 +96,7 @@ function StackCard<T extends { userId?: string }>({
       <SwipeableCard
         ref={isFirst ? cardRef : undefined}
         cardWidth={CARD_WIDTH}
-        cardHeight={720}
+        cardHeight={cardHeight}
         translateXRange={[-windowWidth / 2, 0, windowWidth / 2]}
         inputRotationRange={[-windowWidth, 0, windowWidth]}
         outputRotationRange={[-10, 0, 10]}
@@ -127,7 +131,6 @@ type SwipeDeckProps<T> = {
   onSwipeRight: (item: T) => void;
   OverlayLabelRight?: () => React.ReactElement;
   OverlayLabelLeft?: () => React.ReactElement;
-  FavoriteButton?: () => React.ReactElement;
 };
 
 function SwipeDeckInner<T extends { userId?: string }>(
@@ -138,10 +141,19 @@ function SwipeDeckInner<T extends { userId?: string }>(
     onSwipeRight,
     OverlayLabelRight,
     OverlayLabelLeft,
-    FavoriteButton,
   }: SwipeDeckProps<T>,
   ref: React.ForwardedRef<SwipeDeckHandle>
 ) {
+  // The card height used to be hardcoded to 720dp, which only ever matched
+  // one screen size: taller phones showed a band of dead space between the
+  // card and the tab bar, shorter ones had the card clipped by it. Measure
+  // the box the layout hands us and fill it exactly.
+  const [deckHeight, setDeckHeight] = useState(0);
+  const onDeckLayout = (e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (h > 0 && h !== deckHeight) setDeckHeight(h);
+  };
+
   // Get the first 3 items to display in stack
   const stackItems = useMemo(() => items.slice(0, 3), [items]);
 
@@ -180,9 +192,10 @@ function SwipeDeckInner<T extends { userId?: string }>(
   }));
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onDeckLayout}>
+      {/* Nothing to lay out until the first measurement lands. */}
       <View style={styles.cardStack}>
-        {stackItems.map((item, index) => {
+        {deckHeight > 0 && stackItems.map((item, index) => {
           const isFirst = index === 0;
           const itemId = (item as any).userId;
           const stableKey = itemId ?? `card-${index}`;
@@ -202,15 +215,11 @@ function SwipeDeckInner<T extends { userId?: string }>(
               OverlayLabelLeft={OverlayLabelLeft}
               onTranslateXChange={isFirst ? handleTopCardTranslateXChange : undefined}
               cardRef={topCardRef}
+              cardHeight={deckHeight}
             />
           );
         })}
       </View>
-      {FavoriteButton && (
-        <View style={styles.favoriteButtonContainer}>
-          <FavoriteButton />
-        </View>
-      )}
     </View>
   );
 }
@@ -226,22 +235,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     width: "100%",
-    minHeight: 650,
   },
   cardStack: {
-    width: "100%",
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "flex-start",
-    position: "relative",
-    minHeight: 650,
-  },
-  favoriteButtonContainer: {
-    position: "absolute",
-    bottom: 16,
-    right: 16 + 16, // padding + margin
-    zIndex: 1000,
-    width: 48,
-    height: 48,
   },
   cardWrapper: {
     position: "absolute",

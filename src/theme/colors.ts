@@ -17,25 +17,29 @@ export const colors = {
   accentGradientStart: "#FF5B84",
   accentGradientEnd: "#FF8FA9",
 
-  // Background colors (Light mode support)
-  background: "#F3F4F6", // Light mode background
-  backgroundDark: "#111422", // Dark mode background
-  backgroundSecondary: "#FFFFFF", // Light mode card background
-  backgroundSecondaryDark: "#1C2033", // Dark mode card background
-  backgroundTertiary: "#F9FAFB",
+  // Background colors — SINGLE DARK THEME.
+  // Base tokens and *Dark aliases are intentionally identical: the app ships
+  // dark-only, and keeping the old light values as defaults caused every
+  // accidental `colors.text`/`colors.surface` reference to render white boxes
+  // or invisible text. Do not reintroduce light values here.
+  background: "#111422",
+  backgroundDark: "#111422",
+  backgroundSecondary: "#1C2033",
+  backgroundSecondaryDark: "#1C2033",
+  backgroundTertiary: "#252A40",
 
   // Surface colors
-  surface: "#FFFFFF",
+  surface: "#1C2033",
   surfaceDark: "#1C2033",
-  surfaceElevated: "#FFFFFF",
-  surfaceHover: "#F3F4F6",
+  surfaceElevated: "#252A40",
+  surfaceHover: "#252A40",
 
-  // Text colors (Light mode support)
-  text: "#1F2937", // Light mode text
-  textDark: "#E5E7EB", // Dark mode text
-  textSecondary: "#6B7280", // Light mode muted
-  textSecondaryDark: "#9CA3AF", // Dark mode muted
-  textTertiary: "#9CA3AF",
+  // Text colors
+  text: "#E5E7EB",
+  textDark: "#E5E7EB",
+  textSecondary: "#9CA3AF",
+  textSecondaryDark: "#9CA3AF",
+  textTertiary: "#6B7280",
   textInverse: "#FFFFFF",
 
   // Status colors
@@ -44,11 +48,11 @@ export const colors = {
   error: "#EF4444",
   info: "#3B82F6",
 
-  // Border colors (Light mode support)
-  border: "#E5E7EB", // Light mode border
-  borderDark: "#374151", // Dark mode border
-  borderLight: "#D1D5DB",
-  borderMuted: "#F3F4F6",
+  // Border colors
+  border: "#374151",
+  borderDark: "#374151",
+  borderLight: "#4B5563",
+  borderMuted: "#252A40",
 
   // Overlay
   overlay: "rgba(0, 0, 0, 0.7)",
@@ -56,17 +60,17 @@ export const colors = {
   overlayStrong: "rgba(0, 0, 0, 0.8)",
 
   // Card specific
-  cardBackground: "#FFFFFF",
+  cardBackground: "#1C2033",
   cardBackgroundDark: "#1C2033",
 
   // Semantic action colors (swipe deck)
   passRed: "#FF4D6D",       // Pass / decline action
   favoriteBlue: "#60A5FA",  // Favorite / super-like action
 
-  // Primary tints (chip / badge surfaces)
-  primaryTint: "#F3E8FF",       // Soft purple background
-  primaryTintBorder: "#E9D5FF", // Soft purple border
-  primaryTintText: "#7C3AED",   // Vivid purple text on tint
+  // Primary tints (chip / badge surfaces) — translucent purple over dark
+  primaryTint: "rgba(108, 93, 211, 0.16)",
+  primaryTintBorder: "rgba(108, 93, 211, 0.4)",
+  primaryTintText: "#A78BFA",   // Light purple, readable on dark tint
 
   // Premium gradient (subscription cards / boost UI)
   premiumGradientStart: "#7A308F",

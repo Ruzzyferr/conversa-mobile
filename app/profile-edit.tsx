@@ -20,52 +20,22 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
+import { useTranslation } from "react-i18next";
+// Stored as ISO codes — see src/data/languages.ts for why.
+import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languages";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { RainBackground } from "@/src/components/RainBackground";
 import { api } from "@/src/services/api";
+import { InterestPicker } from "@/src/components/InterestPicker";
+import { LEGACY_INTEREST_MAP } from "@/src/data/interests";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
 
-const LANGUAGES = [
-  "Türkçe",
-  "İngilizce",
-  "Almanca",
-  "Fransızca",
-  "İspanyolca",
-  "İtalyanca",
-  "Rusça",
-  "Arapça",
-  "Japonca",
-  "Korece",
-  "Çince",
-  "Portekizce",
-  "Hollandaca",
-  "Yunanca",
-  "İsveççe",
-  "Norveççe",
-  "Fince",
-  "Lehçe",
-  "Çekçe",
-  "Macarca",
-];
-
-const INTERESTS = [
-  "Müzik",
-  "Seyahat",
-  "Sanat",
-  "Dil Öğrenimi",
-  "Yemek",
-  "Fotoğrafçılık",
-  "Spor",
-  "Kitap",
-  "Sinema",
-  "Teknoloji",
-];
 
 export default function ProfileEditScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation();
 
   const [displayName, setDisplayName] = useState("");
   const [birthYear, setBirthYear] = useState<string>("");
@@ -75,6 +45,7 @@ export default function ProfileEditScreen() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [bio, setBio] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [showInterestPicker, setShowInterestPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
@@ -91,11 +62,14 @@ export default function ProfileEditScreen() {
       setDisplayName(profile.displayName);
       setBirthYear(profile.birthYear?.toString() || "");
       setPurpose(profile.purpose);
-      setLanguagesNative(profile.languagesNative || []);
-      setLanguagesPractice(profile.languagesPractice || []);
+      setLanguagesNative(normalizeLanguages(profile.languagesNative));
+      setLanguagesPractice(normalizeLanguages(profile.languagesPractice));
       setPhotos(profile.photos || []);
       setBio(profile.bio || "");
-      setSelectedInterests(profile.interests || []);
+      // Map legacy free-text interests (pre-picker) to catalog slugs
+      setSelectedInterests(
+        (profile.interests || []).map((i: string) => LEGACY_INTEREST_MAP[i] || i)
+      );
       if (profile.city) {
         setLocation({ lat: 0, lng: 0, city: profile.city });
       }
@@ -214,6 +188,17 @@ export default function ProfileEditScreen() {
     );
   };
 
+  const toggleLanguageNative = (lang: string) => {
+
+    setLanguagesNative((prev) =>
+
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+
+    );
+
+  };
+
+
   const toggleLanguagePractice = (language: string) => {
     setLanguagesPractice((prev) =>
       prev.includes(language)
@@ -257,6 +242,10 @@ export default function ProfileEditScreen() {
   };
 
   const handleSave = async () => {
+    if (languagesNative.length === 0) {
+      Alert.alert(t('common.error'), t('edit.native_required'));
+      return;
+    }
     if (languagesPractice.length === 0) {
       Alert.alert("Uyarı", "Lütfen en az bir öğrenmek istediğiniz dil seçin");
       return;
@@ -311,7 +300,7 @@ export default function ProfileEditScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
+          <Text style={styles.loadingText}>{t('edit.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -319,8 +308,6 @@ export default function ProfileEditScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <RainBackground />
-
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -338,50 +325,71 @@ export default function ProfileEditScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={24} color={colors.textDark} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Profili Düzenle</Text>
+            <Text style={styles.headerTitle}>{t('edit.title')}</Text>
             <View style={{ width: 24 }} />
           </View>
 
           {/* Display Name - Read Only */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>İsim</Text>
+            <Text style={styles.sectionTitle}>{t('edit.name')}</Text>
             <TextInput
               style={[styles.textInput, styles.readOnlyInput]}
               value={displayName}
               editable={false}
               placeholderTextColor={colors.textSecondaryDark}
             />
-            <Text style={styles.readOnlyNote}>İsim değiştirilemez</Text>
+            <Text style={styles.readOnlyNote}>{t('edit.name_locked')}</Text>
           </View>
 
           {/* Birth Year - Read Only */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Doğum Yılı</Text>
+            <Text style={styles.sectionTitle}>{t('edit.birth_year')}</Text>
             <TextInput
               style={[styles.textInput, styles.readOnlyInput]}
               value={birthYear}
               editable={false}
               placeholderTextColor={colors.textSecondaryDark}
             />
-            <Text style={styles.readOnlyNote}>Doğum yılı değiştirilemez</Text>
+            <Text style={styles.readOnlyNote}>{t('edit.birth_year_locked')}</Text>
           </View>
 
-          {/* Native Languages - Read Only */}
+          {/*
+            Native languages used to be read-only here, so anyone who picked
+            the wrong one during signup was stuck with it forever — and native
+            language is half of what the matching runs on.
+          */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ana Dillerin</Text>
+            <Text style={styles.sectionTitle}>{t('edit.native_languages')} *</Text>
             <View style={styles.languagesContainer}>
-              {languagesNative.map((lang) => (
-                <View key={lang} style={[styles.languageTag, styles.readOnlyTag]}>
-                  <Text style={styles.languageText}>{lang}</Text>
-                </View>
-              ))}
+              {LANGUAGES.map(({ code: lang }) => {
+                const isSelected = languagesNative.includes(lang);
+                return (
+                  <TouchableOpacity
+                    key={`native-${lang}`}
+                    style={[
+                      styles.languageTag,
+                      isSelected && styles.languageTagSelected,
+                    ]}
+                    onPress={() => toggleLanguageNative(lang)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.languageText,
+                        isSelected && styles.languageTextSelected,
+                      ]}
+                    >
+                      {languageLabel(lang, i18n.language)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            <Text style={styles.readOnlyNote}>Ana diller değiştirilemez</Text>
           </View>
 
           {/* Purpose Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Arayışın Ne?</Text>
+            <Text style={styles.sectionTitle}>{t('edit.purpose')}</Text>
             <View style={styles.purposeContainer}>
               {(["CONVERSATION", "PRACTICE", "COFFEE"] as Purpose[]).map((p) => (
                 <TouchableOpacity
@@ -398,6 +406,9 @@ export default function ProfileEditScreen() {
                       styles.purposeText,
                       purpose === p && styles.purposeTextSelected,
                     ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
                   >
                     {p === "CONVERSATION"
                       ? "💬 Sohbet"
@@ -412,12 +423,12 @@ export default function ProfileEditScreen() {
 
           {/* Practice Languages Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Öğrenmek İstediğin Diller *</Text>
+            <Text style={styles.sectionTitle}>{t('edit.practice_languages')} *</Text>
             <Text style={styles.sectionSubtitle}>
               Pratik yapmak istediğin dilleri seç
             </Text>
             <View style={styles.languagesContainer}>
-              {LANGUAGES.map((lang) => {
+              {LANGUAGES.map(({ code: lang }) => {
                 const isSelected = languagesPractice.includes(lang);
                 return (
                   <TouchableOpacity
@@ -435,7 +446,7 @@ export default function ProfileEditScreen() {
                         isSelected && styles.languageTextSelected,
                       ]}
                     >
-                      {lang}
+                      {languageLabel(lang, i18n.language)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -445,7 +456,7 @@ export default function ProfileEditScreen() {
 
           {/* Photo Selection Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Fotoğraflar</Text>
+            <Text style={styles.sectionTitle}>{t('edit.photos')}</Text>
             <View style={styles.photosContainer}>
               {[0, 1, 2].map((index) => {
                 const hasPhoto = !!photos[index];
@@ -468,6 +479,7 @@ export default function ProfileEditScreen() {
                         />
                         <TouchableOpacity
                           style={styles.editButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                           onPress={(e) => {
                             e.stopPropagation();
                             removePhoto(index);
@@ -499,7 +511,7 @@ export default function ProfileEditScreen() {
                 style={styles.bioInput}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="İnsanlara senden bahset..."
+                placeholder={t('edit.bio_placeholder')}
                 placeholderTextColor={colors.textSecondaryDark}
                 multiline
                 maxLength={500}
@@ -512,33 +524,40 @@ export default function ProfileEditScreen() {
 
           {/* Interests Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>İlgi Alanları</Text>
+            <Text style={styles.sectionTitle}>{t('edit.interests')}</Text>
             <View style={styles.interestsContainer}>
-              {INTERESTS.map((interest) => {
-                const isSelected = selectedInterests.includes(interest);
-                return (
-                  <TouchableOpacity
-                    key={interest}
-                    style={[
-                      styles.interestTag,
-                      isSelected && styles.interestTagSelected,
-                    ]}
-                    onPress={() => toggleInterest(interest)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.interestText,
-                        isSelected && styles.interestTextSelected,
-                      ]}
-                    >
-                      {interest}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {selectedInterests.map((interest) => (
+                <TouchableOpacity
+                  key={interest}
+                  style={[styles.interestTag, styles.interestTagSelected]}
+                  onPress={() => toggleInterest(interest)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.interestText, styles.interestTextSelected]}>
+                    {t(`interests.${interest}`, { defaultValue: interest })}
+                  </Text>
+                  <MaterialIcons name="close" size={14} color="#FFF" />
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.interestTag}
+                onPress={() => setShowInterestPicker(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="add" size={16} color={colors.primaryTintText} />
+                <Text style={[styles.interestText, { color: colors.primaryTintText }]}>
+                  {t("interest_picker.title")}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
+
+          <InterestPicker
+            visible={showInterestPicker}
+            selected={selectedInterests}
+            onClose={() => setShowInterestPicker(false)}
+            onSave={setSelectedInterests}
+          />
 
           {/* Location Section */}
           <View style={styles.section}>
@@ -582,7 +601,7 @@ export default function ProfileEditScreen() {
           onPress={handleCloseModal}
         >
           <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Fotoğraf Seç</Text>
+            <Text style={styles.modalTitle}>{t('edit.pick_photo')}</Text>
             <Text style={styles.modalSubtitle}>
               Fotoğrafı nereden seçmek istersiniz?
             </Text>
@@ -616,7 +635,7 @@ export default function ProfileEditScreen() {
               onPress={handleCloseModal}
               activeOpacity={0.7}
             >
-              <Text style={styles.modalCancelText}>İptal</Text>
+              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -814,6 +833,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   interestTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 20,

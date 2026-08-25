@@ -30,9 +30,10 @@ export function ScreenHeader({ title, subtitle, rightActions, style }: ScreenHea
               key={index}
               onPress={action.onPress}
               style={styles.actionButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               testID={action.testID}
             >
-              <MaterialIcons name={action.icon as any} size={24} color={colors.text} />
+              <MaterialIcons name={action.icon as any} size={24} color={colors.textDark} />
             </TouchableOpacity>
           ))}
         </View>
@@ -56,12 +57,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.fontSize["3xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     marginBottom: spacing.xs / 2,
   },
   subtitle: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     fontWeight: typography.fontWeight.medium,
   },
   rightSection: {

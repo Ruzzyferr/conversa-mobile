@@ -106,8 +106,8 @@ function RootLayoutNav() {
                       title: "Chat",
                     }}
                   />
-                  <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
                   <Stack.Screen name="profile-edit" options={{ headerShown: false }} />
+                  <Stack.Screen name="verify-profile" options={{ headerShown: false }} />
                 </Stack>
               </ThemeProvider>
             </PremiumProvider>

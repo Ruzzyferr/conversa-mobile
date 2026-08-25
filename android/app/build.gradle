@@ -196,3 +196,9 @@ dependencies {
     }
 }
 
+
+// Firebase / FCM for push notifications. Conditional so local builds keep
+// working until google-services.json is dropped into android/app/.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}

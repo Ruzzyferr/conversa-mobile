@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -9,10 +9,14 @@ import {
   TextInput,
   Modal,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { OptimizedImage } from "@/src/components/ui/OptimizedImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { Swipeable } from "react-native-gesture-handler";
+import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -20,6 +24,7 @@ import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { ScreenHeader } from "@/src/components/ui/ScreenHeader";
 import { EmptyState } from "@/src/components/ui/EmptyState";
 import { ChatListItem } from "@/src/components/chat/ChatListItem";
+import { LeaveReasonModal } from "@/src/components/chat/LeaveReasonModal";
 import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
@@ -41,6 +46,7 @@ type Conversation = {
   lastMessage?: {
     text: string;
     audioUrl?: string | null;
+    imageUrl?: string | null;
     createdAt: string;
     senderUserId: string;
   } | null;
@@ -76,6 +82,15 @@ export default function ChatScreen() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { newMatches: socketNewMatches, chatRequests: socketChatRequests } = useSocket();
+
+  // Report / remove-chat state (swipe actions on conversation rows)
+  const [safetyTarget, setSafetyTarget] = useState<{
+    conversationId: string;
+    otherUserId: string;
+    displayName: string;
+  } | null>(null);
+  const [safetyMode, setSafetyMode] = useState<"report" | "remove">("report");
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   // Add socket new matches to local state (real-time)
   React.useEffect(() => {
@@ -276,6 +291,62 @@ export default function ChatScreen() {
     }
   };
 
+  const openSafetyModal = (item: Conversation, mode: "report" | "remove") => {
+    if (!item.conversationId) return;
+    // Close the open swipe row before showing the modal
+    swipeableRefs.current.get(item.conversationId)?.close();
+    setSafetyMode(mode);
+    setSafetyTarget({
+      conversationId: item.conversationId,
+      otherUserId: item.otherUser.userId,
+      displayName: item.otherUser.displayName,
+    });
+  };
+
+  const handleSafetySubmit = async (reason: string, details?: string) => {
+    if (!safetyTarget) return;
+    try {
+      if (safetyMode === "report") {
+        await api.reportUser(safetyTarget.otherUserId, reason, details);
+        setSafetyTarget(null);
+        Alert.alert(t('safety.report_thanks'));
+      } else {
+        await api.leaveConversation(safetyTarget.conversationId, reason, details);
+        const removedId = safetyTarget.conversationId;
+        setActiveConversations((prev) =>
+          prev.filter((c) => c.conversationId !== removedId)
+        );
+        setSafetyTarget(null);
+      }
+    } catch (error) {
+      console.error("Safety action failed:", error);
+      Alert.alert(t('common.error'), t('safety.action_error'));
+    }
+  };
+
+  const renderSwipeActions = (item: Conversation) => (
+    <View style={styles.swipeActions}>
+      <TouchableOpacity
+        style={[styles.swipeAction, styles.swipeActionReport]}
+        onPress={() => openSafetyModal(item, "report")}
+        accessibilityRole="button"
+        accessibilityLabel={t('safety.report_action')}
+      >
+        <MaterialIcons name="flag" size={22} color={colors.onMedia} />
+        <Text style={styles.swipeActionText}>{t('safety.report_action')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.swipeAction, styles.swipeActionRemove]}
+        onPress={() => openSafetyModal(item, "remove")}
+        accessibilityRole="button"
+        accessibilityLabel={t('safety.remove_action')}
+      >
+        <MaterialIcons name="delete" size={22} color={colors.onMedia} />
+        <Text style={styles.swipeActionText}>{t('safety.remove_action')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const calculateAge = (birthYear?: number) => {
     if (!birthYear) return "";
     const currentYear = new Date().getFullYear();
@@ -288,7 +359,7 @@ export default function ChatScreen() {
         <View style={styles.container}>
           <ScreenHeader title={t('chat.header')} />
           <View style={styles.loadingContainer}>
-            <EmptyState icon="💬" title={t('chat.loading')} description="" />
+            <EmptyState icon="chatbubbles-outline" title={t('chat.loading')} description="" />
           </View>
         </View>
       </SafeAreaView>
@@ -438,7 +509,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={{ marginTop: 50 }}>
               <EmptyState
-                icon="💬"
+                icon="chatbubbles-outline"
                 title={t('chat.no_messages')}
                 description={t('chat.no_messages_desc')}
                 ctaText={t('chat.discover')}
@@ -446,22 +517,59 @@ export default function ChatScreen() {
               />
             </View>
           }
-          renderItem={({ item }) => (
-            <ChatListItem
-              conversationId={item.conversationId!}
-              otherUser={item.otherUser}
-              lastMessage={item.lastMessage?.audioUrl ? t('chat.voice_message') : item.lastMessage?.text}
-              time={item.lastMessage?.createdAt}
-              isMyMessage={currentUserId ? item.lastMessage?.senderUserId === currentUserId : false}
-              unread={(item.unreadCount || 0) > 0}
-              unreadCount={item.unreadCount}
-              onPress={handleConversationPress}
-            />
-          )}
+          renderItem={({ item }) => {
+            const row = (
+              <ChatListItem
+                conversationId={item.conversationId!}
+                otherUser={item.otherUser}
+                lastMessage={
+                  item.lastMessage?.audioUrl
+                    ? t('chat.voice_message')
+                    : item.lastMessage?.imageUrl
+                      ? t('chat.photo_message')
+                      : item.lastMessage?.text
+                }
+                time={item.lastMessage?.createdAt}
+                isMyMessage={currentUserId ? item.lastMessage?.senderUserId === currentUserId : false}
+                unread={(item.unreadCount || 0) > 0}
+                unreadCount={item.unreadCount}
+                onPress={handleConversationPress}
+              />
+            );
+
+            // Swipe actions only make sense on real conversations
+            if (!item.conversationId) return row;
+
+            const conversationId = item.conversationId;
+            return (
+              <Swipeable
+                ref={(ref) => {
+                  if (ref) {
+                    swipeableRefs.current.set(conversationId, ref);
+                  } else {
+                    swipeableRefs.current.delete(conversationId);
+                  }
+                }}
+                renderRightActions={() => renderSwipeActions(item)}
+                overshootRight={false}
+              >
+                {row}
+              </Swipeable>
+            );
+          }}
         />
 
         {/* Banner Ad for non-premium users */}
         <BannerAdComponent style={{ marginBottom: 8 }} />
+
+        {/* Report / Remove chat modal */}
+        <LeaveReasonModal
+          visible={safetyTarget !== null}
+          mode={safetyMode}
+          displayName={safetyTarget?.displayName}
+          onClose={() => setSafetyTarget(null)}
+          onSubmit={handleSafetySubmit}
+        />
 
         {/* Reply Modal */}
         <Modal
@@ -473,7 +581,10 @@ export default function ChatScreen() {
             setReplyText("");
           }}
         >
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>{t('chat.reply')}</Text>
               <TextInput
@@ -513,7 +624,7 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </SafeAreaView>
@@ -677,6 +788,29 @@ const styles = StyleSheet.create({
   acceptButtonText: {
     fontSize: typography.fontSize.sm,
     fontWeight: "bold",
+    color: colors.onMedia,
+  },
+  // Swipe action styles
+  swipeActions: {
+    flexDirection: "row",
+    height: "100%",
+  },
+  swipeAction: {
+    width: 72,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  swipeActionReport: {
+    backgroundColor: colors.warning,
+  },
+  swipeActionRemove: {
+    backgroundColor: colors.error,
+  },
+  swipeActionText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.onMedia,
   },
   // Modal Styles

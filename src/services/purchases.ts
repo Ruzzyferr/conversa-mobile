@@ -107,16 +107,18 @@ export async function getOfferings(userId?: string): Promise<PurchasesOffering |
     await ensureInitialized(userId);
     const offerings = await Purchases.getOfferings();
 
-    // Debug logging
-    console.log("=== RevenueCat Offerings Debug ===");
-    console.log("All offerings:", JSON.stringify(offerings.all, null, 2));
-    console.log("Current offering:", offerings.current?.identifier);
-    console.log("Available packages:", offerings.current?.availablePackages.map(p => ({
-      identifier: p.identifier,
-      packageType: p.packageType,
-      productIdentifier: p.product.identifier,
-    })));
-    console.log("=================================");
+    // Debug logging (dev builds only - avoid dumping offerings JSON in production)
+    if (__DEV__) {
+      console.log("=== RevenueCat Offerings Debug ===");
+      console.log("All offerings:", JSON.stringify(offerings.all, null, 2));
+      console.log("Current offering:", offerings.current?.identifier);
+      console.log("Available packages:", offerings.current?.availablePackages.map(p => ({
+        identifier: p.identifier,
+        packageType: p.packageType,
+        productIdentifier: p.product.identifier,
+      })));
+      console.log("=================================");
+    }
 
     // Return the current offering (usually the default)
     return offerings.current;

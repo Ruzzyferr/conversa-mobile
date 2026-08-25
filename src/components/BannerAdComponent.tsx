@@ -9,7 +9,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePremium } from '@/src/state/premium';
+import { canServePersonalizedAds } from '@/src/services/rewardedAds';
+
+// Must clear the floating tab bar so the banner is not hidden behind it.
+import { tabBarClearance } from '@/src/config/layout';
 
 // Lazy import for AdMob banner
 let BannerAd: any = null;
@@ -54,6 +59,11 @@ function getBannerAdUnitId(): string {
     if (__DEV__) {
         return TestIds?.BANNER || 'ca-app-pub-3940256099942544/6300978111';
     }
+    if (Platform.OS === 'ios') {
+        return Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_IOS_BANNER_UNIT_ID ||
+            process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_UNIT_ID ||
+            'ca-app-pub-2953141598487358/2026927291'; // Production iOS banner
+    }
     return Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID ||
         process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID ||
         'ca-app-pub-2953141598487358/9667478087'; // Production banner
@@ -64,12 +74,13 @@ interface BannerAdComponentProps {
 }
 
 export function BannerAdComponent({ style }: BannerAdComponentProps) {
-    const { premiumEnabled } = usePremium();
+    const { premiumEnabled, isLoading: isPremiumLoading } = usePremium();
+    const insets = useSafeAreaInsets();
     const [isLoaded, setIsLoaded] = useState(false);
     const [isAvailable, setIsAvailable] = useState(false);
 
     useEffect(() => {
-        if (premiumEnabled || isExpoGo()) {
+        if (isPremiumLoading || premiumEnabled || isExpoGo()) {
             setIsAvailable(false);
             return;
         }
@@ -78,22 +89,25 @@ export function BannerAdComponent({ style }: BannerAdComponentProps) {
             setIsLoaded(loaded);
             setIsAvailable(loaded);
         });
-    }, [premiumEnabled]);
+    }, [premiumEnabled, isPremiumLoading]);
 
-    // Don't render for premium users or in Expo Go
-    if (premiumEnabled || !isAvailable || !isLoaded || !BannerAd) {
+    // Don't render while premium status is loading, for premium users, or in Expo Go
+    if (isPremiumLoading || premiumEnabled || !isAvailable || !isLoaded || !BannerAd) {
         return null;
     }
 
     const adUnitId = getBannerAdUnitId();
 
+    // Lift above the floating tab bar so the ad is fully visible (not hidden behind it).
+    const bottomOffset = tabBarClearance(insets.bottom);
+
     return (
-        <View style={[styles.container, style]}>
+        <View style={[styles.container, style, { marginBottom: bottomOffset }]}>
             <BannerAd
                 unitId={adUnitId}
                 size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
                 requestOptions={{
-                    requestNonPersonalizedAdsOnly: true,
+                    requestNonPersonalizedAdsOnly: !canServePersonalizedAds(),
                 }}
                 onAdLoaded={() => {
                     console.log('Banner ad loaded');

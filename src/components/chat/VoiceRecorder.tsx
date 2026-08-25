@@ -33,6 +33,7 @@ import {
     AudioPlayer,
 } from "expo-audio";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 
@@ -156,6 +157,7 @@ export function VoiceRecorder({
     onRecordingStateChange,
     disabled,
 }: VoiceRecorderProps) {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const [recordingState, setRecordingState] = useState<RecordingState>("idle");
     const [audioUri, setAudioUri] = useState<string | null>(null);
@@ -562,7 +564,7 @@ export function VoiceRecorder({
                     <View style={styles.modalIconContainer}>
                         <MaterialIcons name="mic" size={48} color={colors.primary} />
                     </View>
-                    <Text style={styles.modalTitle}>Mikrofon İzni Gerekli</Text>
+                    <Text style={styles.modalTitle}>{t('voice.permission_title')}</Text>
                     <Text style={styles.modalText}>
                         Ses mesajı gönderebilmek için mikrofon erişimine ihtiyacımız var.
                         Lütfen ayarlardan izin verin.
@@ -572,13 +574,13 @@ export function VoiceRecorder({
                             style={styles.modalButtonPrimary}
                             onPress={openAppSettings}
                         >
-                            <Text style={styles.modalButtonPrimaryText}>Ayarları Aç</Text>
+                            <Text style={styles.modalButtonPrimaryText}>{t('voice.open_settings')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.modalButtonSecondary}
                             onPress={() => setShowPermissionModal(false)}
                         >
-                            <Text style={styles.modalButtonSecondaryText}>İptal</Text>
+                            <Text style={styles.modalButtonSecondaryText}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -626,7 +628,7 @@ export function VoiceRecorder({
                         size={18}
                         color={colors.textSecondary}
                     />
-                    <Text style={styles.cancelText}>İptal için kaydır</Text>
+                    <Text style={styles.cancelText}>{t('voice.slide_to_cancel')}</Text>
                 </Animated.View>
 
                 <GestureDetector gesture={composedGesture}>
@@ -734,7 +736,7 @@ const styles = StyleSheet.create({
     durationText: {
         fontSize: 15,
         fontWeight: "600",
-        color: colors.text,
+        color: colors.textDark,
         letterSpacing: 0.5,
     },
     cancelArea: {
@@ -745,7 +747,7 @@ const styles = StyleSheet.create({
     },
     cancelText: {
         fontSize: 13,
-        color: colors.textSecondary,
+        color: colors.textSecondaryDark,
         fontWeight: "500",
     },
     micCircle: {
@@ -826,7 +828,7 @@ const styles = StyleSheet.create({
     previewDuration: {
         fontSize: 14,
         fontWeight: "600",
-        color: colors.text,
+        color: colors.textDark,
         minWidth: 40,
         textAlign: "center",
         letterSpacing: 0.5,

@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Dimensions, TouchableOpacity, LayoutChangeEvent } from 'react-native';
-import { Tabs, useFocusEffect } from 'expo-router';
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, LayoutChangeEvent, Modal, ActivityIndicator } from 'react-native';
+import { Tabs, useFocusEffect, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/src/theme/colors';
+import { spacing } from '@/src/theme/spacing';
+import { typography } from '@/src/theme/typography';
+import { SAFETY_REASON_LABEL_KEYS } from '@/src/components/chat/LeaveReasonModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/src/services/api';
 import { getToken } from '@/src/services/authStore';
 import { badgeUpdater } from '@/src/utils/badgeUpdater';
+import { registerPushToken, addNotificationResponseListener } from '@/src/services/pushNotifications';
 import { useDeviceType } from '@/src/hooks/useDeviceType';
 import { useSocket } from '@/src/state/socket';
 import { MatchPopup } from '@/src/components/MatchPopup';
@@ -19,8 +24,12 @@ import Animated, {
 
 const TAB_COUNT = 4;
 
+// Ensure the moderation warning modal is shown at most once per app session
+let moderationWarningShownThisSession = false;
+
 // Custom Tab Bar with sliding indicator
 function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessagesCount, bottomMargin, isTablet }: any) {
+  const { t } = useTranslation();
   const [tabWidth, setTabWidth] = useState(0);
 
   // Animated indicator position
@@ -46,10 +55,10 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessages
   };
 
   const tabs = [
-    { name: 'home', icon: 'home', outlineIcon: 'home-outline', label: 'Home' },
-    { name: 'chat', icon: 'chatbubbles', outlineIcon: 'chatbubbles-outline', label: 'Chat' },
-    { name: 'likes', icon: 'heart', outlineIcon: 'heart-outline', label: 'Likes' },
-    { name: 'profile', icon: 'person', outlineIcon: 'person-outline', label: 'Profile' },
+    { name: 'home', icon: 'home', outlineIcon: 'home-outline', label: t('tabs.home') },
+    { name: 'chat', icon: 'chatbubbles', outlineIcon: 'chatbubbles-outline', label: t('tabs.chat') },
+    { name: 'likes', icon: 'heart', outlineIcon: 'heart-outline', label: t('tabs.likes') },
+    { name: 'profile', icon: 'person', outlineIcon: 'person-outline', label: t('tabs.profile') },
   ];
 
   // On tablets, center the tab bar with a max width
@@ -132,22 +141,57 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessages
 }
 
 export default function TabLayout() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { isTablet } = useDeviceType();
   const { likesCount: realtimeLikesCount, newMatches, clearNewMatches } = useSocket();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMatchPopup, setShowMatchPopup] = useState(false);
+  const [moderationWarning, setModerationWarning] = useState<{
+    reason: string;
+    warnedAt: string;
+  } | null>(null);
+  const [ackingWarning, setAckingWarning] = useState(false);
   const bottomMargin = Math.max(insets.bottom, 16);
+
+  // Check for a pending moderation warning once per app session
+  useEffect(() => {
+    if (moderationWarningShownThisSession) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const me = await api.getMe();
+        if (me.moderationWarning) {
+          moderationWarningShownThisSession = true;
+          setModerationWarning(me.moderationWarning);
+        }
+      } catch (error) {
+        // Non-critical: skip the warning check on failure
+      }
+    })();
+  }, []);
+
+  const handleAckWarning = async () => {
+    setAckingWarning(true);
+    try {
+      await api.ackModerationWarning();
+    } catch (error) {
+      // Best effort — still dismiss locally; backend will re-deliver if not acked
+    } finally {
+      setAckingWarning(false);
+      setModerationWarning(null);
+    }
+  };
 
   // Combine API count with real-time socket updates
   const totalLikesCount = incomingRequestsCount + realtimeLikesCount;
 
-  // Show match popup when new match arrives
+  // Show match popup when new match arrives; hide it when the queue is
+  // cleared elsewhere (e.g. likes screen shows its own match modal on accept).
   useEffect(() => {
-    if (newMatches.length > 0) {
-      setShowMatchPopup(true);
-    }
+    setShowMatchPopup(newMatches.length > 0);
   }, [newMatches]);
 
   const handleCloseMatchPopup = () => {
@@ -200,6 +244,17 @@ export default function TabLayout() {
     return unsubscribe;
   }, []);
 
+  // Push notifications: register token once logged-in, navigate on tap.
+  // No-ops silently until Firebase credentials ship in the build.
+  const router = useRouter();
+  useEffect(() => {
+    registerPushToken();
+    const unsubscribe = addNotificationResponseListener((path) => {
+      router.push(path as any);
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <>
       <Tabs
@@ -217,10 +272,10 @@ export default function TabLayout() {
           animation: 'fade',
         }}
       >
-        <Tabs.Screen name="home" options={{ title: 'Home' }} />
-        <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
-        <Tabs.Screen name="likes" options={{ title: 'Likes' }} />
-        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+        <Tabs.Screen name="home" options={{ title: t('tabs.home') }} />
+        <Tabs.Screen name="chat" options={{ title: t('tabs.chat') }} />
+        <Tabs.Screen name="likes" options={{ title: t('tabs.likes') }} />
+        <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />
       </Tabs>
 
       {/* Match Popup */}
@@ -230,6 +285,40 @@ export default function TabLayout() {
         onClose={handleCloseMatchPopup}
         onSendMessage={handleCloseMatchPopup}
       />
+
+      {/* Moderation Warning Modal */}
+      <Modal
+        visible={moderationWarning !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.warningOverlay}>
+          <View style={styles.warningCard}>
+            <Text style={styles.warningTitle}>{t('safety.warning_title')}</Text>
+            <Text style={styles.warningBody}>
+              {t('safety.warning_body', {
+                reason: moderationWarning
+                  ? t(SAFETY_REASON_LABEL_KEYS[moderationWarning.reason] ?? 'safety.reason_other')
+                  : '',
+              })}
+            </Text>
+            <Text style={styles.warningNote}>{t('safety.warning_note')}</Text>
+            <TouchableOpacity
+              style={[styles.warningButton, ackingWarning && styles.warningButtonDisabled]}
+              onPress={handleAckWarning}
+              disabled={ackingWarning}
+              accessibilityRole="button"
+            >
+              {ackingWarning ? (
+                <ActivityIndicator size="small" color={colors.onMedia} />
+              ) : (
+                <Text style={styles.warningButtonText}>{t('safety.warning_ack')}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -305,5 +394,57 @@ const styles = StyleSheet.create({
     color: colors.onMedia,
     fontSize: 9,
     fontWeight: 'bold',
+  },
+  warningOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  warningCard: {
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderRadius: 20,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  warningTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textDark,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  warningBody: {
+    fontSize: typography.fontSize.base,
+    color: colors.textDark,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.md,
+  },
+  warningNote: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  warningButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warningButtonDisabled: {
+    opacity: 0.5,
+  },
+  warningButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.onMedia,
   },
 });

@@ -2,12 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal, Dimensions } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { languageLabel } from "@/src/data/languages";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { getToken, clearToken } from "@/src/services/authStore";
+import { signOutSocial } from "@/src/services/socialAuth";
 import { api } from "@/src/services/api";
 import { usePremium } from "@/src/state/premium";
 import {
@@ -20,12 +22,13 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
+import { UpsellModal } from "@/src/components/UpsellModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<{
@@ -34,6 +37,8 @@ export default function ProfileScreen() {
   } | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showBoostUpsell, setShowBoostUpsell] = useState(false);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   // Premium State
   const [premiumStatus, setPremiumStatus] = useState<{
     isPremium: boolean;
@@ -167,24 +172,8 @@ export default function ProfileScreen() {
         ]
       );
     } else {
-      // No boosts remaining - Offer purchase or premium
-      const priceString = boostPackage?.product.priceString || "$4.99";
-
-      Alert.alert(
-        t('profile.boost_no_credits_title'),
-        t('profile.boost_no_credits_msg'),
-        [
-          { text: t('common.cancel'), style: "cancel" },
-          !premiumStatus?.isPremium ? {
-            text: t('profile.upgrade_premium'),
-            onPress: () => router.push("/premium")
-          } : null,
-          {
-            text: t('profile.buy_boost', { price: priceString }),
-            onPress: handlePurchaseBoost
-          }
-        ].filter(Boolean) as any
-      );
+      // No boosts remaining — show the upsell modal (premium or boost pack)
+      setShowBoostUpsell(true);
     }
   };
 
@@ -273,23 +262,35 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
+      {/*
+        The screen is edge-to-edge and has no header, so scrolled content used
+        to run straight into the clock and status icons. An opaque strip the
+        height of the status bar keeps it legible without giving up the
+        full-bleed hero.
+      */}
+      <View
+        style={[styles.statusBarScrim, { height: insets.top }]}
+        pointerEvents="none"
+      />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
-        <View style={styles.heroSection}>
+        <View style={[styles.heroSection, { paddingTop: insets.top + spacing.lg }]}>
 
           {/* Profile Photo with Glow */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatarGlow} />
             {profile?.photos && profile.photos.length > 0 ? (
-              <Image
-                source={{ uri: profile.photos[0] }}
-                style={[styles.avatar, boostStatus?.active && { borderColor: colors.boostGold, borderWidth: 2 }]}
-                resizeMode="cover"
-              />
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowPhotoViewer(true)}>
+                <Image
+                  source={{ uri: profile.photos[0] }}
+                  style={[styles.avatar, boostStatus?.active && { borderColor: colors.boostGold, borderWidth: 2 }]}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarPlaceholderText}>
@@ -310,10 +311,15 @@ export default function ProfileScreen() {
           </View>
 
           {/* Name and Location */}
-          <Text style={styles.displayName}>
-            {profile?.displayName || "Profil"}
-            {age && <Text style={styles.age}>, {age}</Text>}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.displayName}>
+              {profile?.displayName || "Profil"}
+              {age && <Text style={styles.age}>, {age}</Text>}
+            </Text>
+            {(userInfo?.user as any)?.isVerified && (
+              <Ionicons name="checkmark-circle" size={22} color="#4C9EEB" style={styles.verifiedIcon} />
+            )}
+          </View>
           {profile?.city && (
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color="rgba(255,255,255,0.8)" />
@@ -333,9 +339,41 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Verification nudge (Bumble-style): shown until the account is verified */}
+        {userInfo && !(userInfo.user as any)?.isVerified && (
+          <TouchableOpacity
+            style={styles.verifyCard}
+            activeOpacity={0.85}
+            onPress={() => router.push("/verify-profile" as any)}
+          >
+            <View style={styles.verifyIconWrap}>
+              <Ionicons
+                name={(userInfo.user as any)?.verificationStatus === "PENDING" ? "hourglass" : "shield-checkmark"}
+                size={22}
+                color={colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.verifyTitle}>
+                {(userInfo.user as any)?.verificationStatus === "PENDING"
+                  ? t("verify.bubble_pending_title")
+                  : t("verify.bubble_title")}
+              </Text>
+              <Text style={styles.verifyDesc}>
+                {(userInfo.user as any)?.verificationStatus === "PENDING"
+                  ? t("verify.bubble_pending_desc")
+                  : t("verify.bubble_desc")}
+              </Text>
+            </View>
+            {(userInfo.user as any)?.verificationStatus !== "PENDING" && (
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            )}
+          </TouchableOpacity>
+        )}
+
         {/* Quick Stats */}
         {profile && (
-          <View style={styles.statsContainer}>
+          <View style={[styles.statsContainer, userInfo && !(userInfo.user as any)?.isVerified && { marginTop: spacing.md }]}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{profile.languagesNative?.length || 0}</Text>
               <Text style={styles.statLabel}>{t('profile.native_language')}</Text>
@@ -373,7 +411,7 @@ export default function ProfileScreen() {
                       colors={[colors.primary + '30', colors.primary + '10']}
                       style={styles.languageTag}
                     >
-                      <Text style={styles.languageTagText}>{lang}</Text>
+                      <Text style={styles.languageTagText}>{languageLabel(lang, i18n.language)}</Text>
                     </LinearGradient>
                   ))}
                 </View>
@@ -390,7 +428,7 @@ export default function ProfileScreen() {
                       colors={[colors.accent + '30', colors.accent + '10']}
                       style={styles.languageTag}
                     >
-                      <Text style={[styles.languageTagText, { color: colors.accent }]}>{lang}</Text>
+                      <Text style={[styles.languageTagText, { color: colors.accent }]}>{languageLabel(lang, i18n.language)}</Text>
                     </LinearGradient>
                   ))}
                 </View>
@@ -530,20 +568,21 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.settingsItem} onPress={() => {
             Alert.alert(
-              "Delete Account",
-              "Are you sure you want to permanently delete your account? This action cannot be undone.",
+              t('profile.delete_account'),
+              t('profile.delete_account_confirm'),
               [
-                { text: "Cancel", style: "cancel" },
+                { text: t('common.cancel'), style: "cancel" },
                 {
-                  text: "Delete",
+                  text: t('profile.delete_account_cta'),
                   style: "destructive",
                   onPress: async () => {
                     try {
                       await api.deleteAccount();
+                      await signOutSocial();
                       await clearToken();
                       router.replace("/(auth)/welcome");
                     } catch (e) {
-                      Alert.alert("Error", "Failed to delete account");
+                      Alert.alert(t('common.error'), t('profile.delete_account_failed'));
                     }
                   }
                 }
@@ -554,7 +593,7 @@ export default function ProfileScreen() {
               <View style={[styles.settingsIcon, { backgroundColor: colors.error + '20' }]}>
                 <Ionicons name="trash-outline" size={20} color={colors.error} />
               </View>
-              <Text style={[styles.settingsItemText, { color: colors.error }]}>Delete Account</Text>
+              <Text style={[styles.settingsItemText, { color: colors.error }]}>{t('profile.delete_account')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>
@@ -563,6 +602,55 @@ export default function ProfileScreen() {
 
       {/* Banner Ad for non-premium users */}
       <BannerAdComponent style={{ marginBottom: 8 }} />
+
+      {/* Boost upsell modal */}
+      <UpsellModal
+        visible={showBoostUpsell}
+        variant="boost"
+        onClose={() => setShowBoostUpsell(false)}
+        onPurchased={() => {
+          loadBoostStatus();
+        }}
+      />
+
+      {/* Fullscreen photo viewer */}
+      <Modal
+        visible={showPhotoViewer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPhotoViewer(false)}
+      >
+        <View style={styles.photoViewerOverlay}>
+          <TouchableOpacity
+            style={[styles.photoViewerClose, { top: insets.top + spacing.md }]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => setShowPhotoViewer(false)}
+          >
+            <Ionicons name="close" size={28} color="#FFF" />
+          </TouchableOpacity>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.photoViewerPager}
+          >
+            {(profile?.photos || []).map((photo: string, index: number) => (
+              <View key={index} style={styles.photoViewerPage}>
+                <Image
+                  source={{ uri: photo }}
+                  style={styles.photoViewerImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+          {(profile?.photos?.length || 0) > 1 && (
+            <Text style={styles.photoViewerHint}>
+              {profile.photos.length} {t('profile.photos_swipe_hint', { defaultValue: 'fotoğraf • kaydır' })}
+            </Text>
+          )}
+        </View>
+      </Modal>
 
       {/* Logout Confirmation Modal */}
       <Modal
@@ -619,6 +707,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  statusBarScrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.backgroundDark,
+    zIndex: 10,
+  },
   scrollContent: {
     paddingBottom: 100,
   },
@@ -626,7 +722,6 @@ const styles = StyleSheet.create({
   // Hero Section
   heroSection: {
     alignItems: "center",
-    paddingTop: 60,
     paddingBottom: 30,
     position: "relative",
   },
@@ -702,6 +797,44 @@ const styles = StyleSheet.create({
   },
 
   // Name & Location
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  verifiedIcon: {
+    marginBottom: 2,
+  },
+  verifyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder ?? colors.border,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
+  verifyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primaryTint,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifyTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  verifyDesc: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   displayName: {
     fontSize: 28,
     fontWeight: "bold",
@@ -945,6 +1078,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondaryDark,
     marginTop: 2,
+  },
+
+  // Fullscreen photo viewer
+  photoViewerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+  },
+  photoViewerClose: {
+    position: "absolute",
+    right: spacing.md,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  photoViewerPager: {
+    flexGrow: 0,
+    height: "80%",
+  },
+  photoViewerPage: {
+    width: SCREEN_WIDTH,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  photoViewerImage: {
+    width: SCREEN_WIDTH,
+    height: "100%",
+  },
+  photoViewerHint: {
+    textAlign: "center",
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    marginTop: spacing.md,
   },
 
   // Modal

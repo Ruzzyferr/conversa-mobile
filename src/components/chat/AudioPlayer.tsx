@@ -9,7 +9,8 @@ import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withTiming,
-    Easing
+    Easing,
+    type SharedValue
 } from "react-native-reanimated";
 
 type AudioPlayerProps = {
@@ -28,7 +29,7 @@ const WaveformBar = ({
 }: {
     heightScale: number;
     index: number;
-    progress: Animated.SharedValue<number>;
+    progress: SharedValue<number>;
     isMyMessage: boolean;
 }) => {
     const barPosition = index / WAVEFORM_BARS;

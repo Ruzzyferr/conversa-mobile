@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
@@ -21,8 +23,11 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { DiscoveryCard } from "@/src/components/DiscoveryCard";
 import { SwipeDeck, SwipeDeckHandle } from "@/src/components/SwipeDeck";
+import { DeckActionBar } from "@/src/components/DeckActionBar";
+import { tabBarClearance } from "@/src/config/layout";
 import { FilterSheet, FilterParams } from "@/src/components/FilterSheet";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
+import { UpsellModal } from "@/src/components/UpsellModal";
 import { api } from "@/src/services/api";
 import { getToken } from "@/src/services/authStore";
 import { showRewardedAd } from "@/src/services/rewardedAds";
@@ -57,6 +62,7 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
+  const [upsellVariant, setUpsellVariant] = useState<null | "boost" | "favorite">(null);
   const [boostStatus, setBoostStatus] = useState<{
     active: boolean;
     endsAt?: string;
@@ -120,9 +126,9 @@ export default function HomeScreen() {
   const [successMessage, setSuccessMessage] = useState("");
   const [showDirectLimitModal, setShowDirectLimitModal] = useState(false);
 
-  // Swipe counter for interstitial ads (show every 5 swipes for non-premium)
+  // Swipe counter for interstitial ads (show every 10 swipes for non-premium)
   const swipeCountRef = useRef(0);
-  const SWIPES_BEFORE_AD = 5;
+  const SWIPES_BEFORE_AD = 10;
 
   const { premiumEnabled, refreshPremiumStatus } = usePremium();
 
@@ -141,7 +147,24 @@ export default function HomeScreen() {
     // Initialize interstitial ads
     initializeInterstitialAds();
     loadOfferings();
+    loadLikeStatus();
   }, []);
+
+  // Transparent daily-like counter: fetch on mount so the user always sees
+  // how many likes remain instead of discovering the limit by surprise.
+  const loadLikeStatus = async () => {
+    try {
+      const status = await api.getLikeStatus();
+      if (!status.isPremium && status.likesRemaining !== null && status.likesLimit !== null) {
+        setLikeLimitInfo({
+          likesUsed: status.likesUsed,
+          likesLimit: status.likesLimit,
+        });
+      }
+    } catch {
+      // Non-critical
+    }
+  };
 
   const loadOfferings = async () => {
     try {
@@ -163,9 +186,11 @@ export default function HomeScreen() {
     }
   };
 
-  // Check and show interstitial ad every 5 swipes
   const maybeShowInterstitialAd = useCallback(async () => {
     if (isUserPremium) return; // Premium users don't see ads
+    // Never cover a match: the like response opens the match modal a moment
+    // after the swipe, and an ad on top of it buries the best moment in the app.
+    if (showMatchModal) return;
 
     swipeCountRef.current += 1;
 
@@ -177,7 +202,7 @@ export default function HomeScreen() {
         preloadInterstitialAd();
       }
     }
-  }, [isUserPremium]);
+  }, [isUserPremium, showMatchModal]);
 
   const loadBoostStatus = async () => {
     try {
@@ -364,6 +389,60 @@ export default function HomeScreen() {
     setCurrentIndex(0);
   }, []);
 
+  const handleBlock = useCallback((card: DiscoveryCard) => {
+    if (!card?.userId) return;
+    Alert.alert(
+      t('safety.block_confirm_title'),
+      t('safety.block_confirm_msg'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('safety.block'),
+          style: 'destructive',
+          onPress: async () => {
+            removeTopCard(card);
+            try {
+              await api.blockUser(card.userId);
+              Alert.alert(t('safety.blocked_toast'));
+            } catch (e) {
+              console.error('block failed', e);
+            }
+          },
+        },
+      ]
+    );
+  }, [removeTopCard, t]);
+
+  const handleReport = useCallback((card: DiscoveryCard) => {
+    if (!card?.userId) return;
+    const reasons: Array<{ label: string; value: "SPAM" | "HARASSMENT" | "NUDITY" | "SCAM" | "OTHER" }> = [
+      { label: t('safety.reason_spam'), value: 'SPAM' },
+      { label: t('safety.reason_harassment'), value: 'HARASSMENT' },
+      { label: t('safety.reason_nudity'), value: 'NUDITY' },
+      { label: t('safety.reason_scam'), value: 'SCAM' },
+      { label: t('safety.reason_other'), value: 'OTHER' },
+    ];
+    Alert.alert(
+      t('safety.report_title'),
+      t('safety.report_msg'),
+      [
+        ...reasons.map((r) => ({
+          text: r.label,
+          onPress: async () => {
+            removeTopCard(card);
+            try {
+              await api.reportUser(card.userId, r.value);
+              Alert.alert(t('safety.reported_toast'));
+            } catch (e) {
+              console.error('report failed', e);
+            }
+          },
+        })),
+        { text: t('common.cancel'), style: 'cancel' as const },
+      ]
+    );
+  }, [removeTopCard, t]);
+
   const handleLike = async (cardOverride?: DiscoveryCard) => {
     // SwipeDeck always passes the card being swiped (items[0])
     // We MUST use cardOverride if provided, as feed[0] might be stale
@@ -434,8 +513,18 @@ export default function HomeScreen() {
     try {
       setWatchingAd(true);
 
-      // Show rewarded ad
-      const adResult = await showRewardedAd();
+      // Ask the backend for a one-time proof token first; AdMob echoes it
+      // back through its signed verification callback, which is what lets the
+      // server grant the reward on evidence rather than on trust. Failing to
+      // get one is not fatal while SSV enforcement is still rolling out.
+      let ssv: { nonce: string; userId: string } | undefined;
+      try {
+        ssv = await api.requestAdRewardToken("LIKE");
+      } catch {
+        ssv = undefined;
+      }
+
+      const adResult = await showRewardedAd(ssv);
 
       if (!adResult.success) {
         if (adResult.error?.includes('closed without earning')) {
@@ -448,7 +537,7 @@ export default function HomeScreen() {
       }
 
       // Call backend to grant reward
-      const rewardResult = await api.rewardAdLike();
+      const rewardResult = await api.rewardAdLike(ssv?.nonce);
 
       // Update like limit info
       setLikeLimitInfo({
@@ -590,23 +679,8 @@ export default function HomeScreen() {
       }, 2000);
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 429) {
-        // Direct message limit reached - show purchase option
-        Alert.alert(
-          t('home.favorite.limit_title'),
-          t('home.favorite.limit_msg'),
-          [
-            {
-              text: t('common.cancel'),
-              style: "cancel",
-            },
-            {
-              text: t('home.favorite.purchase_btn'),
-              onPress: () => {
-                router.push("/premium");
-              },
-            },
-          ]
-        );
+        // Direct message limit reached — show the upsell modal
+        setUpsellVariant("favorite");
       } else {
         const errorMessage =
           error instanceof Error ? error.message : t('chat.send_error');
@@ -687,26 +761,18 @@ export default function HomeScreen() {
     moveToNext();
   };
 
-  const handleBoost = async (minutes: 60 | 180 | 720) => {
+  const handleBoost = async () => {
     try {
+      // Boost duration is fixed server-side (30 minutes); there is no per-duration
+      // option, so we activate a single boost.
       await api.activateBoost();
       await loadBoostStatus();
       setShowBoostModal(false);
-      Alert.alert(t('home.ad.success'), t('home.boost.active', { time: `${minutes}m` }));
+      Alert.alert(t('home.ad.success'), t('home.boost.activated'));
     } catch (error) {
       if (error instanceof AxiosError && (error.response?.status === 403 || error.response?.status === 402)) {
-        Alert.alert(
-          t('home.boost.premium_title'),
-          t('home.boost.premium_msg'),
-          [
-            { text: t('common.cancel'), style: "cancel" },
-            {
-              text: t('home.dm_limit.premium_btn'),
-              onPress: () => router.push("/premium"),
-            },
-          ]
-        );
         setShowBoostModal(false);
+        setUpsellVariant("boost");
       } else {
         const errorMessage =
           error instanceof Error ? error.message : t('home.boost.activation_error');
@@ -731,7 +797,7 @@ export default function HomeScreen() {
   if (loading && feed.length === 0) {
     return (
       <SafeAreaView>
-        <View style={styles.content}>
+        <View style={[styles.content, styles.loadingContent]}>
           <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -757,48 +823,71 @@ export default function HomeScreen() {
                 </LinearGradient>
               )}
             </View>
-            {boostStatus?.active && (
+            <View style={styles.headerRight}>
+              {boostStatus?.active && (
+                <TouchableOpacity
+                  style={styles.boostPill}
+                  onPress={() => setShowBoostModal(true)}
+                >
+                  <Text style={styles.boostPillText}>
+                    ⚡ {getTimeRemaining()}
+                  </Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={styles.boostPill}
-                onPress={() => setShowBoostModal(true)}
+                style={styles.filterButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={() => setShowFilterModal(true)}
               >
-                <Text style={styles.boostPillText}>
-                  ⚡ {getTimeRemaining()}
-                </Text>
+                <MaterialIcons name="tune" size={24} color={colors.textDark} />
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>✨</Text>
-            <Text style={styles.emptyTitle}>
-              {hasNonDefaultFilters
-                ? t('home.empty.filtered_title')
-                : t('home.empty.title')}
-            </Text>
-            <Text style={styles.emptyText}>
-              {hasNonDefaultFilters
-                ? t('home.empty.filtered_text')
-                : t('home.empty.text')}
-            </Text>
-            <PrimaryButton
-              title={t('home.empty.refresh')}
-              onPress={() => loadFeed()}
-              style={styles.refreshButton}
-            />
-            {hasNonDefaultFilters && (
-              <TouchableOpacity
-                onPress={handleResetFilters}
-                style={styles.resetFiltersLink}
-                accessibilityRole="button"
-                accessibilityLabel={t('home.empty.reset_filters')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.resetFiltersText}>
-                  {t('home.empty.reset_filters')}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </Card>
+          <View style={styles.emptyWrap}>
+            <Card style={styles.emptyCard} elevated>
+              <View style={styles.emptyEmojiBadge}>
+                <Text style={styles.emptyEmoji}>✨</Text>
+              </View>
+              <Text style={styles.emptyTitle}>
+                {hasNonDefaultFilters
+                  ? t('home.empty.filtered_title')
+                  : t('home.empty.title')}
+              </Text>
+              <Text style={styles.emptyText}>
+                {hasNonDefaultFilters
+                  ? t('home.empty.filtered_text')
+                  : t('home.empty.text')}
+              </Text>
+              <PrimaryButton
+                title={t('home.empty.refresh')}
+                onPress={() => loadFeed()}
+                style={styles.refreshButton}
+              />
+              {hasNonDefaultFilters && (
+                <TouchableOpacity
+                  onPress={handleResetFilters}
+                  style={styles.resetFiltersLink}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('home.empty.reset_filters')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.resetFiltersText}>
+                    {t('home.empty.reset_filters')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </Card>
+          </View>
+          <FilterSheet
+            visible={showFilterModal}
+            onClose={() => setShowFilterModal(false)}
+            onApply={(newFilters) => {
+              setFilters(newFilters);
+              loadFeed(true, newFilters);
+            }}
+            initialFilters={filters}
+            isPremium={isUserPremium}
+          />
         </View>
       </SafeAreaView>
     );
@@ -840,14 +929,35 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+            {!isUserPremium && likeLimitInfo && (
+              <TouchableOpacity
+                style={styles.likeCounterPill}
+                hitSlop={{ top: 10, bottom: 10 }}
+                onPress={() =>
+                  Alert.alert(
+                    t('home.likes_left_title'),
+                    t('home.likes_left_msg', {
+                      remaining: Math.max(0, likeLimitInfo.likesLimit - likeLimitInfo.likesUsed),
+                      limit: likeLimitInfo.likesLimit,
+                    })
+                  )
+                }
+              >
+                <Ionicons name="heart" size={14} color={colors.primaryTintText} />
+                <Text style={styles.likeCounterText}>
+                  {Math.max(0, likeLimitInfo.likesLimit - likeLimitInfo.likesUsed)}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.filterButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               onPress={() => {
                 console.log("Filter button pressed, opening modal");
                 setShowFilterModal(true);
               }}
             >
-              <Text style={styles.filterButtonText}>☰</Text>
+              <MaterialIcons name="tune" size={24} color={colors.textDark} />
             </TouchableOpacity>
           </View>
         </View>
@@ -880,23 +990,28 @@ export default function HomeScreen() {
                 onSwipeLeft={() => swipeDeckRef.current?.swipeLeft()}
                 onSwipeRight={() => swipeDeckRef.current?.swipeRight()}
                 onFavorite={() => handleFavorite(card)}
+                onBlock={() => handleBlock(card)}
+                onReport={() => handleReport(card)}
                 favoritesRemaining={favoriteInfo?.favoritesRemaining}
                 isPremium={isUserPremium}
               />
             )}
-            FavoriteButton={() => (
-              <TouchableOpacity
-                onPress={() => feed.length > 0 && handleFavorite(feed[0])}
-                activeOpacity={0.8}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              >
-                <View style={styles.favoriteButtonOverlayInner}>
-                  <MaterialIcons name="star" size={24} color={colors.favoriteBlue} />
-                </View>
-              </TouchableOpacity>
-            )}
           />
         </View>
+
+        {/* Primary actions, always on screen (see DeckActionBar). The tab bar
+            floats, so the row has to reserve its own clearance. */}
+        {feed.length > 0 && (
+          <View style={{ paddingBottom: tabBarClearance(insets.bottom) }}>
+            <DeckActionBar
+              onPass={() => swipeDeckRef.current?.swipeLeft()}
+              onLike={() => swipeDeckRef.current?.swipeRight()}
+              onFavorite={() => handleFavorite(feed[0])}
+              favoritesRemaining={favoriteInfo?.favoritesRemaining}
+              isPremium={isUserPremium}
+            />
+          </View>
+        )}
 
         {/* Filter Modal */}
         <FilterSheet
@@ -963,24 +1078,10 @@ export default function HomeScreen() {
               <View style={styles.boostOptions}>
                 <TouchableOpacity
                   style={styles.boostOption}
-                  onPress={() => handleBoost(60)}
+                  onPress={() => handleBoost()}
                 >
-                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.1h')}</Text>
-                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.1h_sub')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.boostOption}
-                  onPress={() => handleBoost(180)}
-                >
-                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.3h')}</Text>
-                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.3h_sub')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.boostOption}
-                  onPress={() => handleBoost(720)}
-                >
-                  <Text style={styles.boostOptionTitle}>{t('home.boost.options.12h')}</Text>
-                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.options.12h_sub')}</Text>
+                  <Text style={styles.boostOptionTitle}>{t('home.boost.activate')}</Text>
+                  <Text style={styles.boostOptionSubtitle}>{t('home.boost.duration_note')}</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
@@ -992,6 +1093,16 @@ export default function HomeScreen() {
             </Card>
           </View>
         </Modal>
+
+        {/* Upsell modal: boost / favorite limits */}
+        <UpsellModal
+          visible={upsellVariant !== null}
+          variant={upsellVariant || "boost"}
+          onClose={() => setUpsellVariant(null)}
+          onPurchased={() => {
+            loadBoostStatus();
+          }}
+        />
 
         {/* Like Limit Modal */}
         {likeLimitInfo && (
@@ -1016,7 +1127,10 @@ export default function HomeScreen() {
             setFavoriteMessage("");
           }}
         >
-          <View style={styles.favoriteModalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.favoriteModalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <View style={styles.favoriteModalContent}>
               <Text style={styles.favoriteModalTitle}>{t('home.favorite.modal_title')}</Text>
               <Text style={styles.favoriteModalSubtitle}>
@@ -1059,7 +1173,7 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Success Modal */}
@@ -1200,9 +1314,21 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     borderRadius: 8,
   },
-  filterButtonText: {
-    fontSize: typography.fontSize.lg,
-    color: colors.textDark,
+  likeCounterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2 + 2,
+    borderRadius: 16,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+  },
+  likeCounterText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primaryTintText,
   },
   boostPill: {
     paddingHorizontal: spacing.sm,
@@ -1230,7 +1356,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: spacing.xs,
     position: "relative",
-    minHeight: 650, // Ensure enough space for stacked cards
     width: "100%",
   },
   stackCard: {
@@ -1246,37 +1371,62 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 400,
   },
+  loadingContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
   loadingText: {
     fontSize: typography.fontSize.base,
     color: colors.textSecondary,
     textAlign: "center",
-    marginTop: spacing.xl,
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    // optically centered: leave a bit more room at the bottom for the tab bar
+    paddingBottom: spacing.xxl + spacing.lg,
   },
   emptyCard: {
-    marginTop: spacing.xl,
     alignItems: "center",
     paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 24,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+  },
+  emptyEmojiBadge: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
   },
   emptyEmoji: {
-    fontSize: 64,
-    marginBottom: spacing.md,
+    fontSize: 48,
   },
   emptyTitle: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.textDark,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   emptyText: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginBottom: spacing.lg,
     lineHeight: 24,
   },
   refreshButton: {
     marginTop: spacing.sm,
+    alignSelf: "stretch",
   },
   resetFiltersLink: {
     marginTop: spacing.md,
@@ -1309,7 +1459,7 @@ const styles = StyleSheet.create({
   },
   matchSubtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: colors.textSecondaryDark,
     textAlign: "center",
     marginBottom: spacing.lg,
   },

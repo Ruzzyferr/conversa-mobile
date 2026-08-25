@@ -1,4 +1,4 @@
-# Swiip Mobile .gitignore (Expo React Native)
+# Conversa Mobile .gitignore (Expo React Native)
 
 # Dependencies
 node_modules/
@@ -24,6 +24,8 @@ web-build/
 # Native
 *.orig.*
 *.jks
+*.keystore
+!android/app/debug.keystore
 *.p8
 *.p12
 *.key
@@ -135,3 +137,17 @@ logs/
 
 expo-env.d.ts
 # @end expo-cli
+# EAS local signing credentials (contains keystore password)
+credentials.json
+google-services.json
+
+# Signing material — *.keystore alone missed timestamped backups such as
+# conversa-upload.keystore.old-1783199695, which was about to be committed.
+*.keystore
+*.keystore.*
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+credentials.json
+google-services.json

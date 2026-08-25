@@ -2,6 +2,7 @@ import React from "react";
 import { Text, View, StyleSheet, TextStyle } from "react-native";
 import { colors } from "@/src/theme/colors";
 import { typography } from "@/src/theme/typography";
+import { languageFlag, resolveLanguageCode } from "@/src/data/languages";
 
 /**
  * Visual representation of a language using a flag emoji (default) or
@@ -9,7 +10,7 @@ import { typography } from "@/src/theme/typography";
  *
  * Future upgrade path: swap the emoji renderer with a vector flag library
  * (e.g. react-native-country-flag / local SVGs in assets/flags/) without
- * touching call sites. Keep the LANG_INFO map as the single source of truth.
+ * touching call sites. src/data/languages.ts is the single source of truth.
  *
  * Always pass the original language string — it is exposed to assistive
  * technologies via accessibilityLabel.
@@ -21,46 +22,17 @@ type LanguageFlagProps = {
   style?: TextStyle;
 };
 
-type LangInfo = { code: string; emoji: string };
-
-const LANG_INFO: Record<string, LangInfo> = {
-  English: { code: "EN", emoji: "🇺🇸" },
-  Turkish: { code: "TR", emoji: "🇹🇷" },
-  German: { code: "DE", emoji: "🇩🇪" },
-  Spanish: { code: "ES", emoji: "🇪🇸" },
-  French: { code: "FR", emoji: "🇫🇷" },
-  Italian: { code: "IT", emoji: "🇮🇹" },
-  Portuguese: { code: "PT", emoji: "🇵🇹" },
-  Russian: { code: "RU", emoji: "🇷🇺" },
-  Chinese: { code: "ZH", emoji: "🇨🇳" },
-  Japanese: { code: "JA", emoji: "🇯🇵" },
-  Korean: { code: "KO", emoji: "🇰🇷" },
-  Arabic: { code: "AR", emoji: "🇸🇦" },
-  Dutch: { code: "NL", emoji: "🇳🇱" },
-  Polish: { code: "PL", emoji: "🇵🇱" },
-  Swedish: { code: "SV", emoji: "🇸🇪" },
-  Norwegian: { code: "NO", emoji: "🇳🇴" },
-  Danish: { code: "DA", emoji: "🇩🇰" },
-  Finnish: { code: "FI", emoji: "🇫🇮" },
-  Greek: { code: "EL", emoji: "🇬🇷" },
-  Hebrew: { code: "HE", emoji: "🇮🇱" },
-  Hindi: { code: "HI", emoji: "🇮🇳" },
-  Indonesian: { code: "ID", emoji: "🇮🇩" },
-  Thai: { code: "TH", emoji: "🇹🇭" },
-  Vietnamese: { code: "VI", emoji: "🇻🇳" },
-  Ukrainian: { code: "UK", emoji: "🇺🇦" },
-  Romanian: { code: "RO", emoji: "🇷🇴" },
-  Czech: { code: "CS", emoji: "🇨🇿" },
-};
-
 export function LanguageFlag({
   language,
   size = 16,
   variant = "emoji",
   style,
 }: LanguageFlagProps) {
-  const info = LANG_INFO[language];
-  if (!info) return null;
+  // `language` may be an ISO code (current) or a legacy localized label
+  // ("Türkçe" / "Turkish") written by older app versions.
+  const emoji = languageFlag(language);
+  if (!emoji) return null;
+  const isoCode = resolveLanguageCode(language).toUpperCase();
 
   if (variant === "code") {
     return (
@@ -72,7 +44,7 @@ export function LanguageFlag({
         accessibilityLabel={language}
         accessibilityRole="text"
       >
-        <Text style={[styles.codeText, { fontSize: size * 0.7 }, style]}>{info.code}</Text>
+        <Text style={[styles.codeText, { fontSize: size * 0.7 }, style]}>{isoCode}</Text>
       </View>
     );
   }
@@ -84,7 +56,7 @@ export function LanguageFlag({
       accessibilityRole="text"
       allowFontScaling={false}
     >
-      {info.emoji}
+      {emoji}
     </Text>
   );
 }

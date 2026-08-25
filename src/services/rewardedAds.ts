@@ -6,15 +6,25 @@
  */
 
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Lazy import AdMob to avoid errors in Expo Go
 let mobileAds: any = null;
 let RewardedAd: any = null;
 let RewardedAdEventType: any = null;
 let TestIds: any = null;
+let AdsConsent: any = null;
+let AdsConsentStatus: any = null;
 
 let isInitialized = false;
 let isExpoGo = false;
+
+// UMP consent state: default false (non-personalized) until consent is known
+let personalizedAdsAllowed = false;
+
+// Shared initialization promise so all ad surfaces (rewarded, interstitial,
+// banner) reuse a single mobileAds().initialize() + UMP consent flow
+let initPromise: Promise<void> | null = null;
 
 /**
  * Check if we're running in Expo Go (where AdMob doesn't work)
@@ -54,6 +64,8 @@ async function loadAdMobModule(): Promise<boolean> {
     RewardedAd = admobModule.RewardedAd;
     RewardedAdEventType = admobModule.RewardedAdEventType;
     TestIds = admobModule.TestIds;
+    AdsConsent = admobModule.AdsConsent;
+    AdsConsentStatus = admobModule.AdsConsentStatus;
     return true;
   } catch (error) {
     console.warn('AdMob module not available (likely running in Expo Go):', error);
@@ -63,11 +75,65 @@ async function loadAdMobModule(): Promise<boolean> {
 }
 
 /**
+ * Whether consent allows serving personalized ads.
+ * Defaults to false (non-personalized) until the UMP consent flow resolves.
+ */
+export function canServePersonalizedAds(): boolean {
+  return personalizedAdsAllowed;
+}
+
+/**
+ * Whether the AdMob SDK finished initializing successfully
+ */
+export function isAdsSdkInitialized(): boolean {
+  return isInitialized;
+}
+
+/**
+ * Run the UMP (User Messaging Platform) consent flow for GDPR/EEA compliance.
+ * Never throws - consent failure must not block app startup or ad init.
+ */
+async function requestUmpConsent(): Promise<void> {
+  try {
+    await AdsConsent.requestInfoUpdate();
+    await AdsConsent.loadAndShowConsentFormIfRequired();
+
+    const consentInfo = await AdsConsent.getConsentInfo();
+    // OBTAINED: user gave consent, NOT_REQUIRED: outside EEA (no consent needed)
+    // UNKNOWN/REQUIRED: no consent yet -> stick to non-personalized ads
+    personalizedAdsAllowed =
+      consentInfo?.status === (AdsConsentStatus?.OBTAINED ?? 'OBTAINED') ||
+      consentInfo?.status === (AdsConsentStatus?.NOT_REQUIRED ?? 'NOT_REQUIRED');
+    console.log(`UMP consent status: ${consentInfo?.status}, personalized ads: ${personalizedAdsAllowed}`);
+  } catch (error) {
+    // Log and continue with non-personalized ads
+    console.warn('UMP consent flow failed, falling back to non-personalized ads:', error);
+    personalizedAdsAllowed = false;
+  }
+}
+
+/**
  * Initialize AdMob (call once on app start)
+ * Runs the UMP consent flow before SDK initialization.
  * Swallows errors and logs them instead of throwing
  * Does nothing in Expo Go
  */
-export async function initializeAds(): Promise<void> {
+export function initializeAds(): Promise<void> {
+  if (!initPromise) {
+    initPromise = doInitializeAds();
+  }
+  return initPromise;
+}
+
+/**
+ * Shared initialization promise - other ad services (interstitial, banner)
+ * should await this instead of calling mobileAds().initialize() themselves
+ */
+export function ensureAdsInitialized(): Promise<void> {
+  return initializeAds();
+}
+
+async function doInitializeAds(): Promise<void> {
   if (isInitialized) {
     return;
   }
@@ -86,6 +152,9 @@ export async function initializeAds(): Promise<void> {
     return;
   }
 
+  // Run the UMP consent flow BEFORE initializing the SDK (AdMob EEA policy)
+  await requestUmpConsent();
+
   try {
     await mobileAds().initialize();
     isInitialized = true;
@@ -94,6 +163,8 @@ export async function initializeAds(): Promise<void> {
     console.error('Failed to initialize AdMob:', error);
     // Don't throw - let isInitialized stay false
     // showRewardedAd will handle the error gracefully
+    // Reset the shared promise so a later call can retry initialization
+    initPromise = null;
   }
 }
 
@@ -107,7 +178,15 @@ export interface RewardedAdResult {
  * Returns a promise that resolves when the ad is watched and reward is earned
  * Returns error in Expo Go (not supported)
  */
-export async function showRewardedAd(): Promise<RewardedAdResult> {
+/**
+ * @param ssv one-time proof issued by POST /rewards/ad-token. AdMob echoes it
+ *   back to the backend in the signed server-side-verification callback,
+ *   which is what proves the ad was really watched — without it the reward
+ *   endpoint has to take the client's word for it.
+ */
+export async function showRewardedAd(
+  ssv?: { nonce: string; userId: string }
+): Promise<RewardedAdResult> {
   // Check Expo Go first
   if (isExpoGo || checkExpoGo()) {
     return { success: false, error: 'Rewarded ads are not available in Expo Go. Please use a development build.' };
@@ -129,8 +208,11 @@ export async function showRewardedAd(): Promise<RewardedAdResult> {
   // Get ad unit ID: Test ID in dev, production ID from env
   const adUnitId = __DEV__
     ? (TestIds?.REWARDED || 'ca-app-pub-3940256099942544/5224354917') // Fallback test ID
-    : (Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID ||
-       process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID);
+    : Platform.OS === 'ios'
+      ? (Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_IOS_REWARDED_UNIT_ID ||
+         process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED_UNIT_ID)
+      : (Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID ||
+         process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID);
 
   if (!adUnitId) {
     console.error('AdMob rewarded ad unit ID not configured');
@@ -143,7 +225,15 @@ export async function showRewardedAd(): Promise<RewardedAdResult> {
 
   return new Promise((resolve) => {
     const rewarded = RewardedAd.createForAdRequest(adUnitId, {
-      requestNonPersonalizedAdsOnly: true,
+      requestNonPersonalizedAdsOnly: !canServePersonalizedAds(),
+      ...(ssv
+        ? {
+            serverSideVerificationOptions: {
+              userId: ssv.userId,
+              customData: ssv.nonce,
+            },
+          }
+        : {}),
     });
 
     let unsubscribeLoaded: (() => void) | null = null;

@@ -1,13 +1,15 @@
 /**
  * Interstitial Ads Service using AdMob
- * 
- * Shows full-screen ads at transition points (e.g., every 5 swipes)
+ *
+ * Shows full-screen ads at transition points; the cadence (when to show)
+ * is controlled by the caller. A minimum cooldown between ads is enforced here.
  * IMPORTANT: AdMob only works in EAS dev builds, not in Expo Go.
  */
 
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { ensureAdsInitialized, isAdsSdkInitialized, canServePersonalizedAds } from './rewardedAds';
 
-let mobileAds: any = null;
 let InterstitialAd: any = null;
 let AdEventType: any = null;
 let TestIds: any = null;
@@ -16,6 +18,13 @@ let isInitialized = false;
 let isExpoGo = false;
 let currentAd: any = null;
 let isAdLoading = false;
+
+// Minimum time between shown interstitials (ms)
+// One minute meant a free user swiping steadily saw an ad about every minute.
+// Three minutes keeps the inventory without making the deck feel like a
+// slideshow of ads (and keeps ad density away from store review thresholds).
+const INTERSTITIAL_COOLDOWN_MS = 3 * 60 * 1000;
+let lastShownAt = 0;
 
 /**
  * Check if we're running in Expo Go
@@ -42,13 +51,12 @@ async function loadAdMobModule(): Promise<boolean> {
         return false;
     }
 
-    if (mobileAds) {
+    if (InterstitialAd) {
         return true;
     }
 
     try {
         const admobModule = await import('react-native-google-mobile-ads');
-        mobileAds = admobModule.default;
         InterstitialAd = admobModule.InterstitialAd;
         AdEventType = admobModule.AdEventType;
         TestIds = admobModule.TestIds;
@@ -80,7 +88,13 @@ export async function initializeInterstitialAds(): Promise<void> {
     }
 
     try {
-        await mobileAds().initialize();
+        // Reuse the shared AdMob initialization (UMP consent + SDK init)
+        // instead of calling mobileAds().initialize() a second time
+        await ensureAdsInitialized();
+        if (!isAdsSdkInitialized()) {
+            console.warn('Interstitial ads unavailable: AdMob SDK not initialized');
+            return;
+        }
         isInitialized = true;
         console.log('Interstitial ads initialized');
         // Preload first ad
@@ -96,6 +110,11 @@ export async function initializeInterstitialAds(): Promise<void> {
 function getInterstitialAdUnitId(): string | null {
     if (__DEV__) {
         return TestIds?.INTERSTITIAL || 'ca-app-pub-3940256099942544/1033173712';
+    }
+    if (Platform.OS === 'ios') {
+        return Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_UNIT_ID ||
+            process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_UNIT_ID ||
+            null;
     }
     return Constants.expoConfig?.extra?.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID ||
         process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID ||
@@ -119,7 +138,7 @@ export function preloadInterstitialAd(): void {
 
     try {
         currentAd = InterstitialAd.createForAdRequest(adUnitId, {
-            requestNonPersonalizedAdsOnly: true,
+            requestNonPersonalizedAdsOnly: !canServePersonalizedAds(),
         });
 
         currentAd.addAdEventListener(AdEventType.LOADED, () => {
@@ -161,6 +180,11 @@ export async function showInterstitialAd(): Promise<InterstitialAdResult> {
         return { success: false, error: 'Ads not available in Expo Go' };
     }
 
+    // Enforce a minimum cooldown between shown interstitials
+    if (Date.now() - lastShownAt < INTERSTITIAL_COOLDOWN_MS) {
+        return { success: false, error: 'Interstitial cooldown active' };
+    }
+
     if (!isInitialized) {
         await initializeInterstitialAds();
         if (!isInitialized) {
@@ -183,6 +207,7 @@ export async function showInterstitialAd(): Promise<InterstitialAdResult> {
             });
 
             currentAd.show();
+            lastShownAt = Date.now();
         } catch (error: any) {
             console.error('Failed to show interstitial ad:', error);
             resolve({ success: false, error: error?.message || 'Failed to show ad' });

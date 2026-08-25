@@ -1,7 +1,9 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, TextInput, StyleSheet, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "@/src/theme/colors";
+const dc = { ...colors, background: colors.backgroundDark, backgroundSecondary: colors.backgroundSecondaryDark, surface: colors.surfaceDark, cardBackground: colors.cardBackgroundDark, text: colors.textDark, textSecondary: colors.textSecondaryDark, textTertiary: colors.textSecondaryDark, border: colors.borderDark };
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
@@ -12,6 +14,7 @@ import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ mode: "email" | "phone" }>();
   const mode = params.mode || "email";
@@ -27,22 +30,15 @@ export default function AuthScreen() {
 
     setLoading(true);
     try {
-      const result = mode === "email"
-        ? await api.loginEmail(input.trim())
-        : await api.loginPhone(input.trim());
+      await api.loginEmail(input.trim());
 
-      // Code is always sent now, navigate to verify code screen
-      if (result.userId) {
-        setLoading(false); // Stop loading before navigation
-        router.push({
-          pathname: "/(auth)/verify-code",
-          params: {
-            mode,
-            identifier: input.trim(),
-            userId: result.userId,
-          },
-        });
-      }
+      // The server answers the same way for new and returning addresses, so
+      // there is nothing to branch on: always go to the code screen.
+      setLoading(false);
+      router.push({
+        pathname: "/(auth)/verify-code",
+        params: { mode: "email", identifier: input.trim() },
+      });
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to authenticate";
@@ -59,23 +55,17 @@ export default function AuthScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.innerContent}>
-        <Text style={styles.title}>
-          {mode === "email" ? "Continue with Email" : "Continue with Phone"}
-        </Text>
-        <Text style={styles.subtitle}>
-          Enter your {mode} to get started
-        </Text>
+        <Text style={styles.title}>{t("auth.title_email")}</Text>
+        <Text style={styles.subtitle}>{t("auth.subtitle_email")}</Text>
 
         <Card style={styles.card}>
-          <Text style={styles.label}>
-            {mode === "email" ? "Email" : "Phone"}
-          </Text>
+          <Text style={styles.label}>{t("auth.label_email")}</Text>
           <TextInput
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder={mode === "email" ? "your@email.com" : "+1234567890"}
-            placeholderTextColor={colors.textTertiary}
+            placeholder={t("auth.placeholder_email")}
+            placeholderTextColor={dc.textTertiary}
             keyboardType={mode === "email" ? "email-address" : "phone-pad"}
             autoCapitalize="none"
             autoCorrect={false}
@@ -83,7 +73,7 @@ export default function AuthScreen() {
           />
 
           <PrimaryButton
-            title="Continue"
+            title={t("auth.continue")}
             onPress={handleSubmit}
             loading={loading}
             style={styles.button}
@@ -98,7 +88,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: dc.background,
   },
   content: {
     flex: 1,
@@ -112,13 +102,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.fontSize["3xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: dc.text,
     marginBottom: spacing.sm,
     textAlign: "center",
   },
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
+    color: dc.textSecondary,
     marginBottom: spacing.xl,
     textAlign: "center",
   },
@@ -128,17 +118,17 @@ const styles = StyleSheet.create({
   label: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
-    color: colors.textSecondary,
+    color: dc.textSecondary,
     marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: dc.backgroundSecondary,
     borderRadius: 12,
     padding: spacing.md,
     fontSize: typography.fontSize.base,
-    color: colors.text,
+    color: dc.text,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: dc.border,
     marginBottom: spacing.md,
   },
   button: {

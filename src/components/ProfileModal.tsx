@@ -15,6 +15,7 @@ import { spacing } from "@/src/theme/spacing";
 import { api } from "@/src/services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { languageLabel } from "@/src/data/languages";
 import { OptimizedImage } from "./ui/OptimizedImage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -53,7 +54,7 @@ export function ProfileModal({
     onDecline,
     firstMessage,
 }: ProfileModalProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
     const [loading, setLoading] = useState(true);
     const [profileData, setProfileData] = useState<ProfileData | null>(null);
@@ -220,12 +221,12 @@ export function ProfileModal({
                                 <View style={styles.languageTags}>
                                     {profileData.languagesNative.map((lang, index) => (
                                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
-                                            <Text style={styles.langText}>{lang}</Text>
+                                            <Text style={styles.langText}>{languageLabel(lang, i18n.language)}</Text>
                                         </View>
                                     ))}
                                     {profileData.languagesPractice.map((lang, index) => (
                                         <View key={`practice-${index}`} style={[styles.langTag, styles.practiceTag]}>
-                                            <Text style={styles.langText}>{lang}</Text>
+                                            <Text style={styles.langText}>{languageLabel(lang, i18n.language)}</Text>
                                             <Ionicons
                                                 name="school-outline"
                                                 size={12}
