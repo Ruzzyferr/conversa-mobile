@@ -17,6 +17,10 @@ on:
         description: 'iOS derlemesini atla (EAS dakikası harcamamak için)'
         type: boolean
         default: false
+      dry_run:
+        description: 'Kuru çalıştırma: derle ama hiçbir mağazaya gönderme'
+        type: boolean
+        default: false
 
 # İki sürüm aynı anda yükselirse versionCode çakışır.
 concurrency:
@@ -88,6 +92,7 @@ jobs:
         run: ./gradlew bundleRelease --no-daemon
 
       - name: Play kapalı testine yükle
+        if: ${{ !inputs.dry_run }}
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
@@ -98,7 +103,7 @@ jobs:
       # iOS projesi depoda yok; EAS bulutta prebuild edip derliyor.
 
       - name: iOS kimlik bilgilerini yaz
-        if: ${{ !inputs.skip_ios }}
+        if: ${{ !inputs.skip_ios && !inputs.dry_run }}
         env:
           DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
           DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
@@ -134,13 +139,13 @@ jobs:
           '
 
       - name: iOS derle ve TestFlight'a gönder
-        if: ${{ !inputs.skip_ios }}
+        if: ${{ !inputs.skip_ios && !inputs.dry_run }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: npx eas-cli@latest build --platform ios --profile production --non-interactive --auto-submit
 
       - name: TestFlight sürüm notları
-        if: ${{ !inputs.skip_ios }}
+        if: ${{ !inputs.skip_ios && !inputs.dry_run }}
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -151,6 +156,7 @@ jobs:
       # --- Kayıt -----------------------------------------------------------
 
       - name: Sürüm artışını işle ve etiketle
+        if: ${{ !inputs.dry_run }}
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
