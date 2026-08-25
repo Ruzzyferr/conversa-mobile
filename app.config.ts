@@ -1,3 +1,20 @@
+/**
+ * DO NOT RUN `expo prebuild` FOR ANDROID.
+ *
+ * android/ is checked in and is the source of truth: release builds are made
+ * with `cd android && ./gradlew bundleRelease`. That directory carries changes
+ * this config cannot express, and prebuild silently reverts every one of them:
+ *
+ *   - usesCleartextTraffic="false"           -> back to "true"
+ *   - WRITE_EXTERNAL_STORAGE maxSdkVersion   -> unbounded again
+ *   - windowSoftInputMode="adjustResize"     -> "adjustPan"
+ *   - versionCode read from version.json     -> frozen as a literal
+ *
+ * It also writes ic_launcher*.webp next to the existing ic_launcher*.png, and
+ * mergeReleaseResources then fails with "Duplicate resources" until the PNGs
+ * are deleted. Regenerate android/ only if you are prepared to reapply all of
+ * the above by hand.
+ */
 import { ExpoConfig, ConfigContext } from 'expo/config';
 import versionConfig from './version.json';
 
