@@ -81,14 +81,36 @@ const notes = fs.existsSync(NOTES_FILE) ? fs.readFileSync(NOTES_FILE, 'utf8').tr
 const bytes = fs.readFileSync(AAB);
 console.log(`paket: ${AAB} (${(bytes.length / 1048576).toFixed(1)} MB)`);
 
-const edit = await api(token, '/edits', { method: 'POST', body: {} });
-console.log('edit:', edit.id);
+/**
+ * Play invalidates an open edit the moment anything else commits one — a
+ * change made in the console, or a script touching the listing, while this
+ * upload is in flight. The 60 MB bundle takes over a minute to send, which is
+ * a wide enough window to lose a whole release run to
+ * "This edit has expired, please create a new Edit." (It happened.) Start a
+ * fresh edit and send it again rather than failing the build.
+ */
+async function uploadBundle() {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const edit = await api(token, '/edits', { method: 'POST', body: {} });
+    console.log('edit:', edit.id, attempt > 1 ? `(deneme ${attempt})` : '');
+    try {
+      const uploaded = await api(
+        token,
+        `https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACKAGE}/edits/${edit.id}/bundles?uploadType=media`,
+        { method: 'POST', raw: bytes, contentType: 'application/octet-stream' }
+      );
+      return { edit, uploaded };
+    } catch (error) {
+      lastError = error;
+      if (!String(error.message).includes('edit has expired')) throw error;
+      console.warn('edit dolmuş, yeniden başlatılıyor');
+    }
+  }
+  throw lastError;
+}
 
-const uploaded = await api(
-  token,
-  `https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACKAGE}/edits/${edit.id}/bundles?uploadType=media`,
-  { method: 'POST', raw: bytes, contentType: 'application/octet-stream' }
-);
+const { edit, uploaded } = await uploadBundle();
 console.log('yüklendi -> versionCode', uploaded.versionCode);
 
 if (VERSION_CODE && String(uploaded.versionCode) !== String(VERSION_CODE)) {
