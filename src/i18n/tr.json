@@ -66,7 +66,8 @@
     "min_photos": "Minimum fotoğraf",
     "min_photos_desc": "En az 2 fotoğraf şartı",
     "reset": "Sıfırla",
-    "apply": "Uygula"
+    "apply": "Uygula",
+    "gender_other": "Diğer"
   },
   "home": {
     "empty": {
@@ -206,7 +207,10 @@
     },
     "photos_swipe_hint": "fotoğraf • kaydır",
     "seeking": "Aradığı",
-    "special_message": "Özel mesaj"
+    "special_message": "Özel mesaj",
+    "boost_error_active": "Zaten aktif bir boostun var.",
+    "boost_error_none": "Boost hakkın kalmadı. Premium ol ya da boost paketi al.",
+    "boost_package_missing": "Boost paketi bulunamadı. Lütfen daha sonra tekrar dene."
   },
   "setup": {
     "step1": {
@@ -607,7 +611,10 @@
       "minutes": "{{count}} dk",
       "hours": "{{count}} sa",
       "days": "{{count}} g"
-    }
+    },
+    "new_thread_title": "{{name}} ile eşleştin 🎉",
+    "new_thread_body": "Sohbeti sen başlat. Profilindeki dillerden ya da bir ilgi alanından yola çıkmak en kolayı.",
+    "first_message_hint": "İlk mesaj en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz!"
   },
   "safety": {
     "block": "Engelle",
@@ -821,7 +828,8 @@
     "interests": "İlgi Alanları",
     "pick_photo": "Fotoğraf Seç",
     "native_languages": "Ana Dillerin",
-    "native_required": "En az bir ana dil seç"
+    "native_required": "En az bir ana dil seç",
+    "location_failed": "Konum alınamadı."
   },
   "conversation": {
     "leave_title": "Konuşmadan Ayrıl",
@@ -855,5 +863,56 @@
     "resend_failed": "Kod yeniden gönderilemedi.",
     "incomplete": "Lütfen 6 haneli kodu gir.",
     "digit_label": "Kodun {{n}}. hanesi"
+  },
+  "countries": {
+    "TR": "Türkiye",
+    "DE": "Almanya",
+    "FR": "Fransa",
+    "GB": "Birleşik Krallık",
+    "ES": "İspanya",
+    "IT": "İtalya",
+    "NL": "Hollanda",
+    "BE": "Belçika",
+    "AT": "Avusturya",
+    "CH": "İsviçre",
+    "PL": "Polonya",
+    "CZ": "Çekya",
+    "PT": "Portekiz",
+    "GR": "Yunanistan",
+    "SE": "İsveç",
+    "NO": "Norveç",
+    "DK": "Danimarka",
+    "FI": "Finlandiya",
+    "IE": "İrlanda",
+    "HU": "Macaristan",
+    "RO": "Romanya",
+    "UA": "Ukrayna",
+    "RU": "Rusya",
+    "US": "Amerika Birleşik Devletleri",
+    "CA": "Kanada",
+    "MX": "Meksika",
+    "BR": "Brezilya",
+    "AR": "Arjantin",
+    "JP": "Japonya",
+    "KR": "Güney Kore",
+    "CN": "Çin",
+    "IN": "Hindistan",
+    "ID": "Endonezya",
+    "TH": "Tayland",
+    "VN": "Vietnam",
+    "PK": "Pakistan",
+    "IR": "İran",
+    "SA": "Suudi Arabistan",
+    "AE": "Birleşik Arap Emirlikleri",
+    "EG": "Mısır",
+    "IL": "İsrail",
+    "AZ": "Azerbaycan",
+    "AU": "Avustralya"
+  },
+  "push": {
+    "primer_title": "Eşleşmelerini kaçırma",
+    "primer_body": "Biri seninle eşleştiğinde ya da mesaj gönderdiğinde haberin olsun. Bildirimleri istediğin an kapatabilirsin.",
+    "primer_allow": "Bildirimleri aç",
+    "primer_later": "Şimdi değil"
   }
 }

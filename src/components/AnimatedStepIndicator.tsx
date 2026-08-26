@@ -1,3 +1,12 @@
+/**
+ * Onboarding progress.
+ *
+ * This was painted in the pink accent while every screen before and after it —
+ * welcome, sign-in, the code screen, the deck, the paywall — uses brand purple,
+ * so the app changed primary colour at exactly the moment a new user formed
+ * their first impression of it. Pink stays reserved for the like/affection
+ * semantics in the deck.
+ */
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '@/src/theme/colors';
@@ -223,7 +232,7 @@ const styles = StyleSheet.create({
     percent: {
         fontSize: typography.fontSize.sm,
         fontWeight: typography.fontWeight.bold,
-        color: colors.accent,
+        color: colors.primary,
     },
     indicatorContainer: {
         position: 'relative',
@@ -243,10 +252,10 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: BALL_SIZE / 2,
         height: 2.5,
-        backgroundColor: colors.accent,
+        backgroundColor: colors.primary,
         borderRadius: 1.25,
         zIndex: 1,
-        shadowColor: colors.accent,
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.6,
         shadowRadius: 4,
@@ -268,8 +277,8 @@ const styles = StyleSheet.create({
         width: GLOW_SIZE,
         height: GLOW_SIZE,
         borderRadius: GLOW_SIZE / 2,
-        backgroundColor: colors.accent,
-        shadowColor: colors.accent,
+        backgroundColor: colors.primary,
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
         shadowRadius: 20,
@@ -311,12 +320,12 @@ const styles = StyleSheet.create({
         fontFamily: 'monospace',
     },
     stepNumberActive: {
-        color: colors.accent,
+        color: colors.primary,
         fontSize: typography.fontSize.base,
     },
     checkmark: {
         fontSize: typography.fontSize.base,
-        color: colors.accent,
+        color: colors.primary,
         fontWeight: typography.fontWeight.bold,
     },
 });

@@ -164,7 +164,17 @@ export default function ProfileScreen() {
                 });
                 Alert.alert(t('profile.boost_success_title'), t('profile.boost_success_msg'));
               } catch (error: any) {
-                const message = error.response?.data?.error?.message || t('common.error_occurred');
+                // Map by code. The API answers in English like every other
+                // endpoint, so echoing `message` straight into the alert put
+                // English copy in a Turkish app whenever this raced the local
+                // check above.
+                const code = error.response?.data?.error?.code;
+                const message =
+                  code === 'BOOST_ALREADY_ACTIVE'
+                    ? t('profile.boost_error_active')
+                    : code === 'NO_BOOSTS_REMAINING'
+                      ? t('profile.boost_error_none')
+                      : error.response?.data?.error?.message || t('common.error_occurred');
                 Alert.alert(t('common.error'), message);
               }
             }
@@ -187,7 +197,7 @@ export default function ProfileScreen() {
       } else {
         // Fallback for development/simulators if no package found
         console.warn("No Boost package (conversa_boost_2pack) found in RevenueCat offerings. Check your RevenueCat configuration.");
-        Alert.alert("Configuration Error", "Boost package not found. Please contact support.");
+        Alert.alert(t('common.error'), t('profile.boost_package_missing'));
         setLoading(false);
         return;
       }
@@ -425,10 +435,14 @@ export default function ProfileScreen() {
                   {profile.languagesPractice.map((lang: string, index: number) => (
                     <LinearGradient
                       key={index}
-                      colors={[colors.accent + '30', colors.accent + '10']}
+                      // Distinct from the purple "speaks" chips, but not the
+                      // pink accent: at 30% over the dark card that renders as
+                      // a dark red pill with red text, which reads as an error
+                      // state rather than "learning".
+                      colors={[colors.favoriteBlue + '30', colors.favoriteBlue + '10']}
                       style={styles.languageTag}
                     >
-                      <Text style={[styles.languageTagText, { color: colors.accent }]}>{languageLabel(lang, i18n.language)}</Text>
+                      <Text style={[styles.languageTagText, { color: colors.favoriteBlue }]}>{languageLabel(lang, i18n.language)}</Text>
                     </LinearGradient>
                   ))}
                 </View>

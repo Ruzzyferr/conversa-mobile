@@ -34,7 +34,12 @@ export function DeckActionBar({
   disabled,
 }: Props) {
   const { t } = useTranslation();
-  const showBadge = !isPremium && favoritesRemaining !== undefined;
+  // A red pill reading "0" over the Favorite button looked like an unread
+  // counter that had gone wrong; it was actually telling the user they have no
+  // favorites left. Zero is the lock state, not a count — the button already
+  // opens the upsell — so the badge only appears when there is something to
+  // count.
+  const showBadge = !isPremium && (favoritesRemaining ?? 0) > 0;
 
   return (
     <View style={styles.row} pointerEvents={disabled ? "none" : "auto"}>

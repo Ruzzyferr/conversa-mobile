@@ -1,7 +1,8 @@
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import Constants from "expo-constants";
 import { api } from "./api";
+import { getItem, setItem } from "./kv";
 import i18n from "@/src/i18n";
 
 let isConfigured = false;
@@ -62,6 +63,45 @@ export async function configureNotifications(): Promise<void> {
 }
 
 /**
+ * When the primer was last shown, so it is not a dialog on every cold start.
+ *
+ * Once the OS prompt has been answered with "don't allow", asking again is a
+ * silent no-op on both platforms — so without this the primer would appear on
+ * every launch and lead nowhere, which is worse than the cold prompt it
+ * replaced. Ask again after a week; by then the user has usually seen what
+ * they are missing.
+ */
+const PRIMER_KEY = "conversa_push_primer_shown_at";
+const PRIMER_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function primerIsDue(): Promise<boolean> {
+  try {
+    const raw = await getItem(PRIMER_KEY);
+    if (!raw) return true;
+    const shownAt = Number(raw);
+    if (!Number.isFinite(shownAt)) return true;
+    return Date.now() - shownAt > PRIMER_COOLDOWN_MS;
+  } catch {
+    return true;
+  }
+}
+
+/** In-app explainer shown before the one-shot OS permission prompt. */
+function askPrimer(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      i18n.t("push.primer_title"),
+      i18n.t("push.primer_body"),
+      [
+        { text: i18n.t("push.primer_later"), style: "cancel", onPress: () => resolve(false) },
+        { text: i18n.t("push.primer_allow"), onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+}
+
+/**
  * Request permission, fetch the Expo push token and register it with the
  * backend. No-ops gracefully when Firebase isn't wired into the build yet
  * (getExpoPushTokenAsync throws in that case) or when permission is denied.
@@ -74,6 +114,22 @@ export async function registerPushToken(): Promise<void> {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== "granted") {
+      // Explain before asking.
+      //
+      // The OS prompt was fired the instant the tab bar mounted — the first
+      // second of the app, before the user had seen a single profile, with no
+      // reason given. On both platforms a denial is effectively permanent
+      // (the prompt never shows again; the user has to find it in Settings),
+      // and this app's entire re-engagement loop is push: matches, messages,
+      // accepted requests. A primer costs one extra tap and keeps the real
+      // prompt for people who have said yes to the idea first; anyone who
+      // declines the primer is simply asked again next launch.
+      if (!(await primerIsDue())) return;
+      await setItem(PRIMER_KEY, String(Date.now()));
+
+      const wantsThem = await askPrimer();
+      if (!wantsThem) return;
+
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }

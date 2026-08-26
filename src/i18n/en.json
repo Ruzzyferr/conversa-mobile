@@ -66,7 +66,8 @@
     "min_photos": "Minimum photos",
     "min_photos_desc": "Require at least 2 photos",
     "reset": "Reset",
-    "apply": "Apply"
+    "apply": "Apply",
+    "gender_other": "Other"
   },
   "home": {
     "empty": {
@@ -206,7 +207,10 @@
     },
     "photos_swipe_hint": "photos • swipe",
     "seeking": "Looking for",
-    "special_message": "Special message"
+    "special_message": "Special message",
+    "boost_error_active": "You already have an active boost.",
+    "boost_error_none": "No boosts left. Go Premium or buy a boost pack.",
+    "boost_package_missing": "Boost pack unavailable. Please try again later."
   },
   "setup": {
     "step1": {
@@ -608,7 +612,10 @@
       "minutes": "{{count}}m",
       "hours": "{{count}}h",
       "days": "{{count}}d"
-    }
+    },
+    "new_thread_title": "You matched with {{name}} 🎉",
+    "new_thread_body": "Break the ice. The easiest opener is something from their languages or one of their interests.",
+    "first_message_hint": "The first message must be at least 20 characters. Make it count!"
   },
   "safety": {
     "block": "Block",
@@ -822,7 +829,8 @@
     "interests": "Interests",
     "pick_photo": "Choose a Photo",
     "native_languages": "Your Native Languages",
-    "native_required": "Pick at least one native language"
+    "native_required": "Pick at least one native language",
+    "location_failed": "Could not get your location."
   },
   "conversation": {
     "leave_title": "Leave Conversation",
@@ -856,5 +864,56 @@
     "resend_failed": "We couldn't resend the code.",
     "incomplete": "Please enter the 6-digit code.",
     "digit_label": "Code digit {{n}}"
+  },
+  "countries": {
+    "TR": "Turkey",
+    "DE": "Germany",
+    "FR": "France",
+    "GB": "United Kingdom",
+    "ES": "Spain",
+    "IT": "Italy",
+    "NL": "Netherlands",
+    "BE": "Belgium",
+    "AT": "Austria",
+    "CH": "Switzerland",
+    "PL": "Poland",
+    "CZ": "Czechia",
+    "PT": "Portugal",
+    "GR": "Greece",
+    "SE": "Sweden",
+    "NO": "Norway",
+    "DK": "Denmark",
+    "FI": "Finland",
+    "IE": "Ireland",
+    "HU": "Hungary",
+    "RO": "Romania",
+    "UA": "Ukraine",
+    "RU": "Russia",
+    "US": "United States",
+    "CA": "Canada",
+    "MX": "Mexico",
+    "BR": "Brazil",
+    "AR": "Argentina",
+    "JP": "Japan",
+    "KR": "South Korea",
+    "CN": "China",
+    "IN": "India",
+    "ID": "Indonesia",
+    "TH": "Thailand",
+    "VN": "Vietnam",
+    "PK": "Pakistan",
+    "IR": "Iran",
+    "SA": "Saudi Arabia",
+    "AE": "United Arab Emirates",
+    "EG": "Egypt",
+    "IL": "Israel",
+    "AZ": "Azerbaijan",
+    "AU": "Australia"
+  },
+  "push": {
+    "primer_title": "Don’t miss your matches",
+    "primer_body": "Get a heads-up when someone matches with you or sends a message. You can turn notifications off any time.",
+    "primer_allow": "Turn on notifications",
+    "primer_later": "Not now"
   }
 }

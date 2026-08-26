@@ -27,7 +27,7 @@ const SLIDER_WIDTH = SCREEN_WIDTH - spacing.lg * 4;
 
 export type FilterParams = {
   ageRange: [number, number];
-  gender: "ALL" | "FEMALE" | "MALE";
+  gender: "ALL" | "FEMALE" | "MALE" | "OTHER";
   distanceRange: [number, number];
   nativeLanguages: string[];
   targetLanguages: string[];
@@ -47,32 +47,60 @@ type FilterSheetProps = {
 };
 
 
-const COUNTRIES = [
-  // Europe
-  { code: "DE", name: "Germany", flag: "🇩🇪" },
-  { code: "FR", name: "France", flag: "🇫🇷" },
-  { code: "GB", name: "UK", flag: "🇬🇧" },
-  { code: "ES", name: "Spain", flag: "🇪🇸" },
-  { code: "IT", name: "Italy", flag: "🇮🇹" },
-  { code: "NL", name: "Netherlands", flag: "🇳🇱" },
-  { code: "BE", name: "Belgium", flag: "🇧🇪" },
-  { code: "AT", name: "Austria", flag: "🇦🇹" },
-  { code: "CH", name: "Switzerland", flag: "🇨🇭" },
-  { code: "PL", name: "Poland", flag: "🇵🇱" },
-  { code: "CZ", name: "Czechia", flag: "🇨🇿" },
-  { code: "PT", name: "Portugal", flag: "🇵🇹" },
-  { code: "GR", name: "Greece", flag: "🇬🇷" },
-  { code: "SE", name: "Sweden", flag: "🇸🇪" },
-  { code: "NO", name: "Norway", flag: "🇳🇴" },
-  { code: "DK", name: "Denmark", flag: "🇩🇰" },
-  { code: "FI", name: "Finland", flag: "🇫🇮" },
-  { code: "IE", name: "Ireland", flag: "🇮🇪" },
-  { code: "UA", name: "Ukraine", flag: "🇺🇦" },
-  // Russia
-  { code: "RU", name: "Russia", flag: "🇷🇺" },
-  // North America
-  { code: "US", name: "USA", flag: "🇺🇸" },
-  { code: "CA", name: "Canada", flag: "🇨🇦" },
+/**
+ * Countries offered by the "Ülke" filter, as ISO-3166 alpha-2.
+ *
+ * Two things were wrong here. Türkiye — the app's home market and the only
+ * country a meaningful number of profiles are actually in — was not on the
+ * list at all, so a Turkish user could not filter for Turkey. And every name
+ * was hardcoded English ("Germany", "Netherlands") inside an otherwise fully
+ * Turkish screen; they now come from i18n like the language chips next to
+ * them.
+ */
+const COUNTRIES: { code: string; flag: string }[] = [
+  { code: "TR", flag: "🇹🇷" },
+  { code: "DE", flag: "🇩🇪" },
+  { code: "FR", flag: "🇫🇷" },
+  { code: "GB", flag: "🇬🇧" },
+  { code: "ES", flag: "🇪🇸" },
+  { code: "IT", flag: "🇮🇹" },
+  { code: "NL", flag: "🇳🇱" },
+  { code: "BE", flag: "🇧🇪" },
+  { code: "AT", flag: "🇦🇹" },
+  { code: "CH", flag: "🇨🇭" },
+  { code: "PL", flag: "🇵🇱" },
+  { code: "CZ", flag: "🇨🇿" },
+  { code: "PT", flag: "🇵🇹" },
+  { code: "GR", flag: "🇬🇷" },
+  { code: "SE", flag: "🇸🇪" },
+  { code: "NO", flag: "🇳🇴" },
+  { code: "DK", flag: "🇩🇰" },
+  { code: "FI", flag: "🇫🇮" },
+  { code: "IE", flag: "🇮🇪" },
+  { code: "HU", flag: "🇭🇺" },
+  { code: "RO", flag: "🇷🇴" },
+  { code: "UA", flag: "🇺🇦" },
+  { code: "RU", flag: "🇷🇺" },
+  { code: "US", flag: "🇺🇸" },
+  { code: "CA", flag: "🇨🇦" },
+  { code: "MX", flag: "🇲🇽" },
+  { code: "BR", flag: "🇧🇷" },
+  { code: "AR", flag: "🇦🇷" },
+  { code: "JP", flag: "🇯🇵" },
+  { code: "KR", flag: "🇰🇷" },
+  { code: "CN", flag: "🇨🇳" },
+  { code: "IN", flag: "🇮🇳" },
+  { code: "ID", flag: "🇮🇩" },
+  { code: "TH", flag: "🇹🇭" },
+  { code: "VN", flag: "🇻🇳" },
+  { code: "PK", flag: "🇵🇰" },
+  { code: "IR", flag: "🇮🇷" },
+  { code: "SA", flag: "🇸🇦" },
+  { code: "AE", flag: "🇦🇪" },
+  { code: "EG", flag: "🇪🇬" },
+  { code: "IL", flag: "🇮🇱" },
+  { code: "AZ", flag: "🇦🇿" },
+  { code: "AU", flag: "🇦🇺" },
 ];
 
 const DEFAULT_FILTERS: FilterParams = {
@@ -198,6 +226,10 @@ export function FilterSheet({
                   { label: t('filter_sheet.gender_all'), value: "ALL" as const },
                   { label: t('filter_sheet.gender_women'), value: "FEMALE" as const },
                   { label: t('filter_sheet.gender_men'), value: "MALE" as const },
+                  // A profile can be saved as OTHER, so the deck has to be
+                  // filterable to it; otherwise those people were reachable
+                  // only through "everyone".
+                  { label: t('filter_sheet.gender_other'), value: "OTHER" as const },
                 ].map((option) => (
                   <TouchableOpacity
                     key={option.value}
@@ -325,7 +357,7 @@ export function FilterSheet({
                         filters.countries.includes(country.code) && styles.chipTextActive,
                       ]}
                     >
-                      {country.flag} {country.name}
+                      {country.flag} {t(`countries.${country.code}`)}
                     </Text>
                   </TouchableOpacity>
                 ))}

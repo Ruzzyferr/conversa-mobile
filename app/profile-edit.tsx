@@ -50,7 +50,7 @@ export default function ProfileEditScreen() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; city?: string; country?: string } | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -71,7 +71,7 @@ export default function ProfileEditScreen() {
         (profile.interests || []).map((i: string) => LEGACY_INTEREST_MAP[i] || i)
       );
       if (profile.city) {
-        setLocation({ lat: 0, lng: 0, city: profile.city });
+        setLocation({ lat: 0, lng: 0, city: profile.city, country: profile.country || undefined });
       }
     } catch (error) {
       Alert.alert("Hata", "Profil yüklenemedi");
@@ -234,10 +234,11 @@ export default function ProfileEditScreen() {
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
         city: address?.city || address?.region || undefined,
+        country: address?.isoCountryCode || undefined,
       });
     } catch (error) {
       console.error("Location error:", error);
-      Alert.alert("Hata", "Konum alınamadı");
+      Alert.alert(t('common.error'), t('edit.location_failed'));
     }
   };
 
@@ -281,6 +282,7 @@ export default function ProfileEditScreen() {
         bio: bio.trim() || undefined,
         interests: selectedInterests.length > 0 ? selectedInterests : undefined,
         city: location?.city,
+        country: location?.country,
         lat: location?.lat,
         lng: location?.lng,
       });
@@ -493,7 +495,7 @@ export default function ProfileEditScreen() {
                         <MaterialIcons
                           name="add"
                           size={32}
-                          color={colors.accent}
+                          color={colors.primary}
                         />
                       </View>
                     )}
@@ -843,9 +845,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderDark,
   },
+  // Brand purple, like every other selected state in the app. These were the
+  // pink accent, which reads as an error/destructive fill and made this screen
+  // look like it belonged to a different product than the one around it.
   interestTagSelected: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   interestText: {
     fontSize: typography.fontSize.sm,
@@ -871,8 +876,10 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     fontWeight: typography.fontWeight.medium,
   },
+  // The primary action on every other screen — "Devam et", "Doğrula",
+  // "Uygula", "Premium'a Yükselt" — is brand purple. This one was pink.
   saveButton: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,

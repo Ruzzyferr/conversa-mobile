@@ -220,6 +220,7 @@ class ApiClient {
     displayName: string;
     birthYear: number | null;
     city: string | null;
+    country: string | null;
     languagesNative: string[];
     languagesPractice: string[];
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
@@ -257,6 +258,8 @@ class ApiClient {
     displayName: string;
     birthYear?: number;
     city?: string;
+    /** ISO-3166 alpha-2, from the device reverse geocode. */
+    country?: string;
     lat?: number;
     lng?: number;
     gender?: "MALE" | "FEMALE" | "OTHER";
@@ -300,7 +303,7 @@ class ApiClient {
       nativeLanguages?: string[];
       targetLanguages?: string[];
       countries?: string[];
-      gender?: "ALL" | "FEMALE" | "MALE";
+      gender?: "ALL" | "FEMALE" | "MALE" | "OTHER";
       ageRange?: [number, number];
       forceReshuffle?: boolean;
     }

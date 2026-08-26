@@ -64,7 +64,7 @@ export default function ProfileSetupScreen() {
     const [loading, setLoading] = useState(false);
     const [showImagePickerModal, setShowImagePickerModal] = useState(false);
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
-    const [location, setLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
+    const [location, setLocation] = useState<{ lat: number; lng: number; city?: string; country?: string } | null>(null);
 
     // Step management
     const [currentStep, setCurrentStep] = useState(1);
@@ -183,6 +183,7 @@ export default function ProfileSetupScreen() {
                 lat: loc.coords.latitude,
                 lng: loc.coords.longitude,
                 city: address?.city || address?.region || undefined,
+                country: address?.isoCountryCode || undefined,
             });
         } catch (error) {
             console.error("Location error:", error);
@@ -420,7 +421,12 @@ export default function ProfileSetupScreen() {
                 photos: uploadedPhotos,
                 bio: bio.trim() || undefined,
                 interests: selectedInterests.length > 0 ? selectedInterests : undefined,
+                // The reverse geocode already knows the country; it used to be
+                // thrown away. Profile.country stayed null for every real user,
+                // which quietly disabled the country filter, the premium
+                // exclude-countries filter and the LOCAL/EUROPE ranking bonus.
                 city: location?.city,
+                country: location?.country,
                 lat: location?.lat,
                 lng: location?.lng,
             });
@@ -677,7 +683,7 @@ export default function ProfileSetupScreen() {
                         <MaterialIcons
                             name="auto-awesome"
                             size={18}
-                            color={colors.accent}
+                            color={colors.primary}
                         />
                         <Text style={styles.charCount}>
                             {bio.length}/500
@@ -784,7 +790,7 @@ export default function ProfileSetupScreen() {
                                         <MaterialIcons
                                             name="add-a-photo"
                                             size={index === 0 ? 36 : 28}
-                                            color={colors.accent}
+                                            color={colors.primary}
                                         />
                                     </View>
                                     <Text style={[
@@ -808,7 +814,7 @@ export default function ProfileSetupScreen() {
             </View>
 
             <View style={styles.photoTip}>
-                <MaterialIcons name="info-outline" size={20} color={colors.accent} />
+                <MaterialIcons name="info-outline" size={20} color={colors.primary} />
                 <Text style={styles.photoTipText}>
                     {t('setup.step4.tip')}
                 </Text>
@@ -903,7 +909,7 @@ export default function ProfileSetupScreen() {
                                     activeOpacity={0.8}
                                 >
                                     <LinearGradient
-                                        colors={[colors.accent, '#E91E63']}
+                                        colors={[colors.primary, colors.primaryLight]}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                         style={styles.nextButtonGradient}
@@ -923,7 +929,7 @@ export default function ProfileSetupScreen() {
                                     activeOpacity={0.8}
                                 >
                                     <LinearGradient
-                                        colors={[colors.accent, '#E91E63']}
+                                        colors={[colors.primary, colors.primaryLight]}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                         style={styles.nextButtonGradient}
@@ -993,8 +999,8 @@ export default function ProfileSetupScreen() {
                             onPress={handleGalleryPress}
                             activeOpacity={0.7}
                         >
-                            <View style={[styles.modalIconContainer, { backgroundColor: `${colors.accent}15` }]}>
-                                <MaterialIcons name="photo-library" size={26} color={colors.accent} />
+                            <View style={[styles.modalIconContainer, { backgroundColor: `${colors.primary}15` }]}>
+                                <MaterialIcons name="photo-library" size={26} color={colors.primary} />
                             </View>
                             <View style={styles.modalOptionContent}>
                                 <Text style={styles.modalOptionText}>{t('setup.modal.gallery')}</Text>
@@ -1170,9 +1176,11 @@ const styles = StyleSheet.create({
         backgroundColor: `${colors.primary}20`,
         borderColor: colors.primary,
     },
+    // "Learning" chips, distinct from the purple "speaks" chips. Not the pink
+    // accent: at 20% over the dark background it reads as a red error pill.
     tagSelectedAccent: {
-        backgroundColor: `${colors.accent}20`,
-        borderColor: colors.accent,
+        backgroundColor: `${colors.favoriteBlue}20`,
+        borderColor: colors.favoriteBlue,
     },
     tagText: {
         fontSize: typography.fontSize.sm,
@@ -1290,7 +1298,7 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: `${colors.accent}15`,
+        backgroundColor: `${colors.primary}15`,
         justifyContent: "center",
         alignItems: "center",
         marginBottom: spacing.xs,
@@ -1312,11 +1320,11 @@ const styles = StyleSheet.create({
     photoTip: {
         flexDirection: "row",
         gap: spacing.sm,
-        backgroundColor: `${colors.accent}10`,
+        backgroundColor: `${colors.primary}10`,
         padding: spacing.md,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: `${colors.accent}30`,
+        borderColor: `${colors.primary}30`,
     },
     photoTipText: {
         flex: 1,

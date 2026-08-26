@@ -1102,7 +1102,25 @@ export default function ConversationScreen() {
         contentContainerStyle={[
           styles.messagesContent,
           { paddingBottom: spacing.lg + 100 },
+          // Pin a short thread to the bottom, next to the input, the way every
+          // messaging app does. Without this the first message of a brand-new
+          // match sat alone at the very top with ~1300px of empty black under
+          // it, which reads as a broken screen at exactly the moment a match
+          // has to turn into a conversation.
+          messages.length === 0 && !firstMessage
+            ? { flexGrow: 1, justifyContent: "center" as const }
+            : { flexGrow: 1, justifyContent: "flex-end" as const },
         ]}
+        ListEmptyComponent={
+          firstMessage ? null : (
+            <View style={styles.emptyThread}>
+              <Text style={styles.emptyThreadTitle}>
+                {t("chat.new_thread_title", { name: otherUser?.displayName ?? "" })}
+              </Text>
+              <Text style={styles.emptyThreadBody}>{t("chat.new_thread_body")}</Text>
+            </View>
+          )
+        }
         inverted={false}
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: false });
@@ -1123,7 +1141,7 @@ export default function ConversationScreen() {
       {isFirstMessage && messageText.length > 0 && messageText.length < 20 && (
         <View style={styles.hintContainer}>
           <Text style={styles.hintText}>
-            💡 İlk mesaj en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz!
+            💡 {t("chat.first_message_hint")}
           </Text>
         </View>
       )}
@@ -1495,6 +1513,23 @@ const styles = StyleSheet.create({
   messagesContent: {
     padding: spacing.md,
     paddingBottom: spacing.lg,
+  },
+  emptyThread: {
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  emptyThreadTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    textAlign: "center",
+  },
+  emptyThreadBody: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
   messageContainer: {
     marginBottom: spacing.sm,

@@ -308,6 +308,55 @@ export default function PremiumScreen() {
     return { price: priceString, time: "/ month" };
   };
 
+  /**
+   * Restore + the required legal links.
+   *
+   * "Restore Purchases" used to live INSIDE the branch that renders the
+   * packages, so the two situations where it matters most had no restore
+   * button at all: when the offerings call fails (the screen a reviewer sees
+   * on a sandbox account, and what a paying user gets after a reinstall on a
+   * flaky connection), and when the user already has premium. App Review
+   * guideline 3.1.1 expects a restore mechanism to be reachable, and a
+   * subscriber needs a way back to their subscription.
+   */
+  const restoreButton = (
+    <TouchableOpacity
+      onPress={handleRestore}
+      disabled={restoring}
+      style={styles.restoreButton}
+      accessibilityRole="button"
+    >
+      {restoring ? (
+        <ActivityIndicator size="small" color={colors.textSecondary} />
+      ) : (
+        <Text style={styles.restoreText}>{t("premium.restore")}</Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  const restoreAndLegal = (
+    <>
+      {restoreButton}
+      <View style={styles.legalBlock}>
+        <View style={styles.legalLinks}>
+          <TouchableOpacity
+            onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
+            accessibilityRole="link"
+          >
+            <Text style={styles.legalLink}>{t("premium.terms")}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>·</Text>
+          <TouchableOpacity
+            onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
+            accessibilityRole="link"
+          >
+            <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+
   if (premiumEnabled) {
     return (
       <SafeAreaView edges={["bottom"]}>
@@ -330,6 +379,8 @@ export default function PremiumScreen() {
               </View>
             ))}
           </Card>
+
+          {restoreAndLegal}
         </ScrollView>
         <StatusModal
           visible={statusVisible}
@@ -432,17 +483,7 @@ export default function PremiumScreen() {
                 })}
             </ScrollView>
 
-            <TouchableOpacity
-              onPress={handleRestore}
-              disabled={restoring}
-              style={styles.restoreButton}
-            >
-              {restoring ? (
-                <ActivityIndicator size="small" color={colors.textSecondary} />
-              ) : (
-                <Text style={styles.restoreText}>{t("premium.restore")}</Text>
-              )}
-            </TouchableOpacity>
+            {restoreButton}
 
             {/*
               Required on any screen selling an auto-renewable subscription:
@@ -485,29 +526,12 @@ export default function PremiumScreen() {
         )}
 
         {/*
-          Terms + Privacy stay on the screen even when the packages fail to
-          load, so the required links are never missing from the purchase
-          surface.
+          Restore, Terms and Privacy stay on the screen even when the packages
+          fail to load: somebody who already paid must still be able to get
+          their entitlement back, and the required links must never be missing
+          from a purchase surface.
         */}
-        {!loading && !(offering && offering.availablePackages.length > 0) && (
-          <View style={styles.legalBlock}>
-            <View style={styles.legalLinks}>
-              <TouchableOpacity
-                onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
-                accessibilityRole="link"
-              >
-                <Text style={styles.legalLink}>{t("premium.terms")}</Text>
-              </TouchableOpacity>
-              <Text style={styles.legalSeparator}>·</Text>
-              <TouchableOpacity
-                onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
-                accessibilityRole="link"
-              >
-                <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {!loading && !(offering && offering.availablePackages.length > 0) && restoreAndLegal}
       </ScrollView>
       <StatusModal
         visible={statusVisible}
