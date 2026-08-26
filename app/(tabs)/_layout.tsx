@@ -144,7 +144,7 @@ export default function TabLayout() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { isTablet } = useDeviceType();
-  const { likesCount: realtimeLikesCount, newMatches, clearNewMatches } = useSocket();
+  const { likesCount: realtimeLikesCount, clearLikesCount, newMatches, clearNewMatches } = useSocket();
   const [incomingRequestsCount, setIncomingRequestsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMatchPopup, setShowMatchPopup] = useState(false);
@@ -185,8 +185,23 @@ export default function TabLayout() {
     }
   };
 
-  // Combine API count with real-time socket updates
-  const totalLikesCount = incomingRequestsCount + realtimeLikesCount;
+  // The server count is the count.
+  //
+  // This used to be `incomingRequestsCount + realtimeLikesCount`, adding a
+  // socket-driven tally on top of a number that already included those likes
+  // as soon as the list was refetched — so one incoming like showed a badge of
+  // 2. Worse, nothing ever called `clearLikesCount`, so the socket half only
+  // ever grew and the badge never came down, even after the user had opened
+  // the Likes tab and seen everything in it.
+  //
+  // The socket event is a signal that the server count changed, so use it to
+  // refetch rather than to count.
+  useEffect(() => {
+    if (realtimeLikesCount > 0) {
+      loadIncomingRequestsCount();
+      clearLikesCount();
+    }
+  }, [realtimeLikesCount]);
 
   // Show match popup when new match arrives; hide it when the queue is
   // cleared elsewhere (e.g. likes screen shows its own match modal on accept).
@@ -261,7 +276,7 @@ export default function TabLayout() {
         tabBar={(props) => (
           <CustomTabBar
             {...props}
-            incomingRequestsCount={totalLikesCount}
+            incomingRequestsCount={incomingRequestsCount}
             unreadMessagesCount={unreadMessagesCount}
             bottomMargin={bottomMargin}
             isTablet={isTablet}
