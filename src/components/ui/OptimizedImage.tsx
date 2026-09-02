@@ -47,6 +47,23 @@ export function OptimizedImage({
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
 
+  /**
+   * Yukleniyor halkasi icin guvenlik agi.
+   *
+   * `onLoad` / `onLoadEnd` her platformda guvenilir degil --
+   * react-native-web'de onbellekten gelen gorseller icin atesenmeyebiliyor.
+   * O zaman `loading` sonsuza kadar true kaliyor ve fotograf goruntulendigi
+   * halde ustunde donen bir halka duruyor: deste kartinda her yuzun
+   * ortasinda bir spinner vardi. Gorsel incelemede yakalandi.
+   *
+   * Takili kalan bir gosterge, hic olmayan gostergeden kotudur.
+   */
+  React.useEffect(() => {
+    if (!loading) return;
+    const id = setTimeout(() => setLoading(false), 2500);
+    return () => clearTimeout(id);
+  }, [loading]);
+
   return (
     <View style={[styles.container, containerStyle]}>
       {!errored && (
@@ -58,6 +75,17 @@ export function OptimizedImage({
           onLoadStart={() => {
             setLoading(true);
             onLoadStart?.();
+          }}
+          // `onLoad` DA dinleniyor.
+          //
+          // react-native-web'de `onLoadEnd` her zaman atesleniyor degil
+          // (ozellikle onbellekten gelen gorsellerde), ve o zaman `loading`
+          // sonsuza kadar true kaliyordu: fotograf goruntuleniyor ama
+          // ustunde donen bir halka duruyordu. Deste kartinda her yuzun
+          // ortasinda bir spinner vardi.
+          onLoad={(e) => {
+            setLoading(false);
+            rest.onLoad?.(e);
           }}
           onLoadEnd={() => {
             setLoading(false);
