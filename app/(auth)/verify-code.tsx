@@ -308,6 +308,12 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     flex: 1,
+    // `flex: 1` tek basina yetmiyor: bir metin girdisinin ic genisligi
+    // (tarayicida ~150px, native'de daha az) kucultmeyi engelliyor ve alti
+    // kutu satira sigmayip ekranin sagindan tasiyordu. Gorsel incelemede
+    // yakalandi -- ikinci kutu kenarda yarim, kalani gorunmez.
+    minWidth: 0,
+    width: 0,
     backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 12,
     padding: spacing.sm,
