@@ -35,8 +35,11 @@ import { InterestPicker } from "@/src/components/InterestPicker";
 import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languages";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
-import { TrackStep, type Track } from "./steps/TrackStep";
-import { ExamStep, type ExamOutcome } from "./steps/ExamStep";
+// app/ altindaki her dosya expo-router icin bir ROUTE'tur; adim
+// bilesenleri orada durursa router onlari sayfa sanip "missing default
+// export" diye uyarir ve rota agacini kirletir. Bilesenler src/ altinda.
+import { TrackStep, type Track } from "@/src/components/onboarding/TrackStep";
+import { ExamStep, type ExamOutcome } from "@/src/components/onboarding/ExamStep";
 type Gender = "MALE" | "FEMALE" | "OTHER";
 
 

@@ -178,9 +178,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footnote: {
-    ...textStyles.caption,
-    color: colors.textTertiary,
+    // textTertiary degil: bu satir ekranin en onemli guvencesi ("dil
+    // tarafindakiler tanisma tarafini gormez") ve en soluk rengi vermek
+    // onu gorsel olarak dipnota indiriyordu. Gorsel incelemede
+    // okunamadigi icin bir basamak yukseltildi.
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
     marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
     textAlign: "center",
   },
 });

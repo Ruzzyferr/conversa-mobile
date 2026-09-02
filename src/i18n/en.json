@@ -941,7 +941,11 @@
     "retake_note": "Your badge is valid for 12 months. As your language improves you can retake the check every 7 days.",
     "cooldown": "You can take the check for this language once every 7 days.",
     "load_error": "Couldn't load the questions. Check your connection and try again.",
-    "submit_error": "Couldn't submit your result. Want to try again?"
+    "submit_error": "Couldn't submit your result. Want to try again?",
+    "unavailable": "We couldn't assess this right now. It's not about your answers — and it hasn't counted against your retry window.",
+    "unavailable_note": "Your answers are saved. Retrying won't make you write them again.",
+    "retry": "Try again",
+    "answer_in": "Answer in {{language}}."
   },
   "slots": {
     "title": "Conversations awaiting a reply",

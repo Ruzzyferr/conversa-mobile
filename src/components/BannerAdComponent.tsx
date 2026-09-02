@@ -12,6 +12,7 @@ import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePremium } from '@/src/state/premium';
 import { canServePersonalizedAds } from '@/src/services/rewardedAds';
+import { loadAdMob } from '@/src/services/admob';
 
 // Must clear the floating tab bar so the banner is not hidden behind it.
 import { tabBarClearance } from '@/src/config/layout';
@@ -28,7 +29,12 @@ async function loadBannerModule(): Promise<boolean> {
     if (BannerAd) return true;
 
     try {
-        const admobModule = await import('react-native-google-mobile-ads');
+        // Dogrudan import ETMIYORUZ: Metro dinamik importlari da statik
+        // olarak izler ve native-only modulu web paketine sokar, bu da
+        // butun uygulamanin derlenmemesine yol acar. Platform uzantili
+        // sarmalayici cozumleme zamaninda ayrisiyor.
+        const admobModule = await loadAdMob();
+        if (!admobModule) return false;
         BannerAd = admobModule.BannerAd;
         BannerAdSize = admobModule.BannerAdSize;
         TestIds = admobModule.TestIds;

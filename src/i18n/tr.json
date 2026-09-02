@@ -940,7 +940,11 @@
     "retake_note": "Rozetin 12 ay geçerli. Dilin geliştiğinde 7 günde bir tekrar girip güncelleyebilirsin.",
     "cooldown": "Bu dil için 7 günde bir sınava girebilirsin.",
     "load_error": "Sorular yüklenemedi. Bağlantını kontrol edip tekrar dene.",
-    "submit_error": "Sonuç gönderilemedi. Tekrar dener misin?"
+    "submit_error": "Sonuç gönderilemedi. Tekrar dener misin?",
+    "unavailable": "Değerlendirme şu anda yapılamadı. Bu senin cevaplarınla ilgili değil — bekleme sürene de sayılmadı.",
+    "unavailable_note": "Cevapların duruyor. Tekrar denediğinde baştan yazman gerekmiyor.",
+    "retry": "Tekrar dene",
+    "answer_in": "{{language}} dilinde cevapla."
   },
   "slots": {
     "title": "Cevap bekleyen sohbetler",

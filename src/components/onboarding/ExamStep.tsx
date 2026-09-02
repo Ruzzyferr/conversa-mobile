@@ -53,6 +53,8 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ExamOutcome | null>(null);
+  /** Degerlendirme kesintiye ugradiysa cevaplari saklayip tekrar gondeririz. */
+  const [retryable, setRetryable] = useState<string[] | null>(null);
 
   // Zamanlayici, cevabi "suresi doldu" anında oldugu gibi almali; bu yuzden
   // taslak bir ref'te de tutuluyor (setState kapanisi eskir).
@@ -95,11 +97,17 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
         };
         setOutcome(result);
       } catch (e: any) {
-        setError(
-          e?.response?.data?.error?.code === "EXAM_COOLDOWN"
-            ? t("exam.cooldown")
-            : t("exam.submit_error")
-        );
+        const code = e?.response?.data?.error?.code;
+        if (code === "EXAM_UNAVAILABLE") {
+          // Degerlendirme yapilamadi: bir sonuc degil, bir kesinti.
+          // Kullanici bekleme suresine takilmadan hemen tekrar
+          // deneyebilir, o yuzden cevaplari koruyup yeniden gonderme
+          // imkani veriyoruz.
+          setError(t("exam.unavailable"));
+          setRetryable(finalAnswers);
+        } else {
+          setError(code === "EXAM_COOLDOWN" ? t("exam.cooldown") : t("exam.submit_error"));
+        }
       } finally {
         setSubmitting(false);
       }
@@ -149,6 +157,34 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
       <View style={[styles.container, styles.center]} testID="exam-loading">
         <ActivityIndicator color={colors.primary} />
         <Text style={styles.subtitle}>{t("exam.loading")}</Text>
+      </View>
+    );
+  }
+
+  if (retryable) {
+    return (
+      <View style={styles.container} testID="exam-retry">
+        <Text style={styles.title}>{t("exam.title")}</Text>
+        <View style={styles.noticeCard}>
+          <MaterialIcons name="cloud-off" size={22} color={colors.warning} />
+          <Text style={styles.noticeText}>{error ?? t("exam.unavailable")}</Text>
+        </View>
+        <TouchableOpacity
+          testID="exam-retry-button"
+          style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+          onPress={() => {
+            setRetryable(null);
+            setError(null);
+            void submitAll(retryable);
+          }}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.primaryButtonText}>
+            {submitting ? t("exam.submitting") : t("exam.retry")}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.footnote}>{t("exam.unavailable_note")}</Text>
       </View>
     );
   }
@@ -219,6 +255,16 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
 
       <Text style={styles.title}>{t("exam.title")}</Text>
       <Text style={styles.prompt}>{item.prompt}</Text>
+
+      {/* Soru hedef dilde, arayuz kullanicinin dilinde. Hangi dilde cevap
+          verilecegi SOYLENMEZSE kullanici kendi dilinde yazar ve olcmeye
+          calistigimiz sey olculemez. Gorsel incelemede yakalandi. */}
+      <View style={styles.answerHint}>
+        <MaterialIcons name="edit" size={16} color={colors.primaryTintText} />
+        <Text style={styles.answerHintText}>
+          {t("exam.answer_in", { language: language.toUpperCase() })}
+        </Text>
+      </View>
 
       <TextInput
         testID="exam-answer"
@@ -397,9 +443,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   footnote: {
+    // textTertiary koyu zeminde okunmuyordu; bu satir kullaniciya geri
+    // donus olmadigini soyluyor, yani atlanmamasi gereken bir uyari.
     ...textStyles.caption,
-    color: colors.textTertiary,
+    color: colors.textSecondary,
     textAlign: "center",
     marginTop: spacing.md,
+  },
+  answerHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+    marginBottom: spacing.md,
+  },
+  answerHintText: {
+    ...textStyles.labelSmall,
+    color: colors.primaryTintText,
   },
 });
