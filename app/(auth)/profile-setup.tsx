@@ -120,7 +120,8 @@ export default function ProfileSetupScreen() {
   const minYear = currentYear - 100;
   const maxYear = currentYear - 18;
 
-  /** Adim gecerli mi -- dugmeyi kapatmak icin, mesaj uretmeden. */
+  /** Adim gecerli mi. Dugme her zaman basilabilir; bu yalnizca
+   *  ilerleyip ilerlemeyecegimizi soyluyor. */
   const valid = useMemo(() => {
     switch (key) {
       case "track":
@@ -413,7 +414,19 @@ export default function ProfileSetupScreen() {
         onCancel={cancel}
         ctaLabel={isLast ? t("common.complete") : t("common.continue")}
         onCta={next}
-        ctaDisabled={!valid}
+        /*
+          Dugme KAPALI DEGIL.
+
+          Once gecersizken kapatiyordum; ama kapali bir dugme kullaniciya
+          NEDEN kapali oldugunu hicbir zaman soylemiyor. Dogum yili
+          adiminda bu ozellikle kotu: 2015 yazan biri inert bir dugmeye
+          bakiyor, "18 yasindan kucukler bu uygulamayi kullanamaz"
+          cumlesini hicbir yerde gormuyor. Zaten duzeltmeye calistigim
+          hatanin ta kendisi buydu (Alert.alert web'de sessizdi).
+
+          Dugme her zaman basilabilir; gecersizse alan-ici hata cikiyor.
+        */
+        ctaDisabled={false}
         ctaLoading={loading}
         hideCta={key === "exam"}
         scroll={!selfScrolling}
