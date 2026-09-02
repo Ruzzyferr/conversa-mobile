@@ -2,62 +2,45 @@ import React from "react";
 import { Text, View, StyleSheet, TextStyle } from "react-native";
 import { colors } from "@/src/theme/colors";
 import { typography } from "@/src/theme/typography";
-import { languageFlag, resolveLanguageCode } from "@/src/data/languages";
+import { resolveLanguageCode } from "@/src/data/languages";
 
 /**
- * Visual representation of a language using a flag emoji (default) or
- * a typographic ISO code badge fallback (variant="code").
+ * Dilin tipografik ISO kod rozeti.
  *
- * Future upgrade path: swap the emoji renderer with a vector flag library
- * (e.g. react-native-country-flag / local SVGs in assets/flags/) without
- * touching call sites. src/data/languages.ts is the single source of truth.
+ * Eskiden bayrak emojisi de cizebiliyordu. Liste butun dunyaya cikinca o
+ * yol yalnizca eksik degil YANLIS oldu: bir dil bir ulke degildir
+ * (Arapca'ya Suudi bayragi koymak Misirliyi, Ispanyolca'ya Ispanya
+ * bayragi koymak Meksikaliyi disarida birakir) ve Kurtce ya da Suahili
+ * gibi diller icin dogru bir bayrak zaten yok.
  *
- * Always pass the original language string — it is exposed to assistive
- * technologies via accessibilityLabel.
+ * Ustelik emoji yolu dili tanimadiginda `null` donuyordu; listeye eklenen
+ * doksan dilde rozet hic gorunmeyecekti.
+ *
+ * Her zaman ozgun dil dizesini gecirin: erisilebilirlik etiketi odur.
  */
 type LanguageFlagProps = {
   language: string;
   size?: number;
-  variant?: "emoji" | "code";
   style?: TextStyle;
 };
 
-export function LanguageFlag({
-  language,
-  size = 16,
-  variant = "emoji",
-  style,
-}: LanguageFlagProps) {
-  // `language` may be an ISO code (current) or a legacy localized label
-  // ("Türkçe" / "Turkish") written by older app versions.
-  const emoji = languageFlag(language);
-  if (!emoji) return null;
+export function LanguageFlag({ language, size = 16, style }: LanguageFlagProps) {
+  // `language` bir ISO kodu (guncel) ya da eski surumlerin yazdigi
+  // yerellestirilmis etiket ("Türkçe" / "Turkish") olabilir.
   const isoCode = resolveLanguageCode(language).toUpperCase();
-
-  if (variant === "code") {
-    return (
-      <View
-        style={[
-          styles.codeBadge,
-          { minWidth: size + 8, height: size + 6, borderRadius: (size + 6) / 2 },
-        ]}
-        accessibilityLabel={language}
-        accessibilityRole="text"
-      >
-        <Text style={[styles.codeText, { fontSize: size * 0.7 }, style]}>{isoCode}</Text>
-      </View>
-    );
-  }
+  if (!isoCode) return null;
 
   return (
-    <Text
-      style={[{ fontSize: size }, style]}
+    <View
+      style={[
+        styles.codeBadge,
+        { minWidth: size + 8, height: size + 6, borderRadius: (size + 6) / 2 },
+      ]}
       accessibilityLabel={language}
       accessibilityRole="text"
-      allowFontScaling={false}
     >
-      {emoji}
-    </Text>
+      <Text style={[styles.codeText, { fontSize: size * 0.7 }, style]}>{isoCode}</Text>
+    </View>
   );
 }
 

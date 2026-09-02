@@ -887,7 +887,7 @@ export default function ConversationScreen() {
                 setShowLeaveConversationModal(false);
                 handleLeaveConversation();
               }}
-              style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
+              style={[styles.modalButton, { backgroundColor: colors.warning }]}
             />
             <TouchableOpacity
               onPress={() => setShowLeaveConversationModal(false)}
@@ -1829,7 +1829,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   voiceButtonRecording: {
-    backgroundColor: colors.error || "#EF4444",
+    backgroundColor: colors.error,
   },
   voiceButtonPressed: {
     opacity: 0.8,
@@ -1848,7 +1848,7 @@ const styles = StyleSheet.create({
     top: -30,
     left: -20,
     right: -20,
-    backgroundColor: colors.error || "#EF4444",
+    backgroundColor: colors.error,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: 12,
@@ -2107,7 +2107,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   blockButton: {
-    backgroundColor: colors.warning || "#FF6B6B",
+    backgroundColor: colors.warning,
   },
   leaveChatButton: {
     backgroundColor: colors.error,

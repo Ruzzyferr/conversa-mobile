@@ -677,7 +677,7 @@ export function VoiceRecorder({
                 onPress={handleSend}
                 disabled={sending}
             >
-                <MaterialIcons name="send" size={20} color="#FFF" />
+                <MaterialIcons name="send" size={20} color={colors.textInverse} />
             </TouchableOpacity>
             {renderPermissionModal()}
         </View>

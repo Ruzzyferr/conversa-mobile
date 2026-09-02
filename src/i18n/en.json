@@ -302,7 +302,29 @@
       "language_body": "Match with people who actually want to practise.",
       "language_cost": "You'll take a short language check. About 1 minute.",
       "footnote": "The two sides are separate. People on the language side don't see the dating side."
-    }
+    },
+    "q": {
+      "name": "What's your name?",
+      "name_helper": "This is what people see. You can't change it later.",
+      "birth": "What year were you born?",
+      "birth_helper": "We show your age, not your birth date.",
+      "gender": "Your gender?",
+      "purpose": "What are you here for?",
+      "native": "Which languages do you speak natively?",
+      "native_helper": "These match you with people who want to learn them.",
+      "learning": "Which languages do you want to learn?",
+      "learning_helper": "We'll show you native speakers of these.",
+      "exam": "A short language check",
+      "exam_helper": "Four questions, about a minute. This sets your level.",
+      "about": "Tell us a little about you",
+      "about_helper": "Leave it blank if you like — you can fill it in later.",
+      "photos": "Add your photos",
+      "photos_helper": "At least one. The first one is your cover.",
+      "search": "Search languages"
+    },
+    "name_note": "This can't be changed later.",
+    "birth_note": "You must be 18 or older to use this app.",
+    "interests_count": "{{count}} interests selected"
   },
   "languages": {
     "Türkçe": "Turkish",
@@ -866,7 +888,8 @@
     "pick_photo": "Choose a Photo",
     "native_languages": "Your Native Languages",
     "native_required": "Pick at least one native language",
-    "location_failed": "Could not get your location."
+    "location_failed": "Could not get your location.",
+    "pick_languages": "Choose languages"
   },
   "conversation": {
     "leave_title": "Leave Conversation",

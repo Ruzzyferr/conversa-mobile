@@ -330,7 +330,7 @@ export default function ProfileScreen() {
               {age && <Text style={styles.age}>, {age}</Text>}
             </Text>
             {(userInfo?.user as any)?.isVerified && (
-              <Ionicons name="checkmark-circle" size={22} color="#4C9EEB" style={styles.verifiedIcon} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.info} style={styles.verifiedIcon} />
             )}
           </View>
           {profile?.city && (

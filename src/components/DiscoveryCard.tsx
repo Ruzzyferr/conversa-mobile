@@ -104,7 +104,7 @@ function DiscoveryCardBase({
   // Ikincisi cizim: bolgesel gosterge emojileri Windows'ta hic cizilmiyor ve
   // yerine iki harflik bos kutu cikiyor.
   const renderLanguageFlag = (lang: string) => (
-    <LanguageFlag language={lang} size={13} variant="code" />
+    <LanguageFlag language={lang} size={13} />
   );
 
   const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
@@ -122,7 +122,7 @@ function DiscoveryCardBase({
           </Text>
           {age && <Text style={styles.age}>{age}</Text>}
           {card.isVerified && (
-            <MaterialIcons name="verified" size={22} color="#4C9EEB" />
+            <MaterialIcons name="verified" size={22} color={colors.info} />
           )}
           {isNewUser && (
             <View

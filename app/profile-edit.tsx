@@ -27,6 +27,7 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { api } from "@/src/services/api";
 import { InterestPicker } from "@/src/components/InterestPicker";
+import { LanguagePickerModal } from "@/src/components/ui/LanguagePickerModal";
 import { LEGACY_INTEREST_MAP } from "@/src/data/interests";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
@@ -47,6 +48,7 @@ export default function ProfileEditScreen() {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showInterestPicker, setShowInterestPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [langPicker, setLangPicker] = useState<"native" | "practice" | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
@@ -362,31 +364,23 @@ export default function ProfileEditScreen() {
           */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('edit.native_languages')} *</Text>
-            <View style={styles.languagesContainer}>
-              {LANGUAGES.map(({ code: lang }) => {
-                const isSelected = languagesNative.includes(lang);
-                return (
-                  <TouchableOpacity
-                    key={`native-${lang}`}
-                    style={[
-                      styles.languageTag,
-                      isSelected && styles.languageTagSelected,
-                    ]}
-                    onPress={() => toggleLanguageNative(lang)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.languageText,
-                        isSelected && styles.languageTextSelected,
-                      ]}
-                    >
-                      {languageLabel(lang, i18n.language)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/*
+              Cip izgarasi yerine ozet + modal secici: liste 120 dile cikinca
+              ekrana serilen izgara IKI kez yuz yirmi cip demekti ve ikisini
+              de gormek icin sayfayi bastan sona kaydirmak gerekiyordu.
+            */}
+            <TouchableOpacity
+              onPress={() => setLangPicker("native")}
+              style={styles.pickerRow}
+              accessibilityRole="button"
+            >
+              <Text style={styles.pickerValue} numberOfLines={2}>
+                {languagesNative.length > 0
+                  ? languagesNative.map((l) => languageLabel(l, i18n.language)).join(", ")
+                  : t("edit.pick_languages")}
+              </Text>
+              <MaterialIcons name="chevron-right" size={22} color={colors.textSecondaryDark} />
+            </TouchableOpacity>
           </View>
 
           {/* Purpose Section */}
@@ -429,31 +423,23 @@ export default function ProfileEditScreen() {
             <Text style={styles.sectionSubtitle}>
               Pratik yapmak istediğin dilleri seç
             </Text>
-            <View style={styles.languagesContainer}>
-              {LANGUAGES.map(({ code: lang }) => {
-                const isSelected = languagesPractice.includes(lang);
-                return (
-                  <TouchableOpacity
-                    key={lang}
-                    style={[
-                      styles.languageTag,
-                      isSelected && styles.languageTagSelected,
-                    ]}
-                    onPress={() => toggleLanguagePractice(lang)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.languageText,
-                        isSelected && styles.languageTextSelected,
-                      ]}
-                    >
-                      {languageLabel(lang, i18n.language)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/*
+              Cip izgarasi yerine ozet + modal secici: liste 120 dile cikinca
+              ekrana serilen izgara IKI kez yuz yirmi cip demekti ve ikisini
+              de gormek icin sayfayi bastan sona kaydirmak gerekiyordu.
+            */}
+            <TouchableOpacity
+              onPress={() => setLangPicker("practice")}
+              style={styles.pickerRow}
+              accessibilityRole="button"
+            >
+              <Text style={styles.pickerValue} numberOfLines={2}>
+                {languagesPractice.length > 0
+                  ? languagesPractice.map((l) => languageLabel(l, i18n.language)).join(", ")
+                  : t("edit.pick_languages")}
+              </Text>
+              <MaterialIcons name="chevron-right" size={22} color={colors.textSecondaryDark} />
+            </TouchableOpacity>
           </View>
 
           {/* Photo Selection Section */}
@@ -554,7 +540,28 @@ export default function ProfileEditScreen() {
             </View>
           </View>
 
-          <InterestPicker
+          <LanguagePickerModal
+        visible={langPicker !== null}
+        title={
+          langPicker === "native"
+            ? t("edit.native_languages")
+            : t("edit.practice_languages")
+        }
+        value={langPicker === "native" ? languagesNative : languagesPractice}
+        emptyHint={
+          langPicker === "native"
+            ? t("setup.step2.native_helper")
+            : t("setup.step2.practice_helper")
+        }
+        onClose={() => setLangPicker(null)}
+        onSave={(next) => {
+          if (langPicker === "native") setLanguagesNative(next);
+          else setLanguagesPractice(next);
+          setLangPicker(null);
+        }}
+      />
+
+      <InterestPicker
             visible={showInterestPicker}
             selected={selectedInterests}
             onClose={() => setShowInterestPicker(false)}
@@ -743,6 +750,23 @@ const styles = StyleSheet.create({
   },
   purposeTextSelected: {
     color: "#FFF",
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 54,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  pickerValue: {
+    ...textStyles.body,
+    color: colors.text,
+    flex: 1,
   },
   languagesContainer: {
     flexDirection: "row",

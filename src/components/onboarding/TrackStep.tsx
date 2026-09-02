@@ -48,10 +48,9 @@ export function TrackStep({ value, onChange }: Props) {
   const { t } = useTranslation();
 
   return (
+    // Baslik ve yardim metni artik OnboardingShell'in isi; burada da
+    // yazilinca ayni soru ekranda iki kez goruluyordu.
     <View style={styles.container}>
-      <Text style={styles.title}>{t("setup.track.title")}</Text>
-      <Text style={styles.subtitle}>{t("setup.track.subtitle")}</Text>
-
       <View style={styles.options}>
         {OPTIONS.map((opt) => {
           const selected = value === opt.track;

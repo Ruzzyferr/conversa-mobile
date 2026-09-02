@@ -301,7 +301,29 @@
       "language_body": "Gerçekten dil pratiği yapmak isteyen insanlarla eşleş.",
       "language_cost": "Kısa bir dil kontrolünden geçeceksin. Yaklaşık 1 dakika.",
       "footnote": "İki taraf ayrı. Dil tarafındakiler tanışma tarafını görmez."
-    }
+    },
+    "q": {
+      "name": "Adın ne?",
+      "name_helper": "Profilinde bu görünecek. Sonradan değiştiremezsin.",
+      "birth": "Hangi yıl doğdun?",
+      "birth_helper": "Yaşını gösteririz, doğum tarihini değil.",
+      "gender": "Cinsiyetin?",
+      "purpose": "Ne arıyorsun?",
+      "native": "Hangi dilleri anadil gibi konuşuyorsun?",
+      "native_helper": "Bu diller senden öğrenmek isteyenlerle eşleşmeni sağlar.",
+      "learning": "Hangi dilleri öğrenmek istiyorsun?",
+      "learning_helper": "Bu dilleri anadil gibi konuşanlar sana gösterilecek.",
+      "exam": "Kısa bir dil kontrolü",
+      "exam_helper": "Dört soru, yaklaşık bir dakika. Seviyeni buradan belirliyoruz.",
+      "about": "Kendinden biraz bahset",
+      "about_helper": "İstersen boş bırak, sonra doldurabilirsin.",
+      "photos": "Fotoğraflarını ekle",
+      "photos_helper": "En az bir tane gerekli. İlki kapak olur.",
+      "search": "Dil ara"
+    },
+    "name_note": "Sonradan değiştirilemez.",
+    "birth_note": "18 yaşından küçükler bu uygulamayı kullanamaz.",
+    "interests_count": "{{count}} ilgi alanı seçildi"
   },
   "languages": {
     "Türkçe": "Türkçe",
@@ -865,7 +887,8 @@
     "pick_photo": "Fotoğraf seç",
     "native_languages": "Ana dillerin",
     "native_required": "En az bir ana dil seç",
-    "location_failed": "Konum alınamadı."
+    "location_failed": "Konum alınamadı.",
+    "pick_languages": "Dil seç"
   },
   "conversation": {
     "leave_title": "Konuşmadan ayrıl",
