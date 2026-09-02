@@ -398,8 +398,10 @@ export default function ProfileSetupScreen() {
   };
 
   // Dil listeleri kendi FlatList'ini kaydiriyor; kabuk kaydirmamali,
-  // yoksa ic ice iki kaydirma alani olusuyor.
-  const selfScrolling = key === "native" || key === "learning";
+  // yoksa ic ice iki kaydirma alani olusuyor. Sinav da kendi dugmesini
+  // ekranin altina yaslamak icin esnek yukseklik istiyor -- ScrollView
+  // icinde flex:1 cocuga gecmiyor.
+  const selfScrolling = key === "native" || key === "learning" || key === "exam";
 
   return (
     <>

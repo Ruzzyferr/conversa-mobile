@@ -166,7 +166,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
   if (retryable) {
     return (
       <View style={styles.container} testID="exam-retry">
-        <Text style={styles.title}>{t("exam.title")}</Text>
+        {/* Baslik OnboardingShell te; burada da yazilinca ekranda iki baslik olusuyordu. */}
         <View style={styles.noticeCard}>
           <MaterialIcons name="cloud-off" size={22} color={colors.warning} />
           <Text style={styles.noticeText}>{error ?? t("exam.unavailable")}</Text>
@@ -255,7 +255,6 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
         </View>
       </View>
 
-      <Text style={styles.title}>{t("exam.title")}</Text>
       <Text style={styles.prompt}>{item.prompt}</Text>
 
       {/* Soru hedef dilde, arayuz kullanicinin dilinde. Hangi dilde cevap
@@ -283,6 +282,10 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+      {/* Esnek bosluk: sinavin dugmesi de diger adimlardaki gibi ekranin
+          altinda dursun, sorunun hemen altinda degil. */}
+      <View style={styles.spacer} />
+
       <TouchableOpacity
         testID="exam-next"
         style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
@@ -309,9 +312,11 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    // Yatay bosluk OnboardingShell'in isi; burada tekrarlaninca sinav
+    // icerigi diger adimlardan bir kademe daha iceride duruyordu.
+    flex: 1,
   },
+  spacer: { flex: 1, minHeight: spacing.lg },
   center: {
     alignItems: "center",
     gap: spacing.md,

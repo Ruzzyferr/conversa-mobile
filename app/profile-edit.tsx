@@ -363,7 +363,7 @@ export default function ProfileEditScreen() {
             language is half of what the matching runs on.
           */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('edit.native_languages')} *</Text>
+            <Text style={styles.sectionTitle}>{t('edit.native_languages')}</Text>
             {/*
               Cip izgarasi yerine ozet + modal secici: liste 120 dile cikinca
               ekrana serilen izgara IKI kez yuz yirmi cip demekti ve ikisini
@@ -406,11 +406,13 @@ export default function ProfileEditScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.7}
                   >
-                    {p === "CONVERSATION"
-                      ? "💬 Sohbet"
-                      : p === "PRACTICE"
-                        ? "📚 Pratik"
-                        : "☕ Kahve"}
+                    {/*
+                      Emoji kaldirildi: platform emoji fontunu kullaniyor ve
+                      clip art gibi okunuyordu. Metin de yerellestirilmemis
+                      sabittir; uc secenek yan yana sigmadigi icin
+                      "Sohb..." diye kirpiliyordu.
+                    */}
+                    {t(`setup.step1.purpose_${p.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -419,7 +421,7 @@ export default function ProfileEditScreen() {
 
           {/* Practice Languages Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('edit.practice_languages')} *</Text>
+            <Text style={styles.sectionTitle}>{t('edit.practice_languages')}</Text>
             <Text style={styles.sectionSubtitle}>
               Pratik yapmak istediğin dilleri seç
             </Text>
