@@ -25,6 +25,7 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
+import { FieldError } from "@/src/components/ui/FieldError";
 import { BrandTexture } from "@/src/components/brand/BrandTexture";
 import { AnimatedStepIndicator } from "@/src/components/AnimatedStepIndicator";
 import { api } from "@/src/services/api";
@@ -338,64 +339,89 @@ export default function ProfileSetupScreen() {
         );
     };
 
+    /**
+     * Alan hatalari.
+     *
+     * Dogrulama Alert.alert kullaniyordu. Iki sorun birden: react-native-web
+     * uzerinde Alert SESSIZCE hicbir sey yapmiyor -- kayit akisinin ikinci
+     * adiminda "Devam et" olu bir dugmeye donusuyordu -- ve her platformda
+     * hatayi alandan koparip modala tasimak, kullaniciyi hangi alanin
+     * yanlis oldugunu aramaya zorluyor.
+     */
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
     const validateStep = (step: number): boolean => {
+        const next: Record<string, string> = {};
         const key = stepKeys[step - 1];
         switch (key) {
             case "track":
                 if (!track) {
-                    Alert.alert(t('common.error'), t('setup.track.title'));
+                    next.track = t('setup.track.title');
+                    setErrors(next);
                     return false;
                 }
+                setErrors({});
                 return true;
             case "exam":
                 // Sinav adimi kendi ic akisini yonetir; "devam" dugmesi
                 // sonuc ekraninda gorunur ve onComplete ile ilerletir.
                 return examOutcome !== null;
-            case "basics":
+            case "basics": {
+                // Ilk hatada durup donmuyoruz: bos bir formda tek tek durmak,
+                // kullaniciyi ayni dugmeye uc kez bastiriyordu.
                 if (!displayName.trim()) {
-                    Alert.alert(t('common.error'), t('setup.alerts.name_required'));
-                    return false;
+                    next.name = t('setup.alerts.name_required');
+                } else if (displayName.trim().length < 2) {
+                    next.name = t('setup.alerts.name_length');
                 }
-                if (displayName.trim().length < 2) {
-                    Alert.alert(t('common.error'), t('setup.alerts.name_length'));
-                    return false;
-                }
-                if (!birthYear || birthYear.length !== 4) {
-                    Alert.alert(t('common.error'), t('setup.alerts.birth_required'));
-                    return false;
-                }
+
                 const year = parseInt(birthYear);
                 const currentYear = new Date().getFullYear();
                 const minYear = currentYear - 100;
                 const maxYear = currentYear - 18;
-                if (isNaN(year) || year < minYear || year > maxYear) {
-                    Alert.alert(t('common.error'), t('setup.alerts.birth_range', { min: minYear, max: maxYear }));
-                    return false;
+                if (!birthYear || birthYear.length !== 4) {
+                    next.birth = t('setup.alerts.birth_required');
+                } else if (isNaN(year) || year < minYear || year > maxYear) {
+                    next.birth = t('setup.alerts.birth_range', { min: minYear, max: maxYear });
                 }
+
                 if (!gender) {
-                    Alert.alert(t('common.error'), t('setup.alerts.gender_required'));
+                    next.gender = t('setup.alerts.gender_required');
+                }
+
+                if (Object.keys(next).length > 0) {
+                    setErrors(next);
                     return false;
                 }
+                setErrors({});
                 return true;
+            }
             case "languages":
                 if (languagesNative.length === 0) {
-                    Alert.alert(t('common.error'), t('setup.alerts.native_required'));
-                    return false;
+                    next.native = t('setup.alerts.native_required');
                 }
                 if (languagesPractice.length === 0) {
-                    Alert.alert(t('common.error'), t('setup.alerts.practice_required'));
+                    next.practice = t('setup.alerts.practice_required');
+                }
+                if (Object.keys(next).length > 0) {
+                    setErrors(next);
                     return false;
                 }
+                setErrors({});
                 return true;
             case "about":
+                setErrors({});
                 return true;
             case "photos":
                 if (photos.length === 0) {
-                    Alert.alert(t('common.error'), t('setup.alerts.photo_required'));
+                    next.photos = t('setup.alerts.photo_required');
+                    setErrors(next);
                     return false;
                 }
+                setErrors({});
                 return true;
             default:
+                setErrors({});
                 return true;
         }
     };
@@ -497,8 +523,8 @@ export default function ProfileSetupScreen() {
 
             {/* Display Name */}
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step1.name_label')} *</Text>
-                <View style={styles.inputContainer}>
+                <Text style={styles.label}>{t('setup.step1.name_label')}</Text>
+                <View style={[styles.inputContainer, errors.name && styles.inputContainerError]}>
                     <MaterialIcons
                         name="person-outline"
                         size={20}
@@ -514,12 +540,13 @@ export default function ProfileSetupScreen() {
                         maxLength={40}
                     />
                 </View>
+                <FieldError message={errors.name} />
             </View>
 
             {/* Birth Year */}
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step1.birth_label')} *</Text>
-                <View style={styles.inputContainer}>
+                <Text style={styles.label}>{t('setup.step1.birth_label')}</Text>
+                <View style={[styles.inputContainer, errors.birth && styles.inputContainerError]}>
                     <MaterialIcons
                         name="cake"
                         size={20}
@@ -536,11 +563,12 @@ export default function ProfileSetupScreen() {
                         maxLength={4}
                     />
                 </View>
+                <FieldError message={errors.birth} />
             </View>
 
             {/* Gender */}
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step1.gender_label')} *</Text>
+                <Text style={styles.label}>{t('setup.step1.gender_label')}</Text>
                 <View style={styles.optionGrid}>
                     {(["MALE", "FEMALE", "OTHER"] as Gender[]).map((g) => (
                         <TouchableOpacity
@@ -553,9 +581,6 @@ export default function ProfileSetupScreen() {
                             activeOpacity={0.7}
                         >
                             <View style={styles.optionContent}>
-                                <Text style={styles.optionEmoji}>
-                                    {g === "MALE" ? "👨" : g === "FEMALE" ? "👩" : "🌈"}
-                                </Text>
                                 <Text
                                     style={[
                                         styles.optionText,
@@ -573,6 +598,7 @@ export default function ProfileSetupScreen() {
                         </TouchableOpacity>
                     ))}
                 </View>
+                <FieldError message={errors.gender} />
             </View>
 
             {/* Purpose — yalnizca DATE hattinda.
@@ -581,7 +607,7 @@ export default function ProfileSetupScreen() {
                 bir soruyu ikinci kez sormaktir. */}
             {track !== "LANGUAGE" && (
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step1.purpose_label')} *</Text>
+                <Text style={styles.label}>{t('setup.step1.purpose_label')}</Text>
                 <View style={styles.optionGrid}>
                     {(["CONVERSATION", "COFFEE"] as Purpose[]).map((p) => (
                         <TouchableOpacity
@@ -594,9 +620,6 @@ export default function ProfileSetupScreen() {
                             activeOpacity={0.7}
                         >
                             <View style={styles.optionContent}>
-                                <Text style={styles.optionEmoji}>
-                                    {p === "CONVERSATION" ? "💬" : p === "PRACTICE" ? "📚" : "☕"}
-                                </Text>
                                 <Text
                                     style={[
                                         styles.optionText,
@@ -633,7 +656,7 @@ export default function ProfileSetupScreen() {
 
             {/* Native Languages */}
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step2.native_label')} *</Text>
+                <Text style={styles.label}>{t('setup.step2.native_label')}</Text>
                 <Text style={styles.helperText}>
                     {t('setup.step2.native_helper')}
                 </Text>
@@ -665,11 +688,12 @@ export default function ProfileSetupScreen() {
                         );
                     })}
                 </View>
+                <FieldError message={errors.native} />
             </View>
 
             {/* Practice Languages */}
             <View style={styles.section}>
-                <Text style={styles.label}>{t('setup.step2.practice_label')} *</Text>
+                <Text style={styles.label}>{t('setup.step2.practice_label')}</Text>
                 <Text style={styles.helperText}>
                     {t('setup.step2.practice_helper')}
                 </Text>
@@ -701,6 +725,7 @@ export default function ProfileSetupScreen() {
                         );
                     })}
                 </View>
+                <FieldError message={errors.practice} />
             </View>
         </View>
     );
@@ -862,6 +887,8 @@ export default function ProfileSetupScreen() {
                     );
                 })}
             </View>
+
+            <FieldError message={errors.photos} />
 
             <View style={styles.photoTip}>
                 <MaterialIcons name="info-outline" size={20} color={colors.primary} />
@@ -1193,6 +1220,11 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: spacing.md,
     },
+    // Alt yazi tek basina yetmiyor: uzun bir formda hatali alan ekranin
+    // disinda kalabiliyor. Kenarlik, kaydirirken de gorunen isaret.
+    inputContainerError: {
+        borderColor: colors.error,
+    },
     optionCard: {
         flex: 1,
         backgroundColor: colors.backgroundSecondaryDark,
@@ -1200,7 +1232,7 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         borderColor: colors.borderDark,
         padding: spacing.md,
-        minHeight: 80,
+        minHeight: 58,
         justifyContent: "center",
         alignItems: "center",
         position: "relative",
@@ -1213,11 +1245,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: spacing.xs,
     },
-    optionEmoji: {
-        fontSize: 32,
-    },
     optionText: {
-        fontSize: typography.fontSize.sm,
+        fontSize: typography.fontSize.base,
         fontWeight: typography.fontWeight.semibold,
         color: colors.textDark,
         textAlign: "center",

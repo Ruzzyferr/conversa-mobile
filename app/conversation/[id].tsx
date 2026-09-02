@@ -1544,8 +1544,14 @@ const styles = StyleSheet.create({
     maxWidth: "75%",
     padding: spacing.sm,
   },
+  // Tam pirinc DEGIL.
+  //
+  // Bu ekranda pirinc su anda dort ise birden kosuyor: giden baloncuklar,
+  // gonder ve mikrofon dugmeleri, baslik ve buz kirici cipler. En cok
+  // tekrar eden oge (baloncuk) en parlak renkte olunca gercek denetimler
+  // one cikamiyor. Derin pirinc kimligi koruyor, hiyerarsiyi geri veriyor.
   myMessageCard: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentDark,
   },
   otherMessageCard: {
     backgroundColor: colors.backgroundSecondaryDark,
@@ -1554,7 +1560,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
   },
   myMessageText: {
-    color: "#FFFFFF",
+    color: colors.text,
   },
   otherMessageText: {
     color: colors.textDark,

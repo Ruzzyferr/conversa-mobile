@@ -223,13 +223,13 @@
   },
   "setup": {
     "step1": {
-      "title": "Name & Birth Year",
-      "subtitle": "We need your basic info to get started",
-      "name_label": "What is your name?",
+      "title": "Your name and birth year",
+      "subtitle": "A few basics to get started.",
+      "name_label": "Name",
       "name_placeholder": "Enter your name",
-      "birth_label": "Birth Year?",
+      "birth_label": "Birth year",
       "birth_placeholder": "Ex: 1990",
-      "gender_label": "Gender?",
+      "gender_label": "Gender",
       "gender_male": "Male",
       "gender_female": "Female",
       "gender_other": "Other",
