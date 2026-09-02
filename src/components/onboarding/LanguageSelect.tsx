@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, FlatList } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, FlatList, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { colors, spacing, radius, textStyles } from "@/src/theme";
@@ -183,7 +183,9 @@ const styles = StyleSheet.create({
     ...textStyles.body,
     color: colors.text,
     // RN Web tarayici anahatlarini buraya tasiyor; kendi odagimiz var.
-    outlineStyle: "none" as any,
+    // Tarayici anahati yalnizca web'de var; native'de bu prop
+    // "Invalid prop" uyarisi uretir.
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : null),
   },
 
   list: { flex: 1 },

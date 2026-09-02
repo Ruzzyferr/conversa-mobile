@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, Image, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, Image, ScrollView, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { colors, spacing, radius, textStyles } from "@/src/theme";
@@ -296,7 +296,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 2,
     borderBottomColor: colors.border,
-    outlineStyle: "none" as any,
+    // Tarayici anahati yalnizca web'de var; native'de bu prop
+    // "Invalid prop" uyarisi uretir.
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : null),
   },
   bigInputError: { borderBottomColor: colors.error },
   yearInput: { letterSpacing: 6 },
@@ -341,7 +343,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    outlineStyle: "none" as any,
+    // Tarayici anahati yalnizca web'de var; native'de bu prop
+    // "Invalid prop" uyarisi uretir.
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : null),
   },
   counter: {
     ...textStyles.caption,
