@@ -75,10 +75,10 @@
   "home": {
     "empty": {
       "title": "Everyone seen for today!",
-      "text": "New people will be here soon...\nCheck back later 😊",
+      "text": "New people will be here soon...\nCheck back later",
       "refresh": "Refresh",
       "filtered_title": "Your filters look narrow",
-      "filtered_text": "We couldn't find anyone matching these.\nTry loosening the filters a bit 👌",
+      "filtered_text": "We couldn't find anyone matching these.\nTry loosening the filters a bit",
       "reset_filters": "Reset filters"
     },
     "match": {
@@ -135,7 +135,7 @@
       "send_btn": "Send",
       "success_title": "Success",
       "success_msg": "Message request sent",
-      "purchase_success": "5 Favorites added! 🎉",
+      "purchase_success": "5 Favorites added!",
       "purchase_error": "Purchase failed.",
       "default_pack_name": "Favorite pack"
     },
@@ -184,15 +184,15 @@
     "logout_confirm_desc": "Are you sure you want to log out?",
     "boost_active_alert": "Boost Active",
     "boost_active_msg": "Your profile is already boosted!\nEnds: {{time}}",
-    "boost_confirm_title": "Profile Boost 🚀",
+    "boost_confirm_title": "Profile Boost",
     "boost_confirm_msg": "Do you want to boost your profile for 30 minutes?\n\nRemaining: {{count}}",
     "boost_action": "Boost!",
-    "boost_success_title": "Success! 🚀",
+    "boost_success_title": "Success!",
     "boost_success_msg": "Your profile will be boosted for 30 minutes!",
     "boost_no_credits_title": "Out of Boosts",
     "boost_no_credits_msg": "You need a new boost package to boost your profile.\n\n Package: 2 Boosts",
     "buy_boost": "Buy 2 Boosts ({{price}})",
-    "purchase_success_title": "Purchase Successful! 🎉",
+    "purchase_success_title": "Purchase Successful!",
     "purchase_success_msg": "2 Boosts added to your account. You can now boost your profile!",
     "purchase_error_title": "Purchase Failed",
     "purchase_error_msg": "An error occurred. Please try again.",
@@ -592,8 +592,8 @@
     "loading": "Loading...",
     "no_requests": "No incoming requests",
     "no_requests_desc": "No one has sent you a request yet. Improve your profile and meet more people!",
-    "matched": "It's a Match! 🎉",
-    "matched_desc": "You both liked each other!",
+    "matched": "It's a match",
+    "matched_desc": "You can message each other now.",
     "first_message": "First message will be sent by {{name}}",
     "go_to_chat": "Go to Chat",
     "continue": "Continue",
@@ -621,8 +621,8 @@
     "no_messages": "No messages yet",
     "no_messages_desc": "Start discovering to meet new people!",
     "discover": "Discover",
-    "voice_message": "🎤 Voice Message",
-    "photo_message": "📷 Photo",
+    "voice_message": "Voice Message",
+    "photo_message": "Photo",
     "attach_camera": "Take a photo",
     "attach_gallery": "Choose from gallery",
     "camera_permission": "Camera permission is required to take a photo.",
@@ -637,16 +637,16 @@
     "open_conversation_with": "Open conversation with {{name}}",
     "typing": "typing...",
     "icebreakers": {
-      "idiom": "What is the weirdest idiom in your language? Teach me one 😄",
+      "idiom": "What is the weirdest idiom in your language? Teach me one",
       "food": "What is one dish from your country I absolutely have to try?",
       "series": "What are you watching these days? I need recommendations!",
       "travel": "What is the most beautiful place you have ever visited?",
       "language_why": "Why are you learning this language? I am curious about your story",
       "weekend": "What does a perfect weekend look like for you?",
-      "music": "Send me a song in your language — I want to discover new music 🎵",
+      "music": "Send me a song in your language — I want to discover new music",
       "funny_word": "What is the funniest-sounding word in your language?",
       "city_tip": "If I visited your city, what is the one thing I should do?",
-      "coffee_tea": "Coffee or tea? This says a lot about a person ☕",
+      "coffee_tea": "Coffee or tea? This says a lot about a person",
       "dream_country": "If you could live in any country for a year, which one?",
       "teach_me": "Teach me how to say something nice in your language!"
     },
@@ -656,7 +656,7 @@
       "hours": "{{count}}h",
       "days": "{{count}}d"
     },
-    "new_thread_title": "You matched with {{name}} 🎉",
+    "new_thread_title": "You matched with {{name}}",
     "new_thread_body": "Break the ice. The easiest opener is something from their languages or one of their interests.",
     "first_message_hint": "The first message must be at least 20 characters. Make it count!"
   },
@@ -762,11 +762,11 @@
     "boost_profile": "Boost Profile",
     "select_package_title": "Notice",
     "select_package_msg": "Please select a package",
-    "purchase_success_msg": "Welcome to Premium! 🎉",
+    "purchase_success_msg": "Welcome to Premium!",
     "purchase_incomplete": "Purchase completed but premium could not be activated.",
     "purchase_failed_title": "Purchase Failed",
     "purchase_failed_msg": "Purchase failed.",
-    "restore_success_msg": "Purchases restored! 🎉",
+    "restore_success_msg": "Purchases restored!",
     "restore_none_title": "Info",
     "restore_none_msg": "No purchases to restore.",
     "restore_failed_msg": "Restore failed.",
@@ -829,7 +829,7 @@
   "upsell": {
     "premium_cta": "Go Premium",
     "later": "Maybe later",
-    "purchase_success_title": "Purchase successful! 🎉",
+    "purchase_success_title": "Purchase successful!",
     "purchase_success_msg": "Your pack has been added to your account.",
     "purchase_failed_msg": "Purchase could not be completed. Please try again.",
     "premium": {
@@ -866,7 +866,7 @@
     },
     "whoLiked": {
       "title": "See Who Liked You",
-      "subtitle": "Your admirers are waiting 💜",
+      "subtitle": "Your admirers are waiting",
       "features": [
         "Instantly see everyone who liked you",
         "Remove the blur and match right away",
@@ -891,13 +891,18 @@
     "native_languages": "Your Native Languages",
     "native_required": "Pick at least one native language",
     "location_failed": "Could not get your location.",
-    "pick_languages": "Choose languages"
+    "pick_languages": "Choose languages",
+    "bio_label": "About you",
+    "update_location": "Update location",
+    "practice_helper": "Choose the languages you want to practise"
   },
   "conversation": {
     "leave_title": "Leave Conversation",
     "loading": "Loading...",
     "ai_limit_title": "AI Limit Reached",
-    "safety_title": "Safety Options"
+    "safety_title": "Safety Options",
+    "waiting_title": "It's a match",
+    "waiting_body": "{{name}} will send the first message. Hang tight."
   },
   "voice": {
     "permission_title": "Microphone Access Needed",

@@ -1061,16 +1061,18 @@ export default function ConversationScreen() {
             {/* Name */}
             <Text style={styles.waitingScreenName}>{otherUser.displayName}</Text>
             {otherUser.city && (
-              <Text style={styles.waitingScreenCity}>📍 {otherUser.city}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <MaterialIcons name="place" size={14} color={colors.textTertiary} />
+                <Text style={styles.waitingScreenCity}>{otherUser.city}</Text>
+              </View>
             )}
 
             {/* Message */}
             <View style={styles.waitingScreenMessageBox}>
-              <Text style={styles.waitingScreenMessageText}>
-                💕 Eşleştiniz!
-              </Text>
+              {/* Sabit Turkce + emoji: Ingilizce telefonda da Turkce cikiyordu. */}
+              <Text style={styles.waitingScreenMessageText}>{t("conversation.waiting_title")}</Text>
               <Text style={styles.waitingScreenMessageSubtext}>
-                İlk mesajı {otherUser.displayName} gönderecek. Biraz sabır... 😊
+                {t("conversation.waiting_body", { name: otherUser.displayName })}
               </Text>
             </View>
           </View>
@@ -1140,9 +1142,8 @@ export default function ConversationScreen() {
 
       {isFirstMessage && messageText.length > 0 && messageText.length < 20 && (
         <View style={styles.hintContainer}>
-          <Text style={styles.hintText}>
-            💡 {t("chat.first_message_hint")}
-          </Text>
+          <MaterialIcons name="lightbulb-outline" size={16} color={colors.warning} />
+          <Text style={styles.hintText}>{t("chat.first_message_hint")}</Text>
         </View>
       )}
 
@@ -1275,7 +1276,7 @@ export default function ConversationScreen() {
                                 tone === t && styles.toneButtonTextActive,
                               ]}
                             >
-                              {t === "neutral" ? "😐" : t === "friendly" ? "😊" : "😄"}
+                              {t === "neutral" ? "Nötr" : t === "friendly" ? "Samimi" : "Neşeli"}
                             </Text>
                           </TouchableOpacity>
                         </Animated.View>
@@ -1292,9 +1293,11 @@ export default function ConversationScreen() {
                   onPress={handleSendMessage}
                   disabled={!messageText.trim() || sending}
                 >
-                  <Text style={styles.sendButtonText}>
-                    {sending ? "..." : "➤"}
-                  </Text>
+                  {sending ? (
+                    <ActivityIndicator size="small" color={colors.textInverse} />
+                  ) : (
+                    <MaterialIcons name="send" size={20} color={colors.textInverse} />
+                  )}
                 </TouchableOpacity>
               </>
             ) : (
@@ -1581,6 +1584,9 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   hintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.warning + "20",

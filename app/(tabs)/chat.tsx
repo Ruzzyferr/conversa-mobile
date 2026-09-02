@@ -423,7 +423,10 @@ export default function ChatScreen() {
                                 {item.fromUser.displayName}{(item.fromUser as any).birthYear ? calculateAge((item.fromUser as any).birthYear) : ""}
                               </Text>
                               {item.fromUser.city && (
-                                <Text style={styles.requestUserCity}>📍 {item.fromUser.city}</Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                                  <MaterialIcons name="place" size={13} color={colors.textTertiary} />
+                                  <Text style={styles.requestUserCity}>{item.fromUser.city}</Text>
+                                </View>
                               )}
                             </View>
                           </View>

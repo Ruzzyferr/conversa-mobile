@@ -167,7 +167,7 @@ export function FilterSheet({
   // Premium badge component
   const PremiumBadge = () => (
     <View style={styles.premiumBadge}>
-      <Text style={styles.premiumBadgeText}>👑</Text>
+      <MaterialIcons name="workspace-premium" size={14} color={colors.textInverse} />
     </View>
   );
 

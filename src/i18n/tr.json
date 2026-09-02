@@ -75,10 +75,10 @@
   "home": {
     "empty": {
       "title": "Bugünlük herkesi gördün!",
-      "text": "Yeni insanlar yakında burada olacak.\nBiraz sonra tekrar kontrol et 😊",
+      "text": "Yeni insanlar yakında burada olacak.\nBiraz sonra tekrar kontrol et",
       "refresh": "Yenile",
       "filtered_title": "Filtreler çok dar görünüyor",
-      "filtered_text": "Bu kriterlere uyan kimseyi göremedik.\nFiltreleri biraz gevşetmeyi dene 👌",
+      "filtered_text": "Bu kriterlere uyan kimseyi göremedik.\nFiltreleri biraz gevşetmeyi dene",
       "reset_filters": "Filtreleri sıfırla"
     },
     "match": {
@@ -135,7 +135,7 @@
       "send_btn": "Gönder",
       "success_title": "Başarılı",
       "success_msg": "Mesaj isteği gönderildi",
-      "purchase_success": "5 favori hakkı eklendi! 🎉",
+      "purchase_success": "5 favori hakkı eklendi!",
       "purchase_error": "Satın alma işlemi başarısız oldu.",
       "default_pack_name": "Favori paketi"
     },
@@ -184,15 +184,15 @@
     "logout_confirm_desc": "Hesabından çıkış yapmak istediğine emin misin?",
     "boost_active_alert": "Boost aktif",
     "boost_active_msg": "Profilin şu anda zaten öne çıkarılmış durumda!\nBitiş: {{time}}",
-    "boost_confirm_title": "Profile Boost 🚀",
+    "boost_confirm_title": "Profile Boost",
     "boost_confirm_msg": "Profilini 30 dakika boyunca öne çıkarmak istiyor musun?\n\nKalan Hakkın: {{count}}",
     "boost_action": "Boostla!",
-    "boost_success_title": "Başarılı! 🚀",
+    "boost_success_title": "Başarılı!",
     "boost_success_msg": "Profilin 30 dakika boyunca öne çıkarılacak!",
     "boost_no_credits_title": "Boost hakkın kalmadı",
     "boost_no_credits_msg": "Profilini öne çıkarmak için yeni boost paketine ihtiyacın var.\n\n Paket: 2 Boost",
     "buy_boost": "2 Boost al ({{price}})",
-    "purchase_success_title": "Satın alma başarılı! 🎉",
+    "purchase_success_title": "Satın alma başarılı!",
     "purchase_success_msg": "Hesabına 2 Boost eklendi. Şimdi profilini öne çıkarabilirsin!",
     "purchase_error_title": "Satın alma başarısız",
     "purchase_error_msg": "Satın alma tamamlanamadı. Tekrar dene.",
@@ -591,8 +591,8 @@
     "loading": "Yükleniyor...",
     "no_requests": "Gelen istek yok",
     "no_requests_desc": "Henüz sana istek gönderen kimse yok. Keşfetmeye başla, ilk adımı sen at.",
-    "matched": "Eşleştiniz! 🎉",
-    "matched_desc": "İkiniz de birbirinizi beğendiniz!",
+    "matched": "Eşleştiniz",
+    "matched_desc": "Artık birbirinize yazabilirsiniz.",
     "first_message": "İlk mesajı gönderecek kişi: {{name}}",
     "go_to_chat": "Sohbete git",
     "continue": "Devam et",
@@ -620,8 +620,8 @@
     "no_messages": "Henüz mesaj yok",
     "no_messages_desc": "Yeni insanlarla tanışmak için keşfetmeye başla!",
     "discover": "Keşfet",
-    "voice_message": "🎤 Sesli mesaj",
-    "photo_message": "📷 Fotoğraf",
+    "voice_message": "Sesli mesaj",
+    "photo_message": "Fotoğraf",
     "attach_camera": "Fotoğraf çek",
     "attach_gallery": "Galeriden seç",
     "camera_permission": "Fotoğraf çekmek için kamera izni gerekli.",
@@ -636,16 +636,16 @@
     "open_conversation_with": "{{name}} ile sohbeti aç",
     "typing": "yazıyor...",
     "icebreakers": {
-      "idiom": "Senin dilindeki en tuhaf deyim ne? Bana bir tane öğret 😄",
+      "idiom": "Senin dilindeki en tuhaf deyim ne? Bana bir tane öğret",
       "food": "Ülkenden mutlaka denemem gereken bir yemek söyle?",
       "series": "Bu aralar ne izliyorsun? Öneriye ihtiyacım var!",
       "travel": "Gördüğün en güzel yer neresiydi?",
       "language_why": "Bu dili neden öğreniyorsun? Hikayeni merak ettim",
       "weekend": "Senin için mükemmel bir hafta sonu nasıl geçer?",
-      "music": "Bana kendi dilinde bir şarkı gönder — yeni müzik keşfetmek istiyorum 🎵",
+      "music": "Bana kendi dilinde bir şarkı gönder — yeni müzik keşfetmek istiyorum",
       "funny_word": "Senin dilinde kulağa en komik gelen kelime ne?",
       "city_tip": "Şehrine gelsem yapmam gereken tek şey ne olurdu?",
-      "coffee_tea": "Kahve mi çay mı? Bu bir insan hakkında çok şey söyler ☕",
+      "coffee_tea": "Kahve mi çay mı? Bu bir insan hakkında çok şey söyler",
       "dream_country": "Bir yıl istediğin ülkede yaşayabilsen hangisini seçerdin?",
       "teach_me": "Bana kendi dilinde güzel bir şey söylemeyi öğret!"
     },
@@ -655,7 +655,7 @@
       "hours": "{{count}} sa",
       "days": "{{count}} g"
     },
-    "new_thread_title": "{{name}} ile eşleştin 🎉",
+    "new_thread_title": "{{name}} ile eşleştin",
     "new_thread_body": "Sohbeti sen başlat. Profilindeki dillerden ya da bir ilgi alanından yola çıkmak en kolayı.",
     "first_message_hint": "İlk mesaj en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz!"
   },
@@ -761,11 +761,11 @@
     "boost_profile": "Profili öne çıkar",
     "select_package_title": "Uyarı",
     "select_package_msg": "Bir paket seç",
-    "purchase_success_msg": "Premium'a hoş geldin! 🎉",
+    "purchase_success_msg": "Premium'a hoş geldin!",
     "purchase_incomplete": "Satın alma tamamlandı ancak premium aktif edilemedi.",
     "purchase_failed_title": "Satın alma başarısız",
     "purchase_failed_msg": "Satın alma işlemi başarısız oldu.",
-    "restore_success_msg": "Satın alımlar geri yüklendi! 🎉",
+    "restore_success_msg": "Satın alımlar geri yüklendi!",
     "restore_none_title": "Bilgi",
     "restore_none_msg": "Geri yüklenecek satın alım bulunamadı.",
     "restore_failed_msg": "Geri yükleme başarısız oldu.",
@@ -828,7 +828,7 @@
   "upsell": {
     "premium_cta": "Premium'a geç",
     "later": "Daha sonra",
-    "purchase_success_title": "Satın alma başarılı! 🎉",
+    "purchase_success_title": "Satın alma başarılı!",
     "purchase_success_msg": "Paketin hesabına tanımlandı.",
     "purchase_failed_msg": "Satın alma tamamlanamadı. Tekrar dene.",
     "premium": {
@@ -865,7 +865,7 @@
     },
     "whoLiked": {
       "title": "Seni kimin beğendiğini gör",
-      "subtitle": "Beğenenlerin seni bekliyor 💜",
+      "subtitle": "Beğenenlerin seni bekliyor",
       "features": [
         "Seni beğenen herkesi anında gör",
         "Bulanıklığı kaldır, hemen eşleş",
@@ -890,13 +890,18 @@
     "native_languages": "Ana dillerin",
     "native_required": "En az bir ana dil seç",
     "location_failed": "Konum alınamadı.",
-    "pick_languages": "Dil seç"
+    "pick_languages": "Dil seç",
+    "bio_label": "Kendinden bahset",
+    "update_location": "Konumu güncelle",
+    "practice_helper": "Pratik yapmak istediğin dilleri seç"
   },
   "conversation": {
     "leave_title": "Konuşmadan ayrıl",
     "loading": "Yükleniyor...",
     "ai_limit_title": "AI limiti aşıldı",
-    "safety_title": "Güvenlik işlemleri"
+    "safety_title": "Güvenlik işlemleri",
+    "waiting_title": "Eşleştiniz",
+    "waiting_body": "İlk mesajı {{name}} gönderecek. Biraz sabır."
   },
   "voice": {
     "permission_title": "Mikrofon izni gerekli",

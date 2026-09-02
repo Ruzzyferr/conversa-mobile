@@ -317,7 +317,7 @@ export default function ProfileScreen() {
               </View>
             ) : premiumStatus?.isPremium ? (
               <View style={styles.premiumBadgeSmall}>
-                <Text style={styles.premiumBadgeSmallText}>✨</Text>
+                <MaterialIcons name="workspace-premium" size={16} color={colors.textInverse} />
               </View>
             ) : null}
           </View>
@@ -508,7 +508,7 @@ export default function ProfileScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.premiumActiveBadge}
                 >
-                  <Text style={styles.premiumActiveIcon}>✨</Text>
+                  <MaterialIcons name="workspace-premium" size={18} color={colors.textInverse} />
                   <Text style={styles.premiumActiveText}>{t('profile.premium_active')}</Text>
                 </LinearGradient>
 

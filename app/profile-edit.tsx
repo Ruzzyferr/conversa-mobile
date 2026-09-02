@@ -423,7 +423,7 @@ export default function ProfileEditScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('edit.practice_languages')}</Text>
             <Text style={styles.sectionSubtitle}>
-              Pratik yapmak istediğin dilleri seç
+              {t("edit.practice_helper")}
             </Text>
             {/*
               Cip izgarasi yerine ozet + modal secici: liste 120 dile cikinca
@@ -495,7 +495,7 @@ export default function ProfileEditScreen() {
 
           {/* About Me Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Kendinden Bahset</Text>
+            <Text style={styles.sectionTitle}>{t("edit.bio_label")}</Text>
             <View style={styles.bioContainer}>
               <TextInput
                 style={styles.bioInput}
@@ -580,7 +580,7 @@ export default function ProfileEditScreen() {
             >
               <MaterialIcons name="location-on" size={20} color={colors.primary} />
               <Text style={styles.locationButtonText}>
-                {location?.city || "Konum Güncelle"}
+                {location?.city || t("edit.update_location")}
               </Text>
             </TouchableOpacity>
           </View>

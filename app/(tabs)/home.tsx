@@ -826,9 +826,8 @@ export default function HomeScreen() {
                   style={styles.boostPill}
                   onPress={() => setShowBoostModal(true)}
                 >
-                  <Text style={styles.boostPillText}>
-                    ⚡ {getTimeRemaining()}
-                  </Text>
+                  <MaterialIcons name="bolt" size={14} color={colors.boostGold} />
+                  <Text style={styles.boostPillText}>{getTimeRemaining()}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -843,7 +842,7 @@ export default function HomeScreen() {
           <View style={styles.emptyWrap}>
             <Card style={styles.emptyCard} elevated>
               <View style={styles.emptyEmojiBadge}>
-                <Text style={styles.emptyEmoji}>✨</Text>
+                <MaterialIcons name="explore" size={28} color={colors.primary} />
               </View>
               <Text style={styles.emptyTitle}>
                 {hasNonDefaultFilters
@@ -921,9 +920,9 @@ export default function HomeScreen() {
                 style={styles.boostPill}
                 onPress={() => setShowBoostModal(true)}
               >
-                <Text style={styles.boostPillText}>
-                  ⚡ {getTimeRemaining()}
-                </Text>
+                {/* Emoji simsek platform fontuyla ciziliyordu; vektor ikon. */}
+                <MaterialIcons name="bolt" size={14} color={colors.boostGold} />
+                <Text style={styles.boostPillText}>{getTimeRemaining()}</Text>
               </TouchableOpacity>
             )}
             {!isUserPremium && likeLimitInfo && (
@@ -1164,7 +1163,7 @@ export default function HomeScreen() {
           <View style={styles.successModalOverlay}>
             <View style={styles.successModalContent}>
               <View style={styles.successIconContainer}>
-                <Text style={styles.successIcon}>✓</Text>
+                <MaterialIcons name="check" size={28} color={colors.textInverse} />
               </View>
               <Text style={styles.successModalTitle}>{t('home.favorite.success_title')}</Text>
               <Text style={styles.successModalMessage}>{successMessage}</Text>
@@ -1188,7 +1187,7 @@ export default function HomeScreen() {
           <View style={styles.directLimitModalOverlay}>
             <View style={styles.directLimitModalContent}>
               <View style={styles.directLimitIconContainer}>
-                <Text style={styles.directLimitIcon}>⚠️</Text>
+                <MaterialIcons name="hourglass-top" size={28} color={colors.warning} />
               </View>
               <Text style={styles.directLimitModalTitle}>{t('home.dm_limit.title')}</Text>
               <Text style={styles.directLimitModalMessage}>
@@ -1310,6 +1309,9 @@ const styles = StyleSheet.create({
     color: colors.primaryTintText,
   },
   boostPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs / 2,
     borderRadius: 16,

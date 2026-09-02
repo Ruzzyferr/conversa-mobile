@@ -133,10 +133,11 @@ export function InterestPicker({ visible, selected, onClose, onSave }: InterestP
           stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
+          // Kategori emojisi kaldirildi (🧘 ⚽ 🎨): platform emoji fontuyla
+          // ciziliyor ve clip art gibi okunuyordu -- reddedilen gorunum.
+          // Baslik tek basina yeterince acik.
           renderSectionHeader={({ section }) => (
-            <Text style={styles.sectionTitle}>
-              {(section as any).emoji} {(section as any).title}
-            </Text>
+            <Text style={styles.sectionTitle}>{(section as any).title}</Text>
           )}
           renderItem={({ item }) => (
             <View style={styles.chipGrid}>

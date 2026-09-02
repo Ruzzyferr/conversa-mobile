@@ -723,27 +723,25 @@ export default function RequestsScreen() {
                 },
               ]}
             >
+              {/*
+                Tam pirinc gradyan DEGIL.
+
+                Eslesme ani uygulamanin en yuksek sesli ekraniydi: bastan
+                asagi altin bir poster, ustunde emoji konfeti. Kutlama
+                hissi renkle degil, tek bir parlak halka ve yeterli
+                bosluktan geliyor. Koyu yuzey, pirinc yalnizca fotografin
+                cercevesinde ve dugmede.
+              */}
               <LinearGradient
-                colors={[colors.primary, colors.primaryLight, colors.accent]}
+                colors={[colors.surfaceElevated, colors.surface]}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 0, y: 1 }}
                 style={styles.matchModalGradient}
               >
-                {/* Sparkle Animation */}
-                <Animated.View
-                  style={[
-                    styles.sparkleContainer,
-                    {
-                      opacity: sparkleAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.3, 1],
-                      }),
-                    },
-                  ]}
-                >
-                  <Text style={styles.sparkleText}>✨</Text>
-                </Animated.View>
-
+                {/*
+                  Emoji "✨" kaldirildi: platform emoji fontuyla ciziliyor ve
+                  clip art gibi okunuyordu -- reddedilen gorunumun ta kendisi.
+                */}
                 <View style={styles.matchModalContent}>
                   <Text style={styles.matchTitle}>{t('likes.matched')}</Text>
 
@@ -1578,12 +1576,10 @@ const styles = StyleSheet.create({
   matchTitle: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.onMedia,
+    // Koyu yuzeyde kagit beyazi; golge yalnizca altin posterde gerekiyordu.
+    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.lg,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   matchPhotoContainer: {
     width: 120,
@@ -1598,11 +1594,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 4,
-    borderColor: colors.onMedia,
+    // Kalin beyaz cerceve altin posterden kalmaydi; disaridaki pirinc
+    // halkayla ic ice iki halka olusturuyordu. Cerceve tek: halka.
+    borderWidth: 0,
   },
   matchPhotoPlaceholder: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: colors.surfaceTintStrong,
     borderWidth: 4,
     borderColor: colors.onMedia,
   },
@@ -1616,30 +1613,31 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
+    // Kutlamanin tek parlak ogesi: fotografin cevresindeki pirinc halka.
     borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderColor: colors.primary,
     top: -10,
     left: -10,
   },
   matchName: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.onMedia,
+    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.xs,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowColor: "transparent",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   matchSubtitle: {
     fontSize: typography.fontSize.base,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.md,
     lineHeight: 22,
   },
   firstMessageInfo: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: colors.primaryTint,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 12,
@@ -1665,7 +1663,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   matchModalCloseText: {
-    color: "rgba(255, 255, 255, 0.8)",
+    color: colors.textSecondary,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
   },
