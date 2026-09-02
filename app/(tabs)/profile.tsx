@@ -295,7 +295,6 @@ export default function ProfileScreen() {
 
           {/* Profile Photo with Glow */}
           <View style={styles.avatarContainer}>
-            <View style={styles.avatarGlow} />
             {profile?.photos && profile.photos.length > 0 ? (
               <TouchableOpacity activeOpacity={0.85} onPress={() => setShowPhotoViewer(true)}>
                 <Image
@@ -430,9 +429,18 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Languages Card */}
+        {/*
+          Diller ve Hakkinda artik KART DEGIL.
+
+          Ekranda dort kart alt alta duruyordu -- dogrulama, kimlik,
+          diller, hakkinda, premium -- hepsi ayni kenarlik, ayni dolgu,
+          ayni yaricapla. Hepsi ayni agirlikta olunca hicbiri one
+          cikmiyor ve goz nereye bakacagini bilemiyor. Kart cercevesi
+          artik yalnizca EYLEM isteyen bloklarda: profilini dogrula ve
+          premium.
+        */}
         {profile && (profile.languagesNative?.length > 0 || profile.languagesPractice?.length > 0) && (
-          <View style={styles.card}>
+          <View style={styles.plainSection}>
             <View style={styles.cardHeader}>
               <Ionicons name="globe-outline" size={20} color={colors.primary} />
               <Text style={styles.cardTitle}>{t('profile.languages')}</Text>
@@ -478,9 +486,9 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Bio Card */}
+        {/* Hakkinda -- kart degil, bolum. */}
         {profile?.bio && (
-          <View style={styles.card}>
+          <View style={styles.plainSection}>
             <View style={styles.cardHeader}>
               <Ionicons name="document-text-outline" size={20} color={colors.primary} />
               <Text style={styles.cardTitle}>{t('profile.about')}</Text>
@@ -831,16 +839,13 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: spacing.md,
   },
-  avatarGlow: {
-    position: "absolute",
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: 70,
-    backgroundColor: colors.primary,
-    opacity: 0.3,
-  },
+  // "avatarGlow" kaldirildi.
+  //
+  // Isima degil, avatarin 10 piksel disina cizilmis %30 opakliginda DUZ
+  // bir pirinc diskti. Koyu zeminde yumusak bir hale gibi degil kalin
+  // kahverengi bir halka gibi okunuyor ve profil fotografinin CERCEVESINI
+  // ekranin en dikkat ceken lekesi yapiyordu. React Native bir View'i
+  // bulaniklastiramaz; "hale" bu yolla zaten yapilamiyor.
   avatar: {
     width: 120,
     height: 120,
@@ -993,6 +998,11 @@ const styles = StyleSheet.create({
   },
 
   // Cards
+  // Kart cercevesi olmayan bolum: sayfanin kendi yuzeyinde duran icerik.
+  plainSection: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+  },
   card: {
     backgroundColor: colors.backgroundSecondaryDark,
     marginHorizontal: spacing.lg,
