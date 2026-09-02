@@ -970,7 +970,7 @@
     "unavailable": "Değerlendirme şu anda yapılamadı. Bu senin cevaplarınla ilgili değil — bekleme sürene de sayılmadı.",
     "unavailable_note": "Cevapların duruyor. Tekrar denediğinde baştan yazman gerekmiyor.",
     "retry": "Tekrar dene",
-    "answer_in": "{{language}} dilinde cevapla."
+    "answer_in": "{{language}} cevapla."
   },
   "slots": {
     "title": "Cevap bekleyen sohbetler",

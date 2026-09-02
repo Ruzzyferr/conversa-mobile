@@ -156,7 +156,20 @@ export const AnimatedStepIndicator: React.FC<AnimatedStepIndicatorProps> = ({
 
                         return (
                             <View key={index} style={styles.ballWrapper}>
-                                {/* Glow effect */}
+                                {/*
+                                  Parlak cam kure kaldirildi.
+                                  Beyaz saydam dolgu + tepede spekuler bir
+                                  isik lekesi, tam olarak reddedilen
+                                  "oyuna girer gibi" gorunumu uretiyordu;
+                                  ustelik tamamlanan adimlar pirinc, ICINDE
+                                  BULUNULAN adim gri camdi -- hiyerarsi
+                                  tersine donmustu.
+
+                                  Yerine duz daireler: tamamlanan ve icinde
+                                  bulunulan pirinc, gelecek adimlar sessiz
+                                  yuzey. Isik halkasi yalnizca bulundugun
+                                  adimi isaret ediyor.
+                                */}
                                 <Animated.View
                                     style={[
                                         styles.glowOuter,
@@ -167,19 +180,16 @@ export const AnimatedStepIndicator: React.FC<AnimatedStepIndicatorProps> = ({
                                     ]}
                                 />
 
-                                {/* Glass ball */}
                                 <Animated.View
                                     style={[
                                         styles.ball,
+                                        (isCompleted || isCurrent) && styles.ballDone,
                                         {
                                             opacity: anim.opacity,
                                             transform: [{ scale: anim.scale }],
                                         },
                                     ]}
                                 >
-                                    {/* Glass inner reflection */}
-                                    <View style={styles.glassInner} />
-
                                     {/* Step number or checkmark */}
                                     <View style={styles.ballContent}>
                                         {isCompleted ? (
@@ -305,26 +315,16 @@ const styles = StyleSheet.create({
         width: BALL_SIZE,
         height: BALL_SIZE,
         borderRadius: BALL_SIZE / 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.25)',
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
     },
-    glassInner: {
-        position: 'absolute',
-        top: -BALL_SIZE * 0.15,
-        left: -BALL_SIZE * 0.05,
-        width: BALL_SIZE * 0.5,
-        height: BALL_SIZE * 0.5,
-        borderRadius: (BALL_SIZE * 0.5) / 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.35)',
-        transform: [{ rotate: '-45deg' }],
+    ballDone: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
     },
     ballContent: {
         justifyContent: 'center',
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
         // gibi gorunuyordu. Tasarim token'i ve daha yuksek kontrast.
         fontSize: typography.fontSize.sm,
         fontFamily: typography.fontFamily.bold,
-        color: 'rgba(255, 255, 255, 0.65)',
+        color: colors.textTertiary,
     },
     stepNumberActive: {
         // colors.primary, aktif dairenin acik mor dolgusunun uzerinde

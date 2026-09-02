@@ -11,6 +11,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { colors, spacing, radius, elevation, textStyles } from "@/src/theme";
 import { api } from "@/src/services/api";
+import { languageLabel } from "@/src/data/languages";
 import { Overline } from "@/src/components/ui/Overline";
 
 type ExamItem = {
@@ -44,7 +45,7 @@ interface Props {
  * bir yedek gorev gosterilir. Cihazda mevcut ses kaydi bileseni kullanilir.
  */
 export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [items, setItems] = useState<ExamItem[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -263,7 +264,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
       <View style={styles.answerHint}>
         <MaterialIcons name="edit" size={16} color={colors.primaryTintText} />
         <Text style={styles.answerHintText}>
-          {t("exam.answer_in", { language: language.toUpperCase() })}
+          {t("exam.answer_in", { language: languageLabel(language, i18n.language) })}
         </Text>
       </View>
 
