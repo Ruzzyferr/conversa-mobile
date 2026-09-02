@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
     View,
     Text,
@@ -35,6 +35,8 @@ import { InterestPicker } from "@/src/components/InterestPicker";
 import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languages";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
+import { TrackStep, type Track } from "./steps/TrackStep";
+import { ExamStep, type ExamOutcome } from "./steps/ExamStep";
 type Gender = "MALE" | "FEMALE" | "OTHER";
 
 
@@ -55,6 +57,8 @@ export default function ProfileSetupScreen() {
     const [birthYear, setBirthYear] = useState<string>("");
     const [gender, setGender] = useState<Gender | null>(null);
     const [purpose, setPurpose] = useState<Purpose>("CONVERSATION");
+    const [track, setTrack] = useState<Track | null>(null);
+    const [examOutcome, setExamOutcome] = useState<ExamOutcome | null>(null);
     const [languagesNative, setLanguagesNative] = useState<string[]>([]);
     const [languagesPractice, setLanguagesPractice] = useState<string[]>([]);
     const [photos, setPhotos] = useState<string[]>([]);
@@ -68,7 +72,19 @@ export default function ProfileSetupScreen() {
 
     // Step management
     const [currentStep, setCurrentStep] = useState(1);
-    const totalSteps = 4;
+    // Adim listesi hatta gore degisir. Sabit bir sayi yerine anahtar
+    // dizisi tutuyoruz: "4. adim" LANGUAGE'de sinav, DATE'te hakkinda
+    // demek olurdu ve dogrulama ile render'in birbirinden ayrilmasi an
+    // meselesiydi.
+    const stepKeys = useMemo(
+        () =>
+            track === "LANGUAGE"
+                ? (["track", "basics", "languages", "exam", "about", "photos"] as const)
+                : (["track", "basics", "languages", "about", "photos"] as const),
+        [track]
+    );
+    const totalSteps = stepKeys.length;
+    const currentKey = stepKeys[currentStep - 1] ?? "track";
 
     // Animation for step transitions with flip effect
     const slideAnim = useRef(new Animated.Value(0)).current;
@@ -320,8 +336,19 @@ export default function ProfileSetupScreen() {
     };
 
     const validateStep = (step: number): boolean => {
-        switch (step) {
-            case 1:
+        const key = stepKeys[step - 1];
+        switch (key) {
+            case "track":
+                if (!track) {
+                    Alert.alert(t('common.error'), t('setup.track.title'));
+                    return false;
+                }
+                return true;
+            case "exam":
+                // Sinav adimi kendi ic akisini yonetir; "devam" dugmesi
+                // sonuc ekraninda gorunur ve onComplete ile ilerletir.
+                return examOutcome !== null;
+            case "basics":
                 if (!displayName.trim()) {
                     Alert.alert(t('common.error'), t('setup.alerts.name_required'));
                     return false;
@@ -347,7 +374,7 @@ export default function ProfileSetupScreen() {
                     return false;
                 }
                 return true;
-            case 2:
+            case "languages":
                 if (languagesNative.length === 0) {
                     Alert.alert(t('common.error'), t('setup.alerts.native_required'));
                     return false;
@@ -357,9 +384,9 @@ export default function ProfileSetupScreen() {
                     return false;
                 }
                 return true;
-            case 3:
+            case "about":
                 return true;
-            case 4:
+            case "photos":
                 if (photos.length === 0) {
                     Alert.alert(t('common.error'), t('setup.alerts.photo_required'));
                     return false;
@@ -370,13 +397,24 @@ export default function ProfileSetupScreen() {
         }
     };
 
+    /**
+     * Dogrulamadan ilerletir.
+     *
+     * Sinav adimi kendi sonucunu yazip hemen ilerletmek istiyor. handleNext
+     * cagirmak ise yaramazdi: validateStep bu tick'te henuz yazilmamis
+     * examOutcome'i okuyup null gorur ve akis oldugu yerde kalirdi.
+     */
+    const advanceStep = () => {
+        if (currentStep < totalSteps && !isAnimating) {
+            setCurrentStep(currentStep + 1);
+        }
+    };
+
     const handleNext = () => {
         if (!validateStep(currentStep)) {
             return;
         }
-        if (currentStep < totalSteps && !isAnimating) {
-            setCurrentStep(currentStep + 1);
-        }
+        advanceStep();
     };
 
     const handleBack = () => {
@@ -416,6 +454,10 @@ export default function ProfileSetupScreen() {
                 birthYear: year,
                 gender: gender || undefined,
                 purpose: purpose,
+                // Kayitta ilk secim bedava: sunucu create yolunda
+                // trackChangedAt yazmiyor, yani bu secim 30 gun kuralina
+                // takilmiyor.
+                track: track ?? "DATE",
                 languagesNative: languagesNative,
                 languagesPractice: languagesPractice,
                 photos: uploadedPhotos,
@@ -530,11 +572,15 @@ export default function ProfileSetupScreen() {
                 </View>
             </View>
 
-            {/* Purpose */}
+            {/* Purpose — yalnizca DATE hattinda.
+                LANGUAGE hattinda purpose PRACTICE'e sabitleniyor; oradaki
+                bir kullaniciya "amacin ne" diye sormak, zaten cevapladigi
+                bir soruyu ikinci kez sormaktir. */}
+            {track !== "LANGUAGE" && (
             <View style={styles.section}>
                 <Text style={styles.label}>{t('setup.step1.purpose_label')} *</Text>
                 <View style={styles.optionGrid}>
-                    {(["CONVERSATION", "PRACTICE", "COFFEE"] as Purpose[]).map((p) => (
+                    {(["CONVERSATION", "COFFEE"] as Purpose[]).map((p) => (
                         <TouchableOpacity
                             key={p}
                             style={[
@@ -569,6 +615,7 @@ export default function ProfileSetupScreen() {
                     ))}
                 </View>
             </View>
+            )}
         </View>
     );
 
@@ -823,14 +870,38 @@ export default function ProfileSetupScreen() {
     );
 
     const renderCurrentStep = () => {
-        switch (currentStep) {
-            case 1:
+        switch (currentKey) {
+            case "track":
+                return (
+                    <TrackStep
+                        value={track}
+                        onChange={(next) => {
+                            setTrack(next);
+                            // Purpose yalnizca DATE hattinda anlamli.
+                            // LANGUAGE'de PRACTICE'e sabitleniyor ve secici
+                            // gizleniyor; kullaniciya anlamsiz bir soru
+                            // sormuyoruz.
+                            setPurpose(next === "LANGUAGE" ? "PRACTICE" : "CONVERSATION");
+                        }}
+                    />
+                );
+            case "basics":
                 return renderStep1();
-            case 2:
+            case "languages":
                 return renderStep2();
-            case 3:
+            case "exam":
+                return (
+                    <ExamStep
+                        language={languagesPractice[0] ?? "en"}
+                        onComplete={(outcome) => {
+                            setExamOutcome(outcome);
+                            advanceStep();
+                        }}
+                    />
+                );
+            case "about":
                 return renderStep3();
-            case 4:
+            case "photos":
                 return renderStep4();
             default:
                 return renderStep1();
@@ -881,7 +952,11 @@ export default function ProfileSetupScreen() {
                         </Animated.View>
                     </ScrollView>
 
-                    {/* Fixed Bottom Navigation */}
+                    {/* Fixed Bottom Navigation
+                        Sinav adiminda gizli: ExamStep kendi ilerleme
+                        dugmesini yonetiyor ve iki "devam" dugmesi ayni
+                        ekranda birbiriyle celisirdi. */}
+                    {currentKey !== "exam" && (
                     <View style={[
                         styles.bottomNav
                     ]}>
@@ -956,6 +1031,7 @@ export default function ProfileSetupScreen() {
                             <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                     </View>
+                    )}
                 </KeyboardAvoidingView>
             </SafeAreaView>
 

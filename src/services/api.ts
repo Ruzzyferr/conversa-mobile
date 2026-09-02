@@ -1020,6 +1020,26 @@ class ApiClient {
   // Hat, sinav ve dil urunu
   // ---------------------------------------------------------------------
 
+  /** Bu sinav icin madde listesi. Havuz rotasyonlu. */
+  async getExamItems(
+    language: string,
+    role: "NATIVE" | "LEARNING" = "LEARNING"
+  ): Promise<{
+    data: {
+      items: Array<{
+        id: string;
+        kind: "written" | "spoken";
+        prompt: string;
+        seconds: number;
+      }>;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/exam/items", {
+      params: { language, role },
+    });
+    return response.data;
+  }
+
   /**
    * Dil kontrolunu gonderir.
    *

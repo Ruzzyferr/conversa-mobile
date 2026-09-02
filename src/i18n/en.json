@@ -283,6 +283,16 @@
       "upload_error": "Error uploading photos",
       "save_error": "Could not save profile",
       "birth_range": "Birth year must be between {{min}} and {{max}}."
+    },
+    "track": {
+      "title": "What are you here for?",
+      "subtitle": "This decides who you meet. You can change it later.",
+      "date_title": "Dating",
+      "date_body": "Meet new people, talk, go out.",
+      "language_title": "Language",
+      "language_body": "Match with people who actually want to practise.",
+      "language_cost": "You'll take a short language check. About 1 minute.",
+      "footnote": "The two sides are separate. People on the language side don't see the dating side."
     }
   },
   "languages": {
@@ -915,5 +925,64 @@
     "primer_body": "Get a heads-up when someone matches with you or sends a message. You can turn notifications off any time.",
     "primer_allow": "Turn on notifications",
     "primer_later": "Not now"
+  },
+  "exam": {
+    "title": "Language check",
+    "loading": "Preparing your questions…",
+    "progress": "Question {{current}} of {{total}}",
+    "answer_placeholder": "Write your answer here…",
+    "finish": "Finish",
+    "submitting": "Assessing…",
+    "no_back": "When the timer runs out we move on. There's no going back.",
+    "result_title": "Result",
+    "verified": "Verified",
+    "level_unknown": "Level not determined",
+    "downgraded": "We couldn't confirm this as a native language, so we've recorded it as \"learning\" instead. Nothing happened to your account and you haven't lost any features. You can try again in 7 days.",
+    "retake_note": "Your badge is valid for 12 months. As your language improves you can retake the check every 7 days.",
+    "cooldown": "You can take the check for this language once every 7 days.",
+    "load_error": "Couldn't load the questions. Check your connection and try again.",
+    "submit_error": "Couldn't submit your result. Want to try again?"
+  },
+  "slots": {
+    "title": "Conversations awaiting a reply",
+    "counter": "{{used}}/{{limit}} conversations awaiting a reply",
+    "concurrency_full": "You've got as many unanswered conversations as you can hold. Once someone replies you can start another.",
+    "throughput_full": "That's your new conversations for today. You can pick it up tomorrow.",
+    "withdraw": "Withdraw",
+    "withdraw_hint": "Withdrawing frees the slot straight away."
+  },
+  "intake": {
+    "title": "New conversations per day",
+    "subtitle": "You decide how many new people can reach you each day.",
+    "value": "{{count}} people per day",
+    "off": "Off",
+    "off_hint": "Nobody can start a new conversation with you. Existing chats are unaffected.",
+    "queued": "{{count}} requests waiting"
+  },
+  "coach": {
+    "title": "Language coach",
+    "correct": "Correct",
+    "ask_coach": "Ask the coach",
+    "book_title": "Mistake book",
+    "book_empty": "No corrections yet. This fills up as you write.",
+    "report_title": "This week",
+    "report_total": "{{count}} corrections",
+    "report_top": "Most common: {{category}}",
+    "quota": "{{remaining}} coach checks left today",
+    "quota_unlimited": "Unlimited",
+    "limit_reached": "That's your coach checks for today. Premium is unlimited.",
+    "private": "Only you can see this correction.",
+    "balance_title": "Language balance",
+    "balance_balanced": "Looks balanced.",
+    "balance_off": "The conversation is drifting into one language."
+  },
+  "categories": {
+    "tense": "Tense",
+    "article": "Article",
+    "preposition": "Preposition",
+    "word-choice": "Word choice",
+    "word-order": "Word order",
+    "spelling": "Spelling",
+    "register": "Register"
   }
 }

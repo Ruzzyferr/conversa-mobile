@@ -282,6 +282,16 @@
       "photo_required": "Lütfen en az bir fotoğraf seçin",
       "upload_error": "Fotoğraflar yüklenirken hata oluştu",
       "save_error": "Profil kaydedilemedi"
+    },
+    "track": {
+      "title": "Burada ne arıyorsun?",
+      "subtitle": "Bu seçim kimlerle karşılaşacağını belirler. Sonradan değiştirebilirsin.",
+      "date_title": "Tanışma",
+      "date_body": "Yeni insanlarla tanış, sohbet et, buluş.",
+      "language_title": "Dil",
+      "language_body": "Gerçekten dil pratiği yapmak isteyen insanlarla eşleş.",
+      "language_cost": "Kısa bir dil kontrolünden geçeceksin. Yaklaşık 1 dakika.",
+      "footnote": "İki taraf ayrı. Dil tarafındakiler tanışma tarafını görmez."
     }
   },
   "languages": {
@@ -914,5 +924,64 @@
     "primer_body": "Biri seninle eşleştiğinde ya da mesaj gönderdiğinde haberin olsun. Bildirimleri istediğin an kapatabilirsin.",
     "primer_allow": "Bildirimleri aç",
     "primer_later": "Şimdi değil"
+  },
+  "exam": {
+    "title": "Dil kontrolü",
+    "loading": "Sorular hazırlanıyor…",
+    "progress": "Soru {{current}} / {{total}}",
+    "answer_placeholder": "Cevabını buraya yaz…",
+    "finish": "Bitir",
+    "submitting": "Değerlendiriliyor…",
+    "no_back": "Süre dolunca sonraki soruya geçilir. Geri dönüş yok.",
+    "result_title": "Sonuç",
+    "verified": "Doğrulandı",
+    "level_unknown": "Seviye belirlenemedi",
+    "downgraded": "Anadil olarak doğrulayamadık, bu yüzden bu dili \"öğreniyor\" olarak kaydettik. Hesabına bir şey olmadı ve hiçbir özelliğini kaybetmedin. 7 gün sonra tekrar deneyebilirsin.",
+    "retake_note": "Rozetin 12 ay geçerli. Dilin geliştiğinde 7 günde bir tekrar girip güncelleyebilirsin.",
+    "cooldown": "Bu dil için 7 günde bir sınava girebilirsin.",
+    "load_error": "Sorular yüklenemedi. Bağlantını kontrol edip tekrar dene.",
+    "submit_error": "Sonuç gönderilemedi. Tekrar dener misin?"
+  },
+  "slots": {
+    "title": "Cevap bekleyen sohbetler",
+    "counter": "{{used}}/{{limit}} sohbetin cevap bekliyor",
+    "concurrency_full": "Cevap bekleyen sohbetlerin dolu. Biri cevap verince yenisini açabilirsin.",
+    "throughput_full": "Bugünlük yeni sohbet hakkın doldu. Yarın devam edebilirsin.",
+    "withdraw": "Geri çek",
+    "withdraw_hint": "Geri çektiğinde slotun hemen geri döner."
+  },
+  "intake": {
+    "title": "Günlük yeni sohbet",
+    "subtitle": "Günde kaç yeni kişinin sana ulaşabileceğini sen belirlersin.",
+    "value": "Günde {{count}} kişi",
+    "off": "Kapalı",
+    "off_hint": "Kimse sana yeni sohbet açamaz. Mevcut sohbetlerin etkilenmez.",
+    "queued": "{{count}} istek sırada bekliyor"
+  },
+  "coach": {
+    "title": "Dil koçu",
+    "correct": "Düzelt",
+    "ask_coach": "Koça sor",
+    "book_title": "Hata defteri",
+    "book_empty": "Henüz düzeltme yok. Yazmaya başladıkça burası dolacak.",
+    "report_title": "Bu hafta",
+    "report_total": "{{count}} düzeltme",
+    "report_top": "En sık: {{category}}",
+    "quota": "Bugün {{remaining}} koç hakkın kaldı",
+    "quota_unlimited": "Sınırsız",
+    "limit_reached": "Bugünlük koç hakkın doldu. Premium ile sınırsız.",
+    "private": "Bu düzeltmeyi yalnızca sen görüyorsun.",
+    "balance_title": "Dil dengesi",
+    "balance_balanced": "Dengeli görünüyor.",
+    "balance_off": "Sohbet tek dile kayıyor."
+  },
+  "categories": {
+    "tense": "Zaman",
+    "article": "Artikel",
+    "preposition": "Edat",
+    "word-choice": "Kelime seçimi",
+    "word-order": "Sözcük sırası",
+    "spelling": "Yazım",
+    "register": "Üslup"
   }
 }
