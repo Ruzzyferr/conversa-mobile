@@ -11,6 +11,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { colors, spacing, radius, elevation, textStyles } from "@/src/theme";
 import { api } from "@/src/services/api";
+import { Overline } from "@/src/components/ui/Overline";
 
 type ExamItem = {
   id: string;
@@ -199,7 +200,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
             <MaterialIcons name="verified" size={28} color={colors.textInverse} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.badgeLanguage}>{outcome.language.toUpperCase()}</Text>
+            <Overline style={styles.badgeLanguage}>{outcome.language}</Overline>
             <Text style={styles.badgeLevel}>
               {outcome.cefr ?? t("exam.level_unknown")}
             </Text>
@@ -238,9 +239,9 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
   return (
     <View style={styles.container} testID="exam-question">
       <View style={styles.progressRow}>
-        <Text style={styles.progressText}>
+        <Overline style={styles.progressText}>
           {t("exam.progress", { current: index + 1, total: items.length })}
-        </Text>
+        </Overline>
         <View style={[styles.timer, remaining <= 10 && styles.timerLow]}>
           <MaterialIcons
             name="timer"
@@ -324,7 +325,6 @@ const styles = StyleSheet.create({
   progressText: {
     ...textStyles.labelSmall,
     color: colors.textSecondary,
-    textTransform: "uppercase",
   },
   timer: {
     flexDirection: "row",
@@ -411,7 +411,6 @@ const styles = StyleSheet.create({
   badgeLanguage: {
     ...textStyles.labelSmall,
     color: colors.textSecondary,
-    textTransform: "uppercase",
   },
   badgeLevel: {
     ...textStyles.title,

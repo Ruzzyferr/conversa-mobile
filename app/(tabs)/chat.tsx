@@ -34,6 +34,7 @@ import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { useSocket } from "@/src/state/socket";
+import { Overline } from "@/src/components/ui/Overline";
 
 type Conversation = {
   conversationId: string | null;
@@ -391,7 +392,7 @@ export default function ChatScreen() {
               {/* Requests Section */}
               {chatRequests.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('chat.requests_title')} ({chatRequests.length})</Text>
+                  <Overline style={styles.sectionTitle}>{`${t('chat.requests_title')} (${chatRequests.length})`}</Overline>
                   <FlatList
                     data={chatRequests}
                     horizontal
@@ -464,7 +465,7 @@ export default function ChatScreen() {
               {/* New Matches Section */}
               {newMatches.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('chat.new_matches')}</Text>
+                  <Overline style={styles.sectionTitle}>{t('chat.new_matches')}</Overline>
                   <FlatList
                     data={newMatches}
                     horizontal
@@ -503,10 +504,13 @@ export default function ChatScreen() {
                 </View>
               )}
 
-              {/* Messages Header */}
-              <Text style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
-                {t('chat.messages_title')}
-              </Text>
+              {/* Bos listede baslik gostermiyoruz: hicbir seyi etiketleyen
+                  bir bolum basligi, bos durumun kendisini gorunmez kiliyordu. */}
+              {activeConversations.length > 0 && (
+                <Overline style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
+                  {t('chat.messages_title')}
+                </Overline>
+              )}
             </>
           }
           ListEmptyComponent={
@@ -654,7 +658,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondaryDark,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.xs,
-    textTransform: "uppercase",
     letterSpacing: 1,
   },
   horizontalList: {

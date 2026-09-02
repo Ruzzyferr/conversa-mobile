@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { tabBarClearance } from "@/src/config/layout";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { UpsellModal } from "@/src/components/UpsellModal";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -393,7 +394,7 @@ export default function ProfileScreen() {
         {profile && (
           <View style={[styles.identityRow, userInfo && !(userInfo.user as any)?.isVerified && { marginTop: spacing.md }]}>
             <View style={styles.identityBlock}>
-              <Text style={styles.identityLabel}>{t('profile.track_label')}</Text>
+              <Overline style={styles.identityLabel}>{t('profile.track_label')}</Overline>
               <View style={styles.trackChip}>
                 <MaterialIcons
                   name={profile.track === "LANGUAGE" ? "translate" : "favorite"}
@@ -409,7 +410,7 @@ export default function ProfileScreen() {
             <View style={styles.identityDivider} />
 
             <View style={[styles.identityBlock, { flex: 1 }]}>
-              <Text style={styles.identityLabel}>{t('profile.verified_levels')}</Text>
+              <Overline style={styles.identityLabel}>{t('profile.verified_levels')}</Overline>
               {profile.languageProofs && profile.languageProofs.length > 0 ? (
                 <View style={styles.proofRow}>
                   {profile.languageProofs.map((pr: { language: string; role: string; cefr: string | null }) => (
@@ -439,7 +440,7 @@ export default function ProfileScreen() {
 
             {profile.languagesNative?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>{t('profile.native_languages')}</Text>
+                <Overline style={styles.languageSectionTitle}>{t('profile.native_languages')}</Overline>
                 <View style={styles.languageTags}>
                   {profile.languagesNative.map((lang: string, index: number) => (
                     <LinearGradient
@@ -456,7 +457,7 @@ export default function ProfileScreen() {
 
             {profile.languagesPractice?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>{t('profile.learning')}</Text>
+                <Overline style={styles.languageSectionTitle}>{t('profile.learning')}</Overline>
                 <View style={styles.languageTags}>
                   {profile.languagesPractice.map((lang: string, index: number) => (
                     <LinearGradient
@@ -745,7 +746,6 @@ const styles = StyleSheet.create({
   identityLabel: {
     ...textStyles.labelSmall,
     color: colors.textTertiary,
-    textTransform: "uppercase",
   },
   identityDivider: { width: 1, alignSelf: "stretch", backgroundColor: colors.borderMuted },
   identityEmpty: { ...textStyles.bodySmall, color: colors.textTertiary },
@@ -845,8 +845,10 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 4,
-    borderColor: "#FFF",
+    // Kalin beyaz halka eski paletten kalmaydi; pirinc kimlikte ekranin
+    // en parlak lekesi profil fotografinin CERCEVESI oluyordu.
+    borderWidth: 2,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholder: {
     width: 120,
@@ -855,13 +857,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 4,
-    borderColor: "#FFF",
+    // Kalin beyaz halka eski paletten kalmaydi; pirinc kimlikte ekranin
+    // en parlak lekesi profil fotografinin CERCEVESI oluyordu.
+    borderWidth: 2,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholderText: {
     fontSize: 48,
     fontWeight: "bold",
-    color: "#FFF",
+    color: colors.textInverse,
   },
   premiumBadgeSmall: {
     position: "absolute",
@@ -1018,7 +1022,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondaryDark,
     marginBottom: 8,
-    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   languageTags: {

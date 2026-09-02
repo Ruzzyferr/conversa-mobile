@@ -11,6 +11,7 @@ import { typography } from "@/src/theme/typography";
 import { Chip } from "./ui/Chip";
 import { LanguageFlag } from "./ui/LanguageFlag";
 import { OptimizedImage } from "./ui/OptimizedImage";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = spacing.md;
@@ -151,11 +152,11 @@ function DiscoveryCardBase({
   const renderLanguages = () => (
     (profile.languagesNative.length > 0 || profile.languagesPractice.length > 0) && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("profile.languages")}</Text>
+        <Overline style={styles.sectionHeader}>{t("profile.languages")}</Overline>
         <View style={styles.sectionContent}>
           {profile.languagesNative.length > 0 && (
             <View style={styles.languageGroup}>
-              <Text style={styles.subSectionTitle}>{t("discovery_card.speaks")}</Text>
+              <Overline style={styles.subSectionTitle}>{t("discovery_card.speaks")}</Overline>
               <View style={styles.chipsContainer}>
                 {profile.languagesNative.map((lang, index) => (
                   <Chip
@@ -170,7 +171,7 @@ function DiscoveryCardBase({
           )}
           {profile.languagesPractice.length > 0 && (
             <View style={styles.languageGroup}>
-              <Text style={styles.subSectionTitle}>{t("discovery_card.learning")}</Text>
+              <Overline style={styles.subSectionTitle}>{t("discovery_card.learning")}</Overline>
               <View style={styles.chipsContainer}>
                 {profile.languagesPractice.map((lang, index) => (
                   <Chip
@@ -193,7 +194,7 @@ function DiscoveryCardBase({
   const renderInterests = () => (
     profile.interests && profile.interests.length > 0 && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("discovery_card.interests")}</Text>
+        <Overline style={styles.sectionHeader}>{t("discovery_card.interests")}</Overline>
         <View style={styles.sectionContent}>
           <View style={styles.chipsContainer}>
             {profile.interests.map((interest, index) => (
@@ -213,7 +214,7 @@ function DiscoveryCardBase({
   const renderBio = () => (
     profile.bio && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("discovery_card.about")}</Text>
+        <Overline style={styles.sectionHeader}>{t("discovery_card.about")}</Overline>
         <View style={styles.sectionContent}>
           <Text
             style={styles.bio}
@@ -533,7 +534,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: colors.textSecondaryDark,
-    textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 4,
   },
@@ -564,7 +564,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
     color: colors.textSecondaryDark,
-    textTransform: "uppercase",
   },
   chipsContainer: {
     flexDirection: "row",

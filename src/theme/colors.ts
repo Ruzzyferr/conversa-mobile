@@ -131,7 +131,10 @@ export const colors = {
   boostGold: "#E8C88C",
   boostGoldDeep: "#C9A87A",
   boostGoldSoft: "rgba(232, 200, 140, 0.12)",
-  boostGoldBorder: "rgba(232, 200, 140, 0.3)",
+  // 0.3'teyken deste yildizi devre disi gibi okunuyordu: yaninda duran
+  // gec dugmesinin cercevesi 0.4 ve o net secliyordu. Ikincil olmak
+  // silik olmak degildir.
+  boostGoldBorder: "rgba(232, 200, 140, 0.42)",
 
   // "Yeni" rozeti — durum yeşili ailesinden
   newBadge: "#4E8C7A",

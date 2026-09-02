@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { colors, spacing, radius, textStyles } from "@/src/theme";
+import { Overline } from "@/src/components/ui/Overline";
 
 /**
  * "Su an -> Premium" karsilastirmasi.
@@ -35,10 +36,10 @@ export function CompareTable({ rows, nowLabel, premiumLabel }: Props) {
     <View style={styles.table}>
       <View style={[styles.row, styles.headRow]}>
         <Text style={[styles.cellLabel, styles.headText]} />
-        <Text style={[styles.cellValue, styles.headText]}>{nowLabel}</Text>
-        <Text style={[styles.cellValue, styles.headText, styles.headPremium]}>
+        <Overline style={[styles.cellValue, styles.headText]}>{nowLabel}</Overline>
+        <Overline style={[styles.cellValue, styles.headText, styles.headPremium]}>
           {premiumLabel}
-        </Text>
+        </Overline>
       </View>
 
       {rows.map((r, i) => (
@@ -91,7 +92,6 @@ const styles = StyleSheet.create({
   headText: {
     ...textStyles.labelSmall,
     color: colors.textTertiary,
-    textTransform: "uppercase",
   },
   headPremium: {
     color: colors.primaryTintText,

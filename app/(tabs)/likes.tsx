@@ -36,6 +36,7 @@ import { AxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 import { UpsellModal } from "@/src/components/UpsellModal";
+import { Overline } from "@/src/components/ui/Overline";
 
 type Request = {
   requestId: string;
@@ -896,7 +897,7 @@ export default function RequestsScreen() {
                   {/* Bio Section */}
                   {profileData.bio && (
                     <View style={styles.detailSection}>
-                      <Text style={styles.detailTitle}>{t('likes.about_me')}</Text>
+                      <Overline style={styles.detailTitle}>{t('likes.about_me')}</Overline>
                       <Text style={styles.bioText}>{profileData.bio}</Text>
                     </View>
                   )}
@@ -912,7 +913,7 @@ export default function RequestsScreen() {
                       >
                         <View style={styles.favoriteHeader}>
                           <Ionicons name="star" size={16} color={colors.accent} />
-                          <Text style={styles.favoriteLabel}>{t('likes.special_message')}</Text>
+                          <Overline style={styles.favoriteLabel}>{t('likes.special_message')}</Overline>
                         </View>
                         <Text style={styles.favoriteText}>"{selectedRequest.firstMessage.text}"</Text>
                       </LinearGradient>
@@ -921,7 +922,7 @@ export default function RequestsScreen() {
 
                   {/* Purpose Chip */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>{t('likes.looking_for')}</Text>
+                    <Overline style={styles.detailTitle}>{t('likes.looking_for')}</Overline>
                     <View style={styles.chipContainer}>
                       <View style={styles.purposeChip}>
                         <Text style={styles.purposeText}>
@@ -934,7 +935,7 @@ export default function RequestsScreen() {
 
                   {/* Languages */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>{t('profile.languages')}</Text>
+                    <Overline style={styles.detailTitle}>{t('profile.languages')}</Overline>
                     <View style={styles.languageTags}>
                       {profileData.languagesNative.map((lang, index) => (
                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
@@ -1328,7 +1329,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.textSecondaryDark,
-    textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: spacing.md,
   },
@@ -1401,7 +1401,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
     fontSize: 12,
-    textTransform: "uppercase",
   },
   favoriteText: {
     color: colors.onMedia,

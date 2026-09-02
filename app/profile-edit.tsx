@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
+import { typography, textStyles } from "@/src/theme/typography";
 import { useTranslation } from "react-i18next";
 // Stored as ISO codes — see src/data/languages.ts for why.
 import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languages";
@@ -684,10 +684,11 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: spacing.xl,
   },
+  // Alan etiketi ekran basligi kadar buyuktu; bir formda en buyuk
+  // yazinin alan adi olmasi hiyerarsiyi tersine ceviriyordu.
   sectionTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
+    ...textStyles.label,
+    color: colors.text,
     marginBottom: spacing.xs,
   },
   sectionSubtitle: {
@@ -706,7 +707,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   readOnlyInput: {
-    opacity: 0.6,
+    backgroundColor: colors.background,
+    borderColor: colors.borderMuted,
+    color: colors.textTertiary,
   },
   readOnlyNote: {
     fontSize: typography.fontSize.xs,

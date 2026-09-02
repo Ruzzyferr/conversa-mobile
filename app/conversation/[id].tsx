@@ -2086,13 +2086,6 @@ const styles = StyleSheet.create({
   profileLanguageSection: {
     gap: spacing.xs / 2,
   },
-  profileLanguageLabel: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textSecondaryDark,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
   profileLanguages: {
     fontSize: typography.fontSize.base,
     color: colors.textDark,

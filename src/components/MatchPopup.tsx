@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import { colors } from "@/src/theme/colors";
 import { NewMatchEvent } from "@/src/state/socket";
 import { useReducedMotion } from "@/src/hooks/useReducedMotion";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -161,9 +162,9 @@ export function MatchPopup({ visible, match, onClose }: MatchPopupProps) {
                         {/* Icebreaker Suggestions */}
                         {icebreakers.length > 0 && (
                             <View style={styles.icebreakerSection}>
-                                <Text style={styles.icebreakerLabel}>
+                                <Overline style={styles.icebreakerLabel}>
                                     {t("home.match.icebreaker_label")}
-                                </Text>
+                                </Overline>
                                 <View style={styles.icebreakerChips}>
                                     {icebreakers.map((message, i) => (
                                         <TouchableOpacity
@@ -313,7 +314,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "600",
         color: colors.onMediaMuted,
-        textTransform: "uppercase",
         letterSpacing: 1,
         textAlign: "center",
         marginBottom: 8,
