@@ -111,8 +111,8 @@ importers:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native-google-mobile-ads:
-        specifier: ^16.0.1
-        version: 16.5.0(expo@54.0.37)(react@19.1.0)
+        specifier: 16.0.1
+        version: 16.0.1(expo@54.0.37)(react@19.1.0)
       react-native-keyboard-controller:
         specifier: ^1.20.4
         version: 1.22.4(react-native-reanimated@4.1.7(react-native-worklets@0.5.1(@babel/core@7.29.7)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -3117,8 +3117,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  react-native-google-mobile-ads@16.5.0:
-    resolution: {integrity: sha512-5x9qieagnvC3UuLbvxb3tUQbr5vSNuGrOvSj/R+UghkcflVz2UbeUcSl41KbAJQAoBkkxPJOqQ+kYxtEQwHgsA==}
+  react-native-google-mobile-ads@16.0.1:
+    resolution: {integrity: sha512-fBbJ34LAHb9Z2agVocqYMgj45UGGh7epMdaT5E3tbZEWTMN+nNxXnK9BVH9RQXD51D9AgEOcxvIIf4um5gIaYA==}
     peerDependencies:
       expo: '>=47.0.0'
     peerDependenciesMeta:
@@ -7443,7 +7443,7 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0)
 
-  react-native-google-mobile-ads@16.5.0(expo@54.0.37)(react@19.1.0):
+  react-native-google-mobile-ads@16.0.1(expo@54.0.37)(react@19.1.0):
     dependencies:
       '@iabtcf/core': 1.5.6
       use-deep-compare-effect: 1.8.1(react@19.1.0)
