@@ -17,7 +17,7 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { Card } from "@/src/components/Card";
-import { RainBackground } from "@/src/components/RainBackground";
+import { BrandTexture } from "@/src/components/brand/BrandTexture";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 import { useTranslation } from "react-i18next";
@@ -173,7 +173,7 @@ export default function VerifyCodeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <RainBackground />
+      <BrandTexture />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

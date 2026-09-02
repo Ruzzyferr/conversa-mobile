@@ -60,9 +60,12 @@ export function DeckActionBar({
         accessibilityRole="button"
         accessibilityLabel={t("a11y.favorite")}
       >
-        <LinearGradient colors={[colors.accent, colors.primary]} style={styles.gradient}>
-          <MaterialIcons name="star" size={26} color={colors.onMedia} />
-        </LinearGradient>
+        {/* Favori KIT ve ucretli bir eylem: gunluk begeniyle ayni gorunmemeli.
+            Dolu degil cerceveli, marka pirinci degil sampanya -- "ozel ve
+            sinirli" okumasi buradan geliyor. */}
+        <View style={styles.favorite}>
+          <MaterialIcons name="star" size={26} color={colors.boostGold} />
+        </View>
         {showBadge && (
           <View style={styles.badge} pointerEvents="none">
             <Text style={styles.badgeText}>{favoritesRemaining}</Text>
@@ -71,14 +74,15 @@ export function DeckActionBar({
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.circle, styles.overflowHidden, disabled && styles.dimmed]}
+        style={[styles.circle, styles.circleLg, styles.overflowHidden, disabled && styles.dimmed]}
         onPress={onLike}
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel={t("a11y.like")}
       >
         <LinearGradient colors={[colors.primary, colors.primaryLight]} style={styles.gradient}>
-          <MaterialIcons name="favorite" size={28} color={colors.onMedia} />
+          {/* Koyu ikon: pirincin uzerinde beyaz dusuk kontrastli kaliyordu. */}
+          <MaterialIcons name="favorite" size={30} color={colors.textInverse} />
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -111,6 +115,23 @@ const styles = StyleSheet.create({
     // The badge must escape the circle, so the gradient clips itself instead.
     overflow: "visible",
   },
+  // Asil olumlu eylem en buyuk daire olmali; uc esit daire hiyerarsi
+  // kurmuyor ve kullanici hangisinin "normal" oldugunu bilemiyordu.
+  circleLg: {
+    width: SIZE + 10,
+    height: SIZE + 10,
+    borderRadius: (SIZE + 10) / 2,
+  },
+  favorite: {
+    width: SIZE,
+    height: SIZE,
+    borderRadius: SIZE / 2,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.boostGoldSoft,
+    borderWidth: 2,
+    borderColor: colors.boostGoldBorder,
+  },
   decline: {
     backgroundColor: colors.passRedSoft,
     borderWidth: 2,
@@ -120,9 +141,9 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   gradient: {
-    width: SIZE,
-    height: SIZE,
-    borderRadius: SIZE / 2,
+    width: SIZE + 10,
+    height: SIZE + 10,
+    borderRadius: (SIZE + 10) / 2,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -136,7 +157,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     backgroundColor: colors.backgroundDark,
     borderWidth: 2,
-    borderColor: colors.accent,
+    borderColor: colors.boostGoldBorder,
     justifyContent: "center",
     alignItems: "center",
   },

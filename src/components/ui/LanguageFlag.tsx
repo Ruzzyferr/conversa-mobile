@@ -63,16 +63,18 @@ export function LanguageFlag({
 
 const styles = StyleSheet.create({
   codeBadge: {
-    paddingHorizontal: 6,
+    // Notr: bu rozet cogunlukla renkli bir cipin ICINDE duruyor. Kendi
+    // aksan tonunu tasirsa iki tonlu yuzey ust uste biniyor ve cip
+    // "iki renkli bir leke"ye donusuyordu. Renk kodlamasini cip yapsin.
+    paddingHorizontal: 5,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.primaryTint,
-    borderWidth: 1,
-    borderColor: colors.primaryTintBorder,
+    backgroundColor: colors.surfaceTintStrong,
+    borderWidth: 0,
   },
   codeText: {
-    color: colors.primaryTintText,
-    fontWeight: typography.fontWeight.bold,
-    letterSpacing: 0.5,
+    color: colors.textSecondary,
+    fontFamily: typography.fontFamily.bold,
+    letterSpacing: 0.6,
   },
 });

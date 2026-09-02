@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { tabBarClearance } from "@/src/config/layout";
 import {
   View,
   Text,
@@ -649,7 +650,7 @@ export default function RequestsScreen() {
             data={incomingRequests}
             renderItem={renderRequestItem}
             keyExtractor={(item) => item.requestId}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: tabBarClearance(insets.bottom) }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl

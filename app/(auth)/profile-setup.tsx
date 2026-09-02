@@ -25,7 +25,7 @@ import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { RainBackground } from "@/src/components/RainBackground";
+import { BrandTexture } from "@/src/components/brand/BrandTexture";
 import { AnimatedStepIndicator } from "@/src/components/AnimatedStepIndicator";
 import { api } from "@/src/services/api";
 import { clearToken } from "@/src/services/authStore";
@@ -913,7 +913,7 @@ export default function ProfileSetupScreen() {
 
     return (
         <View style={styles.container}>
-            <RainBackground />
+            <BrandTexture />
 
             <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
                 <KeyboardAvoidingView

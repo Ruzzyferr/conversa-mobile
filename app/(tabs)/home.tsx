@@ -16,6 +16,7 @@ import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
+import { Wordmark } from "@/src/components/brand/Wordmark";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
@@ -806,7 +807,7 @@ export default function HomeScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>Conversa</Text>
+              <Wordmark size="sm" />
               {isUserPremium && (
                 <LinearGradient
                   colors={[colors.primary, colors.primaryLight]}
@@ -814,7 +815,7 @@ export default function HomeScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.premiumBadge}
                 >
-                  <Text style={styles.premiumBadgeIcon}>✨</Text>
+                  <MaterialIcons name="workspace-premium" size={13} color={colors.textInverse} />
                   <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
                 </LinearGradient>
               )}
@@ -901,7 +902,7 @@ export default function HomeScreen() {
         {/* Compact Premium Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>Conversa</Text>
+            <Wordmark size="sm" />
             {isUserPremium && (
               <LinearGradient
                 colors={[colors.primary, colors.primaryLight]}
@@ -909,7 +910,7 @@ export default function HomeScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.premiumBadge}
               >
-                <Text style={styles.premiumBadgeIcon}>✨</Text>
+                <MaterialIcons name="workspace-premium" size={13} color={colors.textInverse} />
                 <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
               </LinearGradient>
             )}
@@ -1264,9 +1265,10 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
   },
   premiumBadgeText: {
+    // Pirinc gradyanin uzerinde kagit beyazi dusuk kontrastliydi.
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textInverse,
     letterSpacing: 0.5,
   },
   favoriteCounter: {

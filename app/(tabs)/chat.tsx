@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { tabBarClearance } from "@/src/config/layout";
 import {
   View,
   StyleSheet,
@@ -71,6 +73,7 @@ type ChatRequest = {
 };
 
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useTranslation();
   const [activeConversations, setActiveConversations] = useState<Conversation[]>([]);
@@ -374,7 +377,7 @@ export default function ChatScreen() {
         <FlatList
           data={activeConversations}
           keyExtractor={(item) => item.conversationId || item.matchId}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarClearance(insets.bottom) }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

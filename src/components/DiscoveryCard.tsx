@@ -95,7 +95,16 @@ function DiscoveryCardBase({
     return Date.now() - created < 7 * 24 * 60 * 60 * 1000;
   })();
 
-  const renderLanguageFlag = (lang: string) => <LanguageFlag language={lang} size={16} />;
+  // Bayrak DEGIL, ISO kodu.
+  //
+  // Iki sebep. Birincisi dogruluk: bir dil bir ulke degil. Ingilizce yalnizca
+  // Birlesik Krallik degil, Ispanyolca yalnizca Ispanya degil, Arapcanin ise
+  // bir bayragi yok. Dil uygulamasinda bayrak kullanmak yanlisi ogretiyor.
+  // Ikincisi cizim: bolgesel gosterge emojileri Windows'ta hic cizilmiyor ve
+  // yerine iki harflik bos kutu cikiyor.
+  const renderLanguageFlag = (lang: string) => (
+    <LanguageFlag language={lang} size={13} variant="code" />
+  );
 
   const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
 

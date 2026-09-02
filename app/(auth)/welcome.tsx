@@ -17,7 +17,9 @@ import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { RainBackground } from "@/src/components/RainBackground";
+import { BrandTexture } from "@/src/components/brand/BrandTexture";
+import { Wordmark } from "@/src/components/brand/Wordmark";
+import { MaterialIcons } from "@expo/vector-icons";
 import { LEGAL_URLS } from "@/src/config/legal";
 import {
   isGoogleAvailable,
@@ -88,11 +90,24 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <RainBackground />
+      <BrandTexture intensity="soft" />
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>{t("welcome.title")}</Text>
+          <Wordmark size="lg" />
           <Text style={styles.subtitle}>{t("welcome.subtitle")}</Text>
+
+          {/* Uc kanit satiri. Eskiden burasi bostu ve ekranin %40'i
+              bir boslukla geciyordu; bir karsilama ekraninin isi
+              uygulamanin NE OLDUGUNU soylemek. Uc satir da gercekten
+              yaptigimiz seyler. */}
+          <View style={styles.proof}>
+            {(["proof_1", "proof_2", "proof_3"] as const).map((k) => (
+              <View key={k} style={styles.proofRow}>
+                <MaterialIcons name="check" size={15} color={colors.primary} />
+                <Text style={styles.proofText}>{t(`welcome.${k}`)}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -202,19 +217,26 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.lg,
   },
-  header: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: {
-    fontSize: typography.fontSize["4xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
-    letterSpacing: -0.5,
-    marginBottom: spacing.sm,
+  header: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.lg,
   },
   subtitle: {
+    fontFamily: typography.fontFamily.regular,
     fontSize: typography.fontSize.lg,
+    lineHeight: typography.fontSize.lg * 1.4,
     color: dc.textSecondary,
     textAlign: "center",
     maxWidth: 300,
+  },
+  proof: { gap: spacing.sm, marginTop: spacing.sm },
+  proofRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  proofText: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.sm,
+    color: colors.textTertiary,
   },
   actions: { gap: spacing.md },
   button: { width: "100%" },

@@ -1096,6 +1096,15 @@ class ApiClient {
       translationsPerDay: number | null;
       sessionsPerWeek: number | null;
       partnerCorrections: "unlimited";
+      /** Premium alinsa ne degisirdi. Odeme ekrani bu sayilari kendi
+       *  hesaplamasin diye sunucudan geliyor. */
+      premiumPreview: {
+        concurrencySlots: number;
+        dailyConversations: number;
+        coachPerDay: number | null;
+        translationsPerDay: number | null;
+        sessionsPerWeek: number | null;
+      };
     };
   }> {
     const response = await this.client.get("/api/v1/billing/entitlements");
