@@ -340,7 +340,10 @@ const styles = StyleSheet.create({
         color: 'rgba(255, 255, 255, 0.65)',
     },
     stepNumberActive: {
-        color: colors.primary,
+        // colors.primary, aktif dairenin acik mor dolgusunun uzerinde
+        // mor demekti: bulundugun adimin numarasi okunmuyordu -- ki
+        // gostergede en cok okunmasi gereken sayi tam olarak o.
+        color: colors.textInverse,
         fontSize: typography.fontSize.base,
     },
 
