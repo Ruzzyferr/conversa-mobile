@@ -119,6 +119,7 @@ function ChatListItemBase({
           </View>
         </View>
       </View>
+      <View style={styles.divider} />
     </TouchableOpacity>
   );
 }
@@ -143,9 +144,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
     backgroundColor: colors.backgroundDark,
+  },
+  // Ayirici cizgi avatarin ALTINDAN da geciyordu ve satirlar birbirine
+  // bitisik duruyordu. Cizgi metin sutununa hizalaninca liste "kutular"
+  // yerine "kayitlar" gibi okunuyor; ayrica gozun satir basini bulmasi
+  // kolaylasiyor.
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderMuted,
+    marginLeft: spacing.md + 60 + spacing.md,
   },
   avatar: {
     width: 60,
@@ -187,8 +195,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: spacing.xs,
   },
+  // `textInverse` koyu murekkeptir (#14100A). Eski ACIK palette
+  // "okunmamis = daha koyu, daha guclu" demekti; palet koyuya donunce ayni
+  // deger ismi ARKA PLANLA ayni tona getirdi ve sohbet listesindeki her
+  // okunmamis satirin ismi gorunmez oldu -- ustelik mesaj onizlemesi
+  // parlak kalarak hiyerarsiyi tersine cevirdi. Gorsel incelemede
+  // yakalandi.
   nameUnread: {
-    color: colors.textInverse,
+    color: colors.text,
   },
   time: {
     fontSize: typography.fontSize.xs,

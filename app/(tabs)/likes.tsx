@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { tabBarClearance } from "@/src/config/layout";
 import {
   View,
   Text,
@@ -21,7 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
+import { typography, textStyles } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
@@ -35,6 +36,7 @@ import { AxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 import { UpsellModal } from "@/src/components/UpsellModal";
+import { Overline } from "@/src/components/ui/Overline";
 
 type Request = {
   requestId: string;
@@ -95,7 +97,19 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-      if (hours > 0) {
+      // LANGUAGE isteklerinin omru 168 saat: "167sa 59dk" hicbir insanin
+      // okumadigi bir sayi. Bir gunden uzun sureler GUN cinsinden
+      // yaziliyor; kalan saat yalnizca son gunde anlam tasiyor.
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const restHours = hours % 24;
+        setTimeLeft(
+          restHours > 0
+            ? `${days}${t('likes.days')} ${restHours}${t('likes.hours')}`
+            : `${days}${t('likes.days')}`
+        );
+        setIsUrgent(false);
+      } else if (hours > 0) {
         setTimeLeft(`${hours}${t('likes.hours')} ${minutes}${t('likes.minutes')}`);
         setIsUrgent(hours < 6);
       } else {
@@ -397,6 +411,8 @@ export default function RequestsScreen() {
     }
   };
 
+  const lockedCount = incomingRequests.filter((r) => r.locked).length;
+
   const renderRequestItem = ({ item }: { item: Request }) => {
     // Bumble-style locked like: blurred anonymous card for free users.
     if (item.locked) {
@@ -435,7 +451,8 @@ export default function RequestsScreen() {
 
               <View style={styles.userDetails}>
                 <Text style={styles.userName}>{t("likes.locked_title")}</Text>
-                <Text style={styles.lockedDesc}>{t("likes.locked_desc")}</Text>
+                {/* Aciklama ust bannerda; her kartta tekrarlanmasi
+                    listeyi ayni cumlenin kopyalarina ceviriyordu. */}
                 {item.expiresAt && item.status === "PENDING" && (
                   <ExpirationTimer expiresAt={item.expiresAt} />
                 )}
@@ -444,21 +461,16 @@ export default function RequestsScreen() {
               <Ionicons name="chevron-forward" size={22} color={colors.textSecondaryDark} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setShowUpsellModal(true)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryLight]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.actionButton, styles.lockedCta]}
-              >
-                <Ionicons name="diamond" size={18} color={colors.onMedia} />
-                <Text style={styles.acceptButtonText}>{t("likes.locked_cta")}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            {/*
+              Kart basina tam genislikte bir pirinc dugme YOK.
+
+              Her kilitli kartin altinda ayni "Kim oldugunu gor" dugmesi
+              duruyordu: on bekleyen begenisi olan biri ekranda on ozdes
+              dugme goruyordu. Tekrar eden bir istek ikna etmiyor,
+              yalnizca ekrani doldurup listeyi okunmaz kiliyor. Satirin
+              kendisi zaten dokunulabilir ve tek satis mesaji listenin
+              en ustunde duruyor.
+            */}
           </LinearGradient>
         </View>
       );
@@ -649,7 +661,7 @@ export default function RequestsScreen() {
             data={incomingRequests}
             renderItem={renderRequestItem}
             keyExtractor={(item) => item.requestId}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: tabBarClearance(insets.bottom) }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -657,6 +669,31 @@ export default function RequestsScreen() {
                 onRefresh={loadRequests}
                 tintColor={colors.primary}
               />
+            }
+            ListHeaderComponent={
+              /*
+                Tek satis mesaji, listenin en ustunde.
+                Eskiden bu istek her kartin altinda tekrar ediyordu.
+              */
+              lockedCount > 0 ? (
+                <TouchableOpacity
+                  style={styles.unlockBanner}
+                  onPress={() => setShowUpsellModal(true)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.unlockIcon}>
+                    <Ionicons name="lock-closed" size={18} color={colors.primaryTintText} />
+                  </View>
+                  <View style={styles.unlockTexts}>
+                    <Text style={styles.unlockTitle}>
+                      {t("likes.locked_banner_title", { count: lockedCount })}
+                    </Text>
+                    <Text style={styles.unlockBody}>{t("likes.locked_desc")}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
+                </TouchableOpacity>
+              ) : null
             }
           />
         )}
@@ -686,27 +723,25 @@ export default function RequestsScreen() {
                 },
               ]}
             >
+              {/*
+                Tam pirinc gradyan DEGIL.
+
+                Eslesme ani uygulamanin en yuksek sesli ekraniydi: bastan
+                asagi altin bir poster, ustunde emoji konfeti. Kutlama
+                hissi renkle degil, tek bir parlak halka ve yeterli
+                bosluktan geliyor. Koyu yuzey, pirinc yalnizca fotografin
+                cercevesinde ve dugmede.
+              */}
               <LinearGradient
-                colors={[colors.primary, colors.primaryLight, colors.accent]}
+                colors={[colors.surfaceElevated, colors.surface]}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 0, y: 1 }}
                 style={styles.matchModalGradient}
               >
-                {/* Sparkle Animation */}
-                <Animated.View
-                  style={[
-                    styles.sparkleContainer,
-                    {
-                      opacity: sparkleAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.3, 1],
-                      }),
-                    },
-                  ]}
-                >
-                  <Text style={styles.sparkleText}>✨</Text>
-                </Animated.View>
-
+                {/*
+                  Emoji "✨" kaldirildi: platform emoji fontuyla ciziliyor ve
+                  clip art gibi okunuyordu -- reddedilen gorunumun ta kendisi.
+                */}
                 <View style={styles.matchModalContent}>
                   <Text style={styles.matchTitle}>{t('likes.matched')}</Text>
 
@@ -895,7 +930,7 @@ export default function RequestsScreen() {
                   {/* Bio Section */}
                   {profileData.bio && (
                     <View style={styles.detailSection}>
-                      <Text style={styles.detailTitle}>{t('likes.about_me')}</Text>
+                      <Overline style={styles.detailTitle}>{t('likes.about_me')}</Overline>
                       <Text style={styles.bioText}>{profileData.bio}</Text>
                     </View>
                   )}
@@ -911,7 +946,7 @@ export default function RequestsScreen() {
                       >
                         <View style={styles.favoriteHeader}>
                           <Ionicons name="star" size={16} color={colors.accent} />
-                          <Text style={styles.favoriteLabel}>{t('likes.special_message')}</Text>
+                          <Overline style={styles.favoriteLabel}>{t('likes.special_message')}</Overline>
                         </View>
                         <Text style={styles.favoriteText}>"{selectedRequest.firstMessage.text}"</Text>
                       </LinearGradient>
@@ -920,7 +955,7 @@ export default function RequestsScreen() {
 
                   {/* Purpose Chip */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>{t('likes.looking_for')}</Text>
+                    <Overline style={styles.detailTitle}>{t('likes.looking_for')}</Overline>
                     <View style={styles.chipContainer}>
                       <View style={styles.purposeChip}>
                         <Text style={styles.purposeText}>
@@ -933,7 +968,7 @@ export default function RequestsScreen() {
 
                   {/* Languages */}
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailTitle}>{t('profile.languages')}</Text>
+                    <Overline style={styles.detailTitle}>{t('profile.languages')}</Overline>
                     <View style={styles.languageTags}>
                       {profileData.languagesNative.map((lang, index) => (
                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
@@ -1046,6 +1081,34 @@ const styles = StyleSheet.create({
   },
   requestContent: {
     marginBottom: spacing.md,
+  },
+  unlockBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 16,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+  },
+  unlockIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceTintStrong,
+  },
+  unlockTexts: { flex: 1, gap: 2 },
+  unlockTitle: {
+    ...textStyles.label,
+    color: colors.text,
+  },
+  unlockBody: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
   },
   lockedContent: {
     flexDirection: "row",
@@ -1327,7 +1390,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.textSecondaryDark,
-    textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: spacing.md,
   },
@@ -1400,7 +1462,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
     fontSize: 12,
-    textTransform: "uppercase",
   },
   favoriteText: {
     color: colors.onMedia,
@@ -1515,12 +1576,10 @@ const styles = StyleSheet.create({
   matchTitle: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.onMedia,
+    // Koyu yuzeyde kagit beyazi; golge yalnizca altin posterde gerekiyordu.
+    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.lg,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   matchPhotoContainer: {
     width: 120,
@@ -1535,11 +1594,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 4,
-    borderColor: colors.onMedia,
+    // Kalin beyaz cerceve altin posterden kalmaydi; disaridaki pirinc
+    // halkayla ic ice iki halka olusturuyordu. Cerceve tek: halka.
+    borderWidth: 0,
   },
   matchPhotoPlaceholder: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: colors.surfaceTintStrong,
     borderWidth: 4,
     borderColor: colors.onMedia,
   },
@@ -1553,30 +1613,31 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
+    // Kutlamanin tek parlak ogesi: fotografin cevresindeki pirinc halka.
     borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderColor: colors.primary,
     top: -10,
     left: -10,
   },
   matchName: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.bold,
-    color: colors.onMedia,
+    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.xs,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowColor: "transparent",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   matchSubtitle: {
     fontSize: typography.fontSize.base,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.md,
     lineHeight: 22,
   },
   firstMessageInfo: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: colors.primaryTint,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 12,
@@ -1602,7 +1663,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   matchModalCloseText: {
-    color: "rgba(255, 255, 255, 0.8)",
+    color: colors.textSecondary,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
   },

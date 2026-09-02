@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { tabBarClearance } from "@/src/config/layout";
 import {
   View,
   StyleSheet,
@@ -32,6 +34,7 @@ import { api } from "@/src/services/api";
 import { AxiosError } from "axios";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { useSocket } from "@/src/state/socket";
+import { Overline } from "@/src/components/ui/Overline";
 
 type Conversation = {
   conversationId: string | null;
@@ -71,6 +74,7 @@ type ChatRequest = {
 };
 
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useTranslation();
   const [activeConversations, setActiveConversations] = useState<Conversation[]>([]);
@@ -374,7 +378,7 @@ export default function ChatScreen() {
         <FlatList
           data={activeConversations}
           keyExtractor={(item) => item.conversationId || item.matchId}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarClearance(insets.bottom) }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -388,7 +392,7 @@ export default function ChatScreen() {
               {/* Requests Section */}
               {chatRequests.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('chat.requests_title')} ({chatRequests.length})</Text>
+                  <Overline style={styles.sectionTitle}>{`${t('chat.requests_title')} (${chatRequests.length})`}</Overline>
                   <FlatList
                     data={chatRequests}
                     horizontal
@@ -419,7 +423,10 @@ export default function ChatScreen() {
                                 {item.fromUser.displayName}{(item.fromUser as any).birthYear ? calculateAge((item.fromUser as any).birthYear) : ""}
                               </Text>
                               {item.fromUser.city && (
-                                <Text style={styles.requestUserCity}>📍 {item.fromUser.city}</Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                                  <MaterialIcons name="place" size={13} color={colors.textTertiary} />
+                                  <Text style={styles.requestUserCity}>{item.fromUser.city}</Text>
+                                </View>
                               )}
                             </View>
                           </View>
@@ -461,7 +468,7 @@ export default function ChatScreen() {
               {/* New Matches Section */}
               {newMatches.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t('chat.new_matches')}</Text>
+                  <Overline style={styles.sectionTitle}>{t('chat.new_matches')}</Overline>
                   <FlatList
                     data={newMatches}
                     horizontal
@@ -500,10 +507,13 @@ export default function ChatScreen() {
                 </View>
               )}
 
-              {/* Messages Header */}
-              <Text style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
-                {t('chat.messages_title')}
-              </Text>
+              {/* Bos listede baslik gostermiyoruz: hicbir seyi etiketleyen
+                  bir bolum basligi, bos durumun kendisini gorunmez kiliyordu. */}
+              {activeConversations.length > 0 && (
+                <Overline style={[styles.sectionTitle, { marginLeft: spacing.md, marginTop: spacing.sm, marginBottom: spacing.xs }]}>
+                  {t('chat.messages_title')}
+                </Overline>
+              )}
             </>
           }
           ListEmptyComponent={
@@ -651,7 +661,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondaryDark,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.xs,
-    textTransform: "uppercase",
     letterSpacing: 1,
   },
   horizontalList: {

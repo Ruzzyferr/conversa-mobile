@@ -9,7 +9,7 @@ import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { Card } from "@/src/components/Card";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { RainBackground } from "@/src/components/RainBackground";
+import { BrandTexture } from "@/src/components/brand/BrandTexture";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 
@@ -49,7 +49,7 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <RainBackground />
+      <BrandTexture />
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

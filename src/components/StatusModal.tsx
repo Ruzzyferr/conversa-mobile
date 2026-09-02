@@ -6,6 +6,7 @@ import {
     Modal,
     TouchableOpacity,
 } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -29,16 +30,18 @@ export function StatusModal({
     buttonText = "Tamam",
     onClose,
 }: StatusModalProps) {
-    const getIcon = () => {
+    // Emoji (🎉 ❌ ℹ️) yerine vektor ikon: platform emoji fontu cihazdan
+    // cihaza degisiyor ve koyu zeminde renkli bir yama gibi duruyordu.
+    const getIcon = (): { name: React.ComponentProps<typeof MaterialIcons>["name"]; color: string } => {
         switch (type) {
             case "success":
-                return "🎉";
+                return { name: "check-circle", color: colors.success };
             case "error":
-                return "❌";
+                return { name: "error-outline", color: colors.error };
             case "info":
-                return "ℹ️";
+                return { name: "info-outline", color: colors.info };
             default:
-                return "✨";
+                return { name: "info-outline", color: colors.primary };
         }
     };
 
@@ -62,7 +65,9 @@ export function StatusModal({
         >
             <View style={styles.overlay}>
                 <Card style={styles.modalCard}>
-                    <Text style={styles.icon}>{getIcon()}</Text>
+                    <View style={styles.icon}>
+                        <MaterialIcons name={getIcon().name} size={40} color={getIcon().color} />
+                    </View>
                     <Text style={[styles.title, { color: getTitleColor() }]}>{title}</Text>
                     <Text style={styles.message}>{message}</Text>
 
@@ -92,8 +97,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     icon: {
-        fontSize: 48,
         marginBottom: spacing.md,
+        alignItems: "center",
     },
     title: {
         fontSize: typography.fontSize.xl,

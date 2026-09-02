@@ -1,20 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
 } from "react-native";
-import { colors } from "@/src/theme/colors";
-import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
-import { Card } from "@/src/components/Card";
-import { PrimaryButton } from "@/src/components/PrimaryButton";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
+import * as WebBrowser from "expo-web-browser";
+
+import { colors, spacing, radius, textStyles, elevation } from "@/src/theme";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { PremiumCard } from "@/src/components/PremiumCard";
+import { PrimaryButton } from "@/src/components/PrimaryButton";
+import { StatusModal } from "@/src/components/StatusModal";
+import { Mark } from "@/src/components/brand/Mark";
+import { CompareTable, CompareRow } from "@/src/components/premium/CompareTable";
+import { PlanRow } from "@/src/components/premium/PlanRow";
 import { usePremium } from "@/src/state/premium";
 import {
   getOfferings,
@@ -24,49 +29,77 @@ import {
   PurchasesOffering,
 } from "@/src/services/purchases";
 import { api } from "@/src/services/api";
-import { useRouter } from "expo-router";
-import { StatusModal } from "@/src/components/StatusModal";
-import { useTranslation } from "react-i18next";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 import { LEGAL_URLS } from "@/src/config/legal";
 
 /**
- * Paywall benefits. These were emoji glyphs rendered as text, which pick up
- * the platform emoji font and read as clip art on the single screen where the
- * app asks to be paid — the rest of the product uses the vector icon set.
+ * Odeme ekrani.
+ *
+ * Eski hali bes maddelik bir avantaj listesi satiyordu ve maddeler urunle
+ * uyusmuyordu: "Sinirsiz Mesaj" dogru degildi (gunluk yeni sohbet hakki
+ * premiumda da ayni), "Boost" ise aboneligin degil ayri bir tuketilebilir
+ * urunun ozelligi. Bir satis yuzeyindeki yanlis vaat yalnizca kotu metin
+ * degil, yanlis beyandir.
+ *
+ * Yeni hali sunucudaki gercek haklardan (`billing/entitlements`) besleniyor,
+ * hata payi birakmayacak sekilde iki sutunlu: su an ne var, premiumda ne
+ * olur. Ayni yerde DEGISMEYENLERI de yaziyor -- satmadigimiz seyi
+ * satmadigimizi soylemek, listeye bir madde daha eklemekten daha ikna edici.
  */
-const BENEFITS = [
-  { icon: "robot-happy-outline", titleKey: "premium.ai_polish_title", descKey: "premium.ai_polish_desc" },
-  { icon: "message-text-outline", titleKey: "premium.messages_title", descKey: "premium.messages_desc" },
-  { icon: "eye-outline", titleKey: "premium.who_liked_title", descKey: "premium.who_liked_desc" },
-  { icon: "rocket-launch-outline", titleKey: "premium.boost_title", descKey: "premium.boost_desc" },
-  { icon: "tune-variant", titleKey: "premium.filters_title", descKey: "premium.filters_desc" },
-] as const;
+
+type Entitlements = Awaited<ReturnType<typeof api.getEntitlements>>["data"];
+
+const WEEKLY_IDS = [
+  "$rc_weekly",
+  "conversa_plus_weekly",
+  "conversa_premium_weekly:weekly-plan",
+  "conversa_premium_weekly",
+];
+const MONTHLY_IDS = [
+  "$rc_monthly",
+  "conversa_plus_monthly",
+  "conversa_premium_monthly:monthly-plan",
+  "conversa_premium_monthly",
+];
+
+/**
+ * Paket eslestirmesi RevenueCat kimlikleri, urun kimlikleri ve paket turu
+ * arasinda degisebiliyor. Bu ucu de kontrol eden kontrol dort ayri yere
+ * kopyalanmisti; tek yerde tutuluyor.
+ */
+const isWeekly = (p: PurchasesPackage) =>
+  WEEKLY_IDS.includes(p.identifier) ||
+  WEEKLY_IDS.includes(p.product.identifier) ||
+  p.packageType === "WEEKLY";
+
+const isMonthly = (p: PurchasesPackage) =>
+  MONTHLY_IDS.includes(p.identifier) ||
+  MONTHLY_IDS.includes(p.product.identifier) ||
+  p.packageType === "MONTHLY";
 
 export default function PremiumScreen() {
   const { t } = useTranslation();
   const { premiumEnabled, refreshPremiumStatus } = usePremium();
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
 
-  // Status Modal State
   const [statusVisible, setStatusVisible] = useState(false);
   const [statusType, setStatusType] = useState<"success" | "error" | "info">("info");
   const [statusTitle, setStatusTitle] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
-  const [statusButtonText, setStatusButtonText] = useState(t('common.ok'));
+  const [statusButtonText, setStatusButtonText] = useState(t("common.ok"));
   const [statusAction, setStatusAction] = useState<(() => void) | undefined>(undefined);
 
   const showStatus = (
     type: "success" | "error" | "info",
     title: string,
     message: string,
-    buttonText = t('common.ok'),
+    buttonText = t("common.ok"),
     action?: () => void
   ) => {
     setStatusType(type);
@@ -85,81 +118,67 @@ export default function PremiumScreen() {
     }
   };
 
-  useEffect(() => {
-    loadOfferings();
-  }, []);
-
-  const loadOfferings = async () => {
+  const loadOfferings = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Get user ID for RevenueCat initialization
       let userId: string | undefined;
       try {
         const me = await api.getMe();
         userId = me.user.id;
       } catch (error) {
         console.error("Failed to get user info for RevenueCat:", error);
-        // Continue anyway, getOfferings will try to initialize
       }
 
       const currentOffering = await getOfferings(userId);
       setOffering(currentOffering);
 
-      // Auto-select WEEKLY package if available, otherwise MONTHLY
       if (currentOffering) {
-        // Match RevenueCat package identifiers
-        const weeklyPackage = currentOffering.availablePackages.find(
-          (pkg) =>
-            pkg.identifier === "$rc_weekly" ||
-            pkg.identifier === "conversa_plus_weekly" ||
-            pkg.product.identifier === "conversa_premium_weekly:weekly-plan" ||
-            pkg.product.identifier === "conversa_premium_weekly" ||
-            pkg.packageType === "WEEKLY"
-        );
-        const monthlyPackage = currentOffering.availablePackages.find(
-          (pkg) =>
-            pkg.identifier === "$rc_monthly" ||
-            pkg.identifier === "conversa_plus_monthly" ||
-            pkg.product.identifier === "conversa_premium_monthly:monthly-plan" ||
-            pkg.product.identifier === "conversa_premium_monthly" ||
-            pkg.packageType === "MONTHLY"
-        );
-
-        if (weeklyPackage) {
-          setSelectedPackage(weeklyPackage);
-        } else if (monthlyPackage) {
-          setSelectedPackage(monthlyPackage);
-        }
-        // Do not auto-select other types since we filter them out in UI
+        const weekly = currentOffering.availablePackages.find(isWeekly);
+        const monthly = currentOffering.availablePackages.find(isMonthly);
+        // Aylik varsayilan: iki plan yan yana gorunurken varsayilanin daha
+        // pahali haftalik olmasi, kullanicinin kendi lehine olan secimi
+        // yapmasini bir adim zorlastirirdi.
+        setSelectedPackage(monthly ?? weekly ?? null);
       }
     } catch (error: any) {
       console.error("Failed to load offerings:", error);
-      // Log specific RevenueCat details if available
       if (error.code) {
-        console.error(`RevenueCat Error Code: ${error.code}, Message: ${error.message}, UserInfo: ${JSON.stringify(error.userInfo)}`);
+        console.error(
+          `RevenueCat Error Code: ${error.code}, Message: ${error.message}, UserInfo: ${JSON.stringify(error.userInfo)}`
+        );
       }
-      // No modal here on purpose. The empty-state card below already renders
-      // `premium.not_available` together with a Retry button and the legal
-      // links, so raising a blocking dialog printed the same sentence twice
-      // and put a dismiss step in front of the retry.
+      // Bilerek modal yok: asagidaki bos durum karti ayni cumleyi zaten
+      // yaziyor ve tekrar dugmesini onunde bir kapatma adimi olmadan veriyor.
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadOfferings();
+  }, [loadOfferings]);
+
+  useEffect(() => {
+    // Karsilastirma sayilari sunucudan. Basarisiz olursa ekran satis
+    // yapmayi surdurur, yalnizca tablo gizlenir -- uydurma sayi
+    // gostermektense hic gostermemek dogru.
+    api
+      .getEntitlements()
+      .then((r) => setEntitlements(r.data))
+      .catch((e) => console.error("Failed to load entitlements:", e));
+  }, [premiumEnabled]);
 
   const handlePurchase = async (pkg?: PurchasesPackage) => {
-    // ... (existing handlePurchase code)
     const packageToPurchase = pkg || selectedPackage;
     if (!packageToPurchase) {
-      showStatus("info", t('premium.select_package_title'), t('premium.select_package_msg'));
+      showStatus("info", t("premium.select_package_title"), t("premium.select_package_msg"));
       return;
     }
 
     try {
       setPurchasing(true);
 
-      // Get user ID for RevenueCat initialization
       let userId: string | undefined;
       try {
         const me = await api.getMe();
@@ -169,28 +188,19 @@ export default function PremiumScreen() {
       }
 
       const customerInfo = await purchasePremium(packageToPurchase, userId);
-
-      // Check if purchase was successful
       const isPremium = customerInfo.entitlements.active["premium"] !== undefined;
 
       if (isPremium) {
-        // Server will be updated via webhook automatically
-        // Just refresh status from server (may take a moment for webhook to process)
         await refreshPremiumStatus();
-
         showStatus(
           "success",
-          t('common.success'),
-          t('premium.purchase_success_msg'),
-          t('common.ok'),
+          t("common.success"),
+          t("premium.purchase_success_msg"),
+          t("common.ok"),
           () => router.back()
         );
       } else {
-        showStatus(
-          "error",
-          t('common.error'),
-          t('premium.purchase_incomplete')
-        );
+        showStatus("error", t("common.error"), t("premium.purchase_incomplete"));
       }
     } catch (error: any) {
       if (error.message === "Purchase cancelled") {
@@ -199,20 +209,17 @@ export default function PremiumScreen() {
       console.error("Purchase failed:", error);
       showStatus(
         "error",
-        t('premium.purchase_failed_title'),
-        error.message || t('premium.purchase_failed_msg')
+        t("premium.purchase_failed_title"),
+        error.message || t("premium.purchase_failed_msg")
       );
     } finally {
       setPurchasing(false);
     }
   };
 
-  // ... (handleRestore code logic remains similar but localized) ...
-
   const handleRestore = async () => {
     try {
       setRestoring(true);
-      // ... (get user id logic) ...
       let userId: string | undefined;
       try {
         const me = await api.getMe();
@@ -228,51 +235,26 @@ export default function PremiumScreen() {
         await refreshPremiumStatus();
         showStatus(
           "success",
-          t('common.success'),
-          t('premium.restore_success_msg'),
-          t('common.ok'),
+          t("common.success"),
+          t("premium.restore_success_msg"),
+          t("common.ok"),
           () => router.back()
         );
       } else {
-        showStatus(
-          "info",
-          t('premium.restore_none_title'),
-          t('premium.restore_none_msg')
-        );
+        showStatus("info", t("premium.restore_none_title"), t("premium.restore_none_msg"));
       }
     } catch (error) {
       console.error("Restore failed:", error);
-      showStatus("error", t('common.error'), t('premium.restore_failed_msg'));
+      showStatus("error", t("common.error"), t("premium.restore_failed_msg"));
     } finally {
       setRestoring(false);
     }
   };
 
-  const formatPrice = (packageToFormat: PurchasesPackage): string => {
-    return packageToFormat.product.priceString;
-  };
-
-  const getPackageLabel = (packageToFormat: PurchasesPackage): string => {
-    // Match RevenueCat package identifiers
-    if (
-      packageToFormat.identifier === "$rc_weekly" ||
-      packageToFormat.identifier === "conversa_plus_weekly" ||
-      packageToFormat.product.identifier === "conversa_premium_weekly:weekly-plan" ||
-      packageToFormat.product.identifier === "conversa_premium_weekly"
-    ) return t("premium.weekly");
-    
-    if (
-      packageToFormat.identifier === "$rc_monthly" ||
-      packageToFormat.identifier === "conversa_plus_monthly" ||
-      packageToFormat.product.identifier === "conversa_premium_monthly:monthly-plan" ||
-      packageToFormat.product.identifier === "conversa_premium_monthly"
-    ) return t("premium.monthly");
-
-    switch (packageToFormat.packageType) {
-      case "WEEKLY":
-        return t("premium.weekly");
-      case "MONTHLY":
-        return t("premium.monthly");
+  const packageLabel = (p: PurchasesPackage): string => {
+    if (isWeekly(p)) return t("premium.weekly");
+    if (isMonthly(p)) return t("premium.monthly");
+    switch (p.packageType) {
       case "ANNUAL":
         return t("premium.annual");
       case "LIFETIME":
@@ -282,43 +264,173 @@ export default function PremiumScreen() {
     }
   };
 
-  const getPackageSubtitle = (packageToFormat: PurchasesPackage): string => {
-    return t('premium.subtitle');
-  };
+  /**
+   * "$8.99/month" ya da "$8.99" gelebiliyor. Donem etiketini magazanin
+   * bicimlendirmesinden okumak yerine paket turunden uretiyoruz: magaza
+   * dizesi yerellestirmeye gore degisiyor ve bazen hic donem icermiyor.
+   */
+  const priceOnly = (p: PurchasesPackage): string =>
+    p.product.priceString.split("/")[0].trim();
 
-  const getPackageFeatures = (): string[] => {
-    return [
-      t('premium.ai_polish_title'),
-      t('premium.messages_title'),
-      t('premium.who_liked_title'),
-      t('premium.boost_profile'),
-      t('premium.filters_title'),
-    ];
-  };
+  const periodLabel = (p: PurchasesPackage): string =>
+    isWeekly(p) ? t("premium.per_week_short") : t("premium.per_month_short");
 
-  const extractPriceAndTime = (priceString: string): { price: string; time: string } => {
-    // Try to extract price and time from price string
-    // Format might be "$8.99/month" or "$8.99 / month" or "$8.99/mo"
-    const match = priceString.match(/^([^/\s]+)(?:\s*\/\s*([^/\s]+))?/);
-    if (match) {
-      const price = match[1];
-      const time = match[2] || "/ month";
-      return { price, time: time.startsWith("/") ? time : `/${time}` };
-    }
-    return { price: priceString, time: "/ month" };
-  };
+  const plans = (offering?.availablePackages ?? [])
+    .filter((p) => isWeekly(p) || isMonthly(p))
+    .sort((a, b) => (isWeekly(a) ? -1 : isWeekly(b) ? 1 : 0));
 
   /**
-   * Restore + the required legal links.
-   *
-   * "Restore Purchases" used to live INSIDE the branch that renders the
-   * packages, so the two situations where it matters most had no restore
-   * button at all: when the offerings call fails (the screen a reviewer sees
-   * on a sandbox account, and what a paying user gets after a reinstall on a
-   * flaky connection), and when the user already has premium. App Review
-   * guideline 3.1.1 expects a restore mechanism to be reachable, and a
-   * subscriber needs a way back to their subscription.
+   * "En avantajli" rozeti aylik plana SABITLENMISTI. Bugun dogru olmasi
+   * yarin dogru kalacagi anlamina gelmiyor: fiyatlar magazadan geliyor ve
+   * ulkeye gore degisiyor. Haftaligi ayda 4,345 haftayla normallestirip
+   * gercekten ucuz olani isaretliyoruz; esitlik ya da fiyat okunamama
+   * durumunda hic rozet yok -- yanlis rozet, rozetsizlikten kotudur.
    */
+  const bestValueId = React.useMemo(() => {
+    const perMonth = plans.map((p) => {
+      const n = Number(p.product.price);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return { id: p.identifier, cost: isWeekly(p) ? n * 4.345 : n };
+    });
+    if (perMonth.some((x) => x === null) || perMonth.length < 2) return null;
+    const sorted = [...(perMonth as { id: string; cost: number }[])].sort(
+      (a, b) => a.cost - b.cost
+    );
+    return sorted[0].cost < sorted[1].cost ? sorted[0].id : null;
+  }, [plans]);
+
+  // ---- Karsilastirma satirlari -------------------------------------------
+
+  const perDay = (n: number | null) =>
+    n === null ? t("premium.val_unlimited") : t("premium.val_per_day", { count: n });
+  const perWeek = (n: number | null) =>
+    n === null ? t("premium.val_unlimited") : t("premium.val_per_week", { count: n });
+
+  const compareRows: CompareRow[] = React.useMemo(() => {
+    // `premiumPreview` sunucudan geliyor ve uygulama sunucudan YENI olabilir
+    // (kademeli dagitimda normal). Yoksa tabloyu gizliyoruz; ekranin geri
+    // kalani satis yapmayi surdurur. Onceki hali burada dogrudan cokuyordu
+    // ve odeme ekraninin tamamini goturuyordu.
+    if (!entitlements?.premiumPreview) return [];
+    const e = entitlements;
+    const p = e.premiumPreview;
+
+    const shared: CompareRow[] = [
+      {
+        label: t("premium.row_slots"),
+        now: String(e.concurrencySlots),
+        premium: String(p.concurrencySlots),
+        unchanged: e.concurrencySlots === p.concurrencySlots,
+      },
+      {
+        label: t("premium.row_daily"),
+        now: String(e.dailyConversations),
+        premium: String(p.dailyConversations),
+        unchanged: e.dailyConversations === p.dailyConversations,
+      },
+      {
+        label: t("premium.row_translate"),
+        now: perDay(e.translationsPerDay),
+        premium: perDay(p.translationsPerDay),
+        unchanged: e.translationsPerDay === p.translationsPerDay,
+      },
+    ];
+
+    if (e.track === "LANGUAGE") {
+      return [
+        ...shared,
+        {
+          label: t("premium.row_coach"),
+          now: perDay(e.coachPerDay),
+          premium: perDay(p.coachPerDay),
+          unchanged: e.coachPerDay === p.coachPerDay,
+        },
+        {
+          label: t("premium.row_sessions"),
+          now: perWeek(e.sessionsPerWeek),
+          premium: perWeek(p.sessionsPerWeek),
+          unchanged: e.sessionsPerWeek === p.sessionsPerWeek,
+        },
+      ];
+    }
+
+    // DATE hattinda kesfi etkileyen iki hak var; bunlar sayisal degil
+    // acik/kapali oldugu icin onizleme ucundan degil buradan geliyor.
+    return [
+      ...shared,
+      {
+        label: t("premium.row_who_liked"),
+        now: e.isPremium ? t("premium.val_open") : t("premium.val_locked"),
+        premium: t("premium.val_open"),
+        unchanged: e.isPremium,
+      },
+      {
+        label: t("premium.row_filters"),
+        now: e.isPremium ? t("premium.val_open") : t("premium.val_locked"),
+        premium: t("premium.val_open"),
+        unchanged: e.isPremium,
+      },
+    ];
+  }, [entitlements, t]);
+
+  // ---- Parcalar -----------------------------------------------------------
+
+  const hero = (
+    <LinearGradient
+      colors={[colors.premiumGradientStart, colors.accentDark, colors.background]}
+      start={{ x: 0.1, y: 0 }}
+      end={{ x: 0.9, y: 1 }}
+      style={styles.hero}
+    >
+      <View style={styles.heroMark}>
+        <Mark size={30} color={colors.boostGold} />
+      </View>
+      <Text style={styles.heroTitle}>{t("premium.hero_title")}</Text>
+      <Text style={styles.heroSub}>
+        {premiumEnabled
+          ? t("premium.hero_sub_active")
+          : entitlements?.track === "LANGUAGE"
+            ? t("premium.hero_sub_language")
+            : t("premium.hero_sub_date")}
+      </Text>
+    </LinearGradient>
+  );
+
+  const comparison =
+    compareRows.length > 0 ? (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t("premium.compare_title")}</Text>
+        <CompareTable
+          rows={compareRows}
+          nowLabel={t("premium.col_now")}
+          premiumLabel={t("premium.col_premium")}
+        />
+      </View>
+    ) : null;
+
+  /**
+   * Satmadiklarimiz.
+   *
+   * Bir odeme ekraninda bir seyi satmadigini yazmak sezgiye aykiri gorunuyor
+   * ama bu urunun tum iddiasi burada: erisim degil ogrenme satiliyor. Bunu
+   * soylememek, kullanicinin premiumdan sonra "hala gunde 10 sohbet mi?"
+   * diye sormasina birakmak demek -- ve o soru satin aldiktan SONRA soruluyor.
+   */
+  const honesty = (
+    <View style={styles.honesty}>
+      <View style={styles.honestyHead}>
+        <MaterialCommunityIcons
+          name="shield-check-outline"
+          size={18}
+          color={colors.success}
+        />
+        <Text style={styles.honestyTitle}>{t("premium.honesty_title")}</Text>
+      </View>
+      <Text style={styles.honestyText}>{t("premium.honesty_daily")}</Text>
+      <Text style={styles.honestyText}>{t("premium.honesty_corrections")}</Text>
+    </View>
+  );
+
   const restoreButton = (
     <TouchableOpacity
       onPress={handleRestore}
@@ -334,53 +446,57 @@ export default function PremiumScreen() {
     </TouchableOpacity>
   );
 
-  const restoreAndLegal = (
+  const legalLinks = (
+    <View style={styles.legalLinks}>
+      <TouchableOpacity
+        onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
+        accessibilityRole="link"
+      >
+        <Text style={styles.legalLink}>{t("premium.terms")}</Text>
+      </TouchableOpacity>
+      <Text style={styles.legalSeparator}>·</Text>
+      <TouchableOpacity
+        onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
+        accessibilityRole="link"
+      >
+        <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  /**
+   * Geri yukleme ve zorunlu baglantilar HER durumda ekranda kalir: paketler
+   * yuklenemediginde (incelemecinin sandbox hesabinda gordugu ekran) ve
+   * kullanici zaten premiumken de. App Review 3.1.1 geri yukleme yolunun
+   * ulasilabilir olmasini bekliyor.
+   */
+  const footer = (withDisclosure: boolean) => (
     <>
       {restoreButton}
       <View style={styles.legalBlock}>
-        <View style={styles.legalLinks}>
-          <TouchableOpacity
-            onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
-            accessibilityRole="link"
-          >
-            <Text style={styles.legalLink}>{t("premium.terms")}</Text>
-          </TouchableOpacity>
-          <Text style={styles.legalSeparator}>·</Text>
-          <TouchableOpacity
-            onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
-            accessibilityRole="link"
-          >
-            <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
-          </TouchableOpacity>
-        </View>
+        {withDisclosure && (
+          <Text style={styles.legalText}>{t("premium.renewal_disclosure")}</Text>
+        )}
+        {legalLinks}
       </View>
     </>
   );
 
+  // ---- Ekranlar -----------------------------------------------------------
+
   if (premiumEnabled) {
     return (
       <SafeAreaView edges={["bottom"]}>
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-        >
-          <Card style={styles.benefitsCard}>
-            <Text style={styles.benefitsTitle}>{t("premium.benefits_title_active")}</Text>
-
-            {BENEFITS.map(({ icon, titleKey, descKey }) => (
-              <View style={styles.benefitItem} key={titleKey}>
-                <View style={styles.benefitIconWrap}>
-                  <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
-                </View>
-                <View style={styles.benefitContent}>
-                  <Text style={styles.benefitTitle}>{t(titleKey)}</Text>
-                  <Text style={styles.benefitDescription}>{t(descKey)}</Text>
-                </View>
-              </View>
-            ))}
-          </Card>
-
-          {restoreAndLegal}
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          {hero}
+          <View style={styles.activeBanner}>
+            <MaterialCommunityIcons name="check-decagram" size={20} color={colors.primary} />
+            <Text style={styles.activeText}>{t("premium.active_title")}</Text>
+          </View>
+          {comparison}
+          {honesty}
+          <Text style={styles.manageHint}>{t("premium.manage_hint")}</Text>
+          {footer(false)}
         </ScrollView>
         <StatusModal
           visible={statusVisible}
@@ -396,142 +512,67 @@ export default function PremiumScreen() {
 
   return (
     <SafeAreaView edges={["bottom"]}>
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <Card style={styles.benefitsCard}>
-          <Text style={styles.benefitsTitle}>{t("premium.benefits_title")}</Text>
-
-          {BENEFITS.map(({ icon, titleKey, descKey }) => (
-            <View style={styles.benefitItem} key={titleKey}>
-              <View style={styles.benefitIconWrap}>
-                <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
-              </View>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>{t(titleKey)}</Text>
-                <Text style={styles.benefitDescription}>{t(descKey)}</Text>
-              </View>
-            </View>
-          ))}
-        </Card>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {hero}
+        {comparison}
+        {honesty}
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>{t("premium.loading_packages")}</Text>
           </View>
-        ) : offering && offering.availablePackages.length > 0 ? (
+        ) : plans.length > 0 ? (
           <>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.cardsContainer}
-              style={styles.cardsScrollView}
-            >
-              {offering.availablePackages
-                .filter(
-                  (pkg) =>
-                    pkg.identifier === "$rc_weekly" ||
-                    pkg.identifier === "$rc_monthly" ||
-                    pkg.identifier === "conversa_plus_weekly" ||
-                    pkg.identifier === "conversa_plus_monthly" ||
-                    pkg.product.identifier === "conversa_premium_weekly:weekly-plan" ||
-                    pkg.product.identifier === "conversa_premium_weekly" ||
-                    pkg.product.identifier === "conversa_premium_monthly:monthly-plan" ||
-                    pkg.product.identifier === "conversa_premium_monthly" ||
-                    pkg.packageType === "WEEKLY" ||
-                    pkg.packageType === "MONTHLY"
-                )
-                .sort((a, b) => {
-                  // Weekly first, then Monthly
-                  const isAWeekly =
-                    a.identifier === "$rc_weekly" ||
-                    a.identifier === "conversa_plus_weekly" ||
-                    a.product.identifier === "conversa_premium_weekly:weekly-plan" ||
-                    a.product.identifier === "conversa_premium_weekly" ||
-                    a.packageType === "WEEKLY";
-                  const isBWeekly =
-                    b.identifier === "$rc_weekly" ||
-                    b.identifier === "conversa_plus_weekly" ||
-                    b.product.identifier === "conversa_premium_weekly:weekly-plan" ||
-                    b.product.identifier === "conversa_premium_weekly" ||
-                    b.packageType === "WEEKLY";
-                  if (isAWeekly) return -1;
-                  if (isBWeekly) return 1;
-                  return 0;
-                })
-                .map((pkg: PurchasesPackage) => {
-                  const { price, time } = extractPriceAndTime(formatPrice(pkg));
-                  return (
-                    <PremiumCard
-                      key={pkg.identifier}
-                      title={getPackageLabel(pkg)}
-                      price={price}
-                      priceTime={time}
-                      subtitle={getPackageSubtitle(pkg)}
-                      features={getPackageFeatures()}
-                      buttonText={purchasing ? t("premium.processing") : t("premium.get_pro")}
-                      onPress={() => {
-                        setSelectedPackage(pkg);
-                        handlePurchase(pkg);
-                      }}
-                      isSelected={selectedPackage?.identifier === pkg.identifier}
-                      style={styles.premiumCard}
-                    />
-                  );
-                })}
-            </ScrollView>
-
-            {restoreButton}
-
-            {/*
-              Required on any screen selling an auto-renewable subscription:
-              renewal terms plus working links to the Terms of Use and Privacy
-              Policy (App Store Review Guideline 3.1.2 / Play subscription
-              policy). Their absence is a routine rejection reason.
-            */}
-            <View style={styles.legalBlock}>
-              <Text style={styles.legalText}>{t("premium.renewal_disclosure")}</Text>
-              <View style={styles.legalLinks}>
-                <TouchableOpacity
-                  onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.terms)}
-                  accessibilityRole="link"
-                >
-                  <Text style={styles.legalLink}>{t("premium.terms")}</Text>
-                </TouchableOpacity>
-                <Text style={styles.legalSeparator}>·</Text>
-                <TouchableOpacity
-                  onPress={() => WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)}
-                  accessibilityRole="link"
-                >
-                  <Text style={styles.legalLink}>{t("premium.privacy")}</Text>
-                </TouchableOpacity>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("premium.plans_title")}</Text>
+              <View style={styles.planList}>
+                {plans.map((p) => (
+                  <PlanRow
+                    key={p.identifier}
+                    title={packageLabel(p)}
+                    price={priceOnly(p)}
+                    period={periodLabel(p)}
+                    badge={p.identifier === bestValueId ? t("premium.plan_best") : undefined}
+                    selected={selectedPackage?.identifier === p.identifier}
+                    disabled={purchasing}
+                    onPress={() => setSelectedPackage(p)}
+                  />
+                ))}
               </View>
             </View>
+
+            <PrimaryButton
+              title={
+                purchasing
+                  ? t("premium.processing")
+                  : selectedPackage
+                    ? t("premium.cta_subscribe", { plan: packageLabel(selectedPackage) })
+                    : t("premium.cta_select")
+              }
+              onPress={() => handlePurchase()}
+              loading={purchasing}
+              disabled={!selectedPackage}
+              style={styles.cta}
+            />
+
+            {footer(true)}
           </>
         ) : (
-          <Card style={styles.errorCard}>
-            <Text style={styles.errorText}>
-              {t("premium.not_available")}
-            </Text>
-            <TouchableOpacity
-              onPress={loadOfferings}
-              style={styles.retryButton}
-              accessibilityRole="button"
-            >
-              <Text style={styles.retryText}>{t("common.retry")}</Text>
-            </TouchableOpacity>
-          </Card>
+          <>
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{t("premium.not_available")}</Text>
+              <TouchableOpacity
+                onPress={loadOfferings}
+                style={styles.retryButton}
+                accessibilityRole="button"
+              >
+                <Text style={styles.retryText}>{t("common.retry")}</Text>
+              </TouchableOpacity>
+            </View>
+            {footer(false)}
+          </>
         )}
-
-        {/*
-          Restore, Terms and Privacy stay on the screen even when the packages
-          fail to load: somebody who already paid must still be able to get
-          their entitlement back, and the required links must never be missing
-          from a purchase surface.
-        */}
-        {!loading && !(offering && offering.availablePackages.length > 0) && restoreAndLegal}
       </ScrollView>
       <StatusModal
         visible={statusVisible}
@@ -548,81 +589,149 @@ export default function PremiumScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   contentContainer: {
     padding: spacing.lg,
-    paddingTop: 0,
+    paddingTop: spacing.sm,
+    gap: spacing.lg,
   },
-  header: {
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    marginTop: spacing.md,
+
+  hero: {
+    borderRadius: radius["2xl"],
+    padding: spacing.xl,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.boostGoldBorder,
+    ...elevation.md,
   },
-  emoji: {
-    fontSize: 64,
-    marginBottom: spacing.md,
+  heroMark: {
+    marginBottom: spacing.xs,
   },
-  title: {
-    fontSize: typography.fontSize["4xl"],
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-    marginBottom: spacing.sm,
-    textAlign: "center",
+  heroTitle: {
+    ...textStyles.display,
+    color: colors.onMedia,
   },
-  subtitle: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondaryDark,
-    textAlign: "center",
+  heroSub: {
+    ...textStyles.body,
+    color: colors.onMediaSubtle,
   },
-  benefitsCard: {
-    marginBottom: spacing.md,
-    marginTop: spacing.sm,
+
+  section: {
+    gap: spacing.sm,
   },
-  benefitsTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textDark,
-    marginBottom: spacing.lg,
+  sectionTitle: {
+    ...textStyles.heading,
+    color: colors.text,
   },
-  benefitItem: {
+
+  activeBanner: {
     flexDirection: "row",
-    marginBottom: spacing.lg,
-    alignItems: "flex-start",
-  },
-  benefitIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.primaryTint,
     alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+  },
+  activeText: {
+    ...textStyles.label,
+    color: colors.primaryTintText,
+  },
+
+  honesty: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+  },
+  honestyHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  honestyTitle: {
+    ...textStyles.label,
+    color: colors.text,
+  },
+  honestyText: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
+  },
+
+  planList: {
+    gap: spacing.sm,
+  },
+  cta: {
+    marginTop: spacing.xs,
+  },
+
+  loadingContainer: {
+    alignItems: "center",
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  loadingText: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
+  },
+
+  // Paketlerin yuklenememesi beklenen ve duzeltilebilir bir durum (aginin
+  // koptugu an, incelemecinin sandbox hesabi). Tam kirmizi cerceve bunu
+  // alarm gibi okutuyordu; asil is Tekrar Dene dugmesinde.
+  errorCard: {
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+    alignItems: "center",
+  },
+  errorText: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   retryButton: {
-    marginTop: spacing.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.primary,
     alignSelf: "center",
   },
   retryText: {
+    ...textStyles.label,
     color: colors.primary,
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+  },
+
+  manageHint: {
+    ...textStyles.caption,
+    color: colors.textTertiary,
+    textAlign: "center",
+  },
+  restoreButton: {
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  restoreText: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
+    textDecorationLine: "underline",
   },
   legalBlock: {
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.sm,
     alignItems: "center",
     gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   legalText: {
-    fontSize: typography.fontSize.xs,
-    lineHeight: 18,
-    color: colors.textSecondaryDark,
+    ...textStyles.caption,
+    color: colors.textTertiary,
     textAlign: "center",
   },
   legalLinks: {
@@ -631,70 +740,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   legalLink: {
-    fontSize: typography.fontSize.xs,
+    ...textStyles.caption,
     color: colors.primary,
     textDecorationLine: "underline",
   },
   legalSeparator: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondaryDark,
-  },
-  benefitIcon: {
-    fontSize: 32,
-    marginRight: spacing.md,
-  },
-  benefitContent: {
-    flex: 1,
-  },
-  benefitTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textDark,
-    marginBottom: spacing.xs,
-  },
-  benefitDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    lineHeight: 20,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    padding: spacing.xl,
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-  },
-  cardsScrollView: {
-    marginBottom: spacing.md,
-  },
-  cardsContainer: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.md,
-  },
-  premiumCard: {
-    marginRight: spacing.md,
-  },
-  errorCard: {
-    marginBottom: spacing.md,
-    backgroundColor: colors.error + "20",
-    borderColor: colors.error,
-  },
-  errorText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.error,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  restoreButton: {
-    marginTop: spacing.md,
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  restoreText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondaryDark,
-    textDecorationLine: "underline",
+    ...textStyles.caption,
+    color: colors.textTertiary,
   },
 });

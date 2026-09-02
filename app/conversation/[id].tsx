@@ -887,7 +887,7 @@ export default function ConversationScreen() {
                 setShowLeaveConversationModal(false);
                 handleLeaveConversation();
               }}
-              style={[styles.modalButton, { backgroundColor: colors.warning || "#FF6B6B" }]}
+              style={[styles.modalButton, { backgroundColor: colors.warning }]}
             />
             <TouchableOpacity
               onPress={() => setShowLeaveConversationModal(false)}
@@ -1061,16 +1061,18 @@ export default function ConversationScreen() {
             {/* Name */}
             <Text style={styles.waitingScreenName}>{otherUser.displayName}</Text>
             {otherUser.city && (
-              <Text style={styles.waitingScreenCity}>📍 {otherUser.city}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <MaterialIcons name="place" size={14} color={colors.textTertiary} />
+                <Text style={styles.waitingScreenCity}>{otherUser.city}</Text>
+              </View>
             )}
 
             {/* Message */}
             <View style={styles.waitingScreenMessageBox}>
-              <Text style={styles.waitingScreenMessageText}>
-                💕 Eşleştiniz!
-              </Text>
+              {/* Sabit Turkce + emoji: Ingilizce telefonda da Turkce cikiyordu. */}
+              <Text style={styles.waitingScreenMessageText}>{t("conversation.waiting_title")}</Text>
               <Text style={styles.waitingScreenMessageSubtext}>
-                İlk mesajı {otherUser.displayName} gönderecek. Biraz sabır... 😊
+                {t("conversation.waiting_body", { name: otherUser.displayName })}
               </Text>
             </View>
           </View>
@@ -1140,9 +1142,8 @@ export default function ConversationScreen() {
 
       {isFirstMessage && messageText.length > 0 && messageText.length < 20 && (
         <View style={styles.hintContainer}>
-          <Text style={styles.hintText}>
-            💡 {t("chat.first_message_hint")}
-          </Text>
+          <MaterialIcons name="lightbulb-outline" size={16} color={colors.warning} />
+          <Text style={styles.hintText}>{t("chat.first_message_hint")}</Text>
         </View>
       )}
 
@@ -1275,7 +1276,7 @@ export default function ConversationScreen() {
                                 tone === t && styles.toneButtonTextActive,
                               ]}
                             >
-                              {t === "neutral" ? "😐" : t === "friendly" ? "😊" : "😄"}
+                              {t === "neutral" ? "Nötr" : t === "friendly" ? "Samimi" : "Neşeli"}
                             </Text>
                           </TouchableOpacity>
                         </Animated.View>
@@ -1292,9 +1293,11 @@ export default function ConversationScreen() {
                   onPress={handleSendMessage}
                   disabled={!messageText.trim() || sending}
                 >
-                  <Text style={styles.sendButtonText}>
-                    {sending ? "..." : "➤"}
-                  </Text>
+                  {sending ? (
+                    <ActivityIndicator size="small" color={colors.textInverse} />
+                  ) : (
+                    <MaterialIcons name="send" size={20} color={colors.textInverse} />
+                  )}
                 </TouchableOpacity>
               </>
             ) : (
@@ -1544,8 +1547,14 @@ const styles = StyleSheet.create({
     maxWidth: "75%",
     padding: spacing.sm,
   },
+  // Tam pirinc DEGIL.
+  //
+  // Bu ekranda pirinc su anda dort ise birden kosuyor: giden baloncuklar,
+  // gonder ve mikrofon dugmeleri, baslik ve buz kirici cipler. En cok
+  // tekrar eden oge (baloncuk) en parlak renkte olunca gercek denetimler
+  // one cikamiyor. Derin pirinc kimligi koruyor, hiyerarsiyi geri veriyor.
   myMessageCard: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentDark,
   },
   otherMessageCard: {
     backgroundColor: colors.backgroundSecondaryDark,
@@ -1554,7 +1563,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
   },
   myMessageText: {
-    color: "#FFFFFF",
+    color: colors.text,
   },
   otherMessageText: {
     color: colors.textDark,
@@ -1575,6 +1584,9 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   hintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.warning + "20",
@@ -1823,7 +1835,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   voiceButtonRecording: {
-    backgroundColor: colors.error || "#EF4444",
+    backgroundColor: colors.error,
   },
   voiceButtonPressed: {
     opacity: 0.8,
@@ -1842,7 +1854,7 @@ const styles = StyleSheet.create({
     top: -30,
     left: -20,
     right: -20,
-    backgroundColor: colors.error || "#EF4444",
+    backgroundColor: colors.error,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: 12,
@@ -2086,13 +2098,6 @@ const styles = StyleSheet.create({
   profileLanguageSection: {
     gap: spacing.xs / 2,
   },
-  profileLanguageLabel: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textSecondaryDark,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
   profileLanguages: {
     fontSize: typography.fontSize.base,
     color: colors.textDark,
@@ -2108,7 +2113,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   blockButton: {
-    backgroundColor: colors.warning || "#FF6B6B",
+    backgroundColor: colors.warning,
   },
   leaveChatButton: {
     backgroundColor: colors.error,

@@ -11,6 +11,7 @@ import { typography } from "@/src/theme/typography";
 import { Chip } from "./ui/Chip";
 import { LanguageFlag } from "./ui/LanguageFlag";
 import { OptimizedImage } from "./ui/OptimizedImage";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_PADDING = spacing.md;
@@ -70,7 +71,7 @@ function DiscoveryCardBase({
     const h = Math.round(e.nativeEvent.layout.height);
     setCardHeight((prev) => (h > 0 && h !== prev ? h : prev));
   }, []);
-  const HERO_RATIO = 0.62;
+  const HERO_RATIO = 0.82;
   const heroHeight = cardHeight > 0
     ? Math.max(240, Math.round(cardHeight * HERO_RATIO))
     : 360;
@@ -95,9 +96,34 @@ function DiscoveryCardBase({
     return Date.now() - created < 7 * 24 * 60 * 60 * 1000;
   })();
 
-  const renderLanguageFlag = (lang: string) => <LanguageFlag language={lang} size={16} />;
+  // Bayrak DEGIL, ISO kodu.
+  //
+  // Iki sebep. Birincisi dogruluk: bir dil bir ulke degil. Ingilizce yalnizca
+  // Birlesik Krallik degil, Ispanyolca yalnizca Ispanya degil, Arapcanin ise
+  // bir bayragi yok. Dil uygulamasinda bayrak kullanmak yanlisi ogretiyor.
+  // Ikincisi cizim: bolgesel gosterge emojileri Windows'ta hic cizilmiyor ve
+  // yerine iki harflik bos kutu cikiyor.
+  const renderLanguageFlag = (lang: string) => (
+    <LanguageFlag language={lang} size={13} />
+  );
 
   const photos = profile.photos && profile.photos.length > 0 ? profile.photos : [];
+
+  /**
+   * "Konustugu → ogrendigi" tek satiri.
+   *
+   * Uc dilden fazlasini yazmak satiri kirpiyor; ilk ikisi zaten eslesmeyi
+   * belirleyenler. Iki taraftan biri bossa ok da yazilmaz, yoksa satir
+   * yarim bir cumleye donuyor.
+   */
+  const swapLine = (() => {
+    const label = (codes: string[]) =>
+      codes.slice(0, 2).map((c) => languageLabel(c, i18n.language)).join(", ");
+    const speaks = label(profile.languagesNative);
+    const learns = label(profile.languagesPractice);
+    if (speaks && learns) return `${speaks}  →  ${learns}`;
+    return speaks || learns || "";
+  })();
 
   // Helper to render basic info overlay
   const renderBasicInfo = () => (
@@ -112,7 +138,7 @@ function DiscoveryCardBase({
           </Text>
           {age && <Text style={styles.age}>{age}</Text>}
           {card.isVerified && (
-            <MaterialIcons name="verified" size={22} color="#4C9EEB" />
+            <MaterialIcons name="verified" size={22} color={colors.info} />
           )}
           {isNewUser && (
             <View
@@ -134,6 +160,24 @@ function DiscoveryCardBase({
             </Text>
           </View>
         )}
+
+        {/*
+          Dil cifti fotografin USTUNDE.
+
+          Eskiden fotografin altinda, kendi basligi ve kendi ic karti olan
+          ayri bir panelde duruyordu -- yani bu uygulamanin varlik sebebi
+          olan bilgi, kartin ikinci ekranindaydi ve ic ice iki kart cizimi
+          gerektiriyordu. Bir tanisma destesinde ilk bakista okunan sey
+          fotograf, isim ve YAS oluyordu; oysa burada kimin kimle
+          eslesebilecegini soyleyen sey dil cifti.
+        */}
+        {swapLine && (
+          <View style={styles.swapRow}>
+            <Text style={styles.swapText} numberOfLines={1}>
+              {swapLine}
+            </Text>
+          </View>
+        )}
       </View>
     </LinearGradient>
   );
@@ -142,11 +186,11 @@ function DiscoveryCardBase({
   const renderLanguages = () => (
     (profile.languagesNative.length > 0 || profile.languagesPractice.length > 0) && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("profile.languages")}</Text>
+        <Overline style={styles.sectionHeader}>{t("profile.languages")}</Overline>
         <View style={styles.sectionContent}>
           {profile.languagesNative.length > 0 && (
             <View style={styles.languageGroup}>
-              <Text style={styles.subSectionTitle}>{t("discovery_card.speaks")}</Text>
+              <Overline style={styles.subSectionTitle}>{t("discovery_card.speaks")}</Overline>
               <View style={styles.chipsContainer}>
                 {profile.languagesNative.map((lang, index) => (
                   <Chip
@@ -161,7 +205,7 @@ function DiscoveryCardBase({
           )}
           {profile.languagesPractice.length > 0 && (
             <View style={styles.languageGroup}>
-              <Text style={styles.subSectionTitle}>{t("discovery_card.learning")}</Text>
+              <Overline style={styles.subSectionTitle}>{t("discovery_card.learning")}</Overline>
               <View style={styles.chipsContainer}>
                 {profile.languagesPractice.map((lang, index) => (
                   <Chip
@@ -184,7 +228,7 @@ function DiscoveryCardBase({
   const renderInterests = () => (
     profile.interests && profile.interests.length > 0 && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("discovery_card.interests")}</Text>
+        <Overline style={styles.sectionHeader}>{t("discovery_card.interests")}</Overline>
         <View style={styles.sectionContent}>
           <View style={styles.chipsContainer}>
             {profile.interests.map((interest, index) => (
@@ -204,7 +248,7 @@ function DiscoveryCardBase({
   const renderBio = () => (
     profile.bio && (
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>{t("discovery_card.about")}</Text>
+        <Overline style={styles.sectionHeader}>{t("discovery_card.about")}</Overline>
         <View style={styles.sectionContent}>
           <Text
             style={styles.bio}
@@ -241,12 +285,19 @@ function DiscoveryCardBase({
   if (!isActive) {
     return (
       <View style={styles.container}>
-        <View style={styles.mainImageContainer}>
+        {/*
+          Arkadaki kartlarda fotograf kabi YUKSEKSIZ birakilmisti; kap
+          sifira cokuyor ve deste bos kutulardan olusuyordu. Gorsel
+          incelemede yakalandi: fotograf yuklenmisti ama hicbir yer
+          kaplamiyordu. Arka kartlar yalnizca bir zemin, fotograf kartin
+          tamamini doldurur.
+        */}
+        <View style={[styles.mainImageContainer, styles.mainImageFill]}>
           {photos.length > 0 ? (
             <OptimizedImage
               source={{ uri: photos[0] }}
               style={styles.mainImage}
-              containerStyle={styles.mainImageContainer}
+              containerStyle={styles.mainImageFill}
               resizeMode="cover"
               fallbackIconSize={64}
               showLoader={false}
@@ -278,7 +329,7 @@ function DiscoveryCardBase({
             <OptimizedImage
               source={{ uri: photos[0] }}
               style={styles.mainImage}
-              containerStyle={styles.mainImageContainer}
+              containerStyle={styles.mainImageFill}
               resizeMode="cover"
               fallbackIconSize={64}
               accessibilityLabel={t("a11y.open_profile")}
@@ -299,10 +350,18 @@ function DiscoveryCardBase({
             badge.
           */}
 
-          {/* Scroll Indicator */}
-          <View style={styles.scrollIndicator}>
-            <MaterialIcons name="keyboard-arrow-up" size={20} color={colors.onMediaMuted} />
-            <Text style={styles.scrollIndicatorText}>{t("discovery_card.scroll_hint")}</Text>
+          {/*
+            Kaydirma ipucu fotografin UST ORTASINDA bir hapti ve tam yuze
+            denk geliyordu. Yukari bakan chevron zaten kaydirmayi
+            anlatiyor; metin ve hap zemini gereksizdi.
+          */}
+          <View style={styles.scrollIndicator} pointerEvents="none">
+            <MaterialIcons
+              name="keyboard-arrow-up"
+              size={22}
+              color={colors.onMediaMuted}
+              accessibilityLabel={t("discovery_card.scroll_hint")}
+            />
           </View>
         </View>
 
@@ -428,6 +487,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 40,
   },
+  mainImageFill: {
+    flex: 1,
+  },
   mainImageContainer: {
     width: "100%",
     // Height is set at render time from the measured card height; see
@@ -461,6 +523,20 @@ const styles = StyleSheet.create({
   },
   nameContainer: {
     gap: spacing.xs,
+  },
+  swapRow: {
+    marginTop: 2,
+    alignSelf: "flex-start",
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
+  },
+  swapText: {
+    color: colors.onMedia,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    letterSpacing: 0.2,
   },
   nameRow: {
     flexDirection: "row",
@@ -521,20 +597,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sectionHeader: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textSecondaryDark,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: 2,
   },
+  // Kart ICINDE kart cizmiyoruz.
+  //
+  // Her bolum kendi dolgu + kenarlik + kose yaricapina sahipti; deste
+  // kartinin uzerinde ikinci bir kart katmani olusuyordu ve fotografin
+  // hemen altinda yarim gorunen bu ikinci cerceve kirpilmis gibi
+  // duruyordu. Bolumler artik kartin kendi yuzeyinde duran icerik.
   sectionContent: {
-    backgroundColor: colors.surfaceTint,
-    padding: spacing.md,
-    borderRadius: 20,
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceTintBorder,
   },
   bio: {
     fontSize: 16,
@@ -551,11 +624,11 @@ const styles = StyleSheet.create({
   languageGroup: {
     gap: 8,
   },
+  // Bolum basligi kucultulunce alt baslik ondan buyuk kaldi ve hiyerarsi
+  // tersine dondu. Overline zaten olcegi veriyor; burada yalnizca renk
+  // farki kaliyor.
   subSectionTitle: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: colors.textSecondaryDark,
-    textTransform: "uppercase",
+    color: colors.textTertiary,
   },
   chipsContainer: {
     flexDirection: "row",
@@ -627,13 +700,9 @@ const styles = StyleSheet.create({
   },
   scrollIndicator: {
     position: "absolute",
-    top: 16,
-    alignSelf: "center",
+    bottom: spacing.sm,
+    right: spacing.md,
     alignItems: "center",
-    backgroundColor: colors.overlayLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
   },
   scrollIndicatorText: {
     color: colors.onMediaMuted,

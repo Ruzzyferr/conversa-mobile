@@ -20,7 +20,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 // The filter used to send English labels while profiles stored localized
 // labels, so language filtering matched nothing. Both sides use codes now.
-import { LANGUAGES, languageLabel } from "@/src/data/languages";
+import { languageLabel } from "@/src/data/languages";
+import { LanguagePickerModal } from "@/src/components/ui/LanguagePickerModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SLIDER_WIDTH = SCREEN_WIDTH - spacing.lg * 4;
@@ -127,6 +128,7 @@ export function FilterSheet({
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const [filters, setFilters] = useState<FilterParams>(initialFilters);
+  const [langPicker, setLangPicker] = useState<"native" | "target" | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -165,7 +167,7 @@ export function FilterSheet({
   // Premium badge component
   const PremiumBadge = () => (
     <View style={styles.premiumBadge}>
-      <Text style={styles.premiumBadgeText}>👑</Text>
+      <MaterialIcons name="workspace-premium" size={14} color={colors.textInverse} />
     </View>
   );
 
@@ -283,27 +285,22 @@ export function FilterSheet({
               <Text style={styles.sectionDescription}>
                 {t('filter_sheet.native_language_desc')}
               </Text>
-              <View style={styles.chipContainer}>
-                {LANGUAGES.map(({ code: lang }) => (
-                  <TouchableOpacity
-                    key={`native-${lang}`}
-                    style={[
-                      styles.chip,
-                      filters.nativeLanguages.includes(lang) && styles.chipActive,
-                    ]}
-                    onPress={() => toggleArrayItem("nativeLanguages", lang)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        filters.nativeLanguages.includes(lang) && styles.chipTextActive,
-                      ]}
-                    >
-                      {languageLabel(lang, i18n.language)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/*
+                Filtre sayfasi da yuz yirmi cip cizeyordu. Ozet + modal
+                secici: ne secildigi bir bakista okunuyor.
+              */}
+              <TouchableOpacity
+                onPress={() => setLangPicker("native")}
+                style={styles.pickerRow}
+                accessibilityRole="button"
+              >
+                <Text style={styles.pickerValue} numberOfLines={2}>
+                  {filters.nativeLanguages.length > 0
+                    ? filters.nativeLanguages.map((l) => languageLabel(l, i18n.language)).join(", ")
+                    : t("edit.pick_languages")}
+                </Text>
+                <MaterialIcons name="chevron-right" size={22} color={colors.textSecondaryDark} />
+              </TouchableOpacity>
             </View>
 
             {/* Target Language */}
@@ -312,27 +309,22 @@ export function FilterSheet({
               <Text style={styles.sectionDescription}>
                 {t('filter_sheet.learning_language_desc')}
               </Text>
-              <View style={styles.chipContainer}>
-                {LANGUAGES.map(({ code: lang }) => (
-                  <TouchableOpacity
-                    key={`target-${lang}`}
-                    style={[
-                      styles.chip,
-                      filters.targetLanguages.includes(lang) && styles.chipActive,
-                    ]}
-                    onPress={() => toggleArrayItem("targetLanguages", lang)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        filters.targetLanguages.includes(lang) && styles.chipTextActive,
-                      ]}
-                    >
-                      {languageLabel(lang, i18n.language)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/*
+                Filtre sayfasi da yuz yirmi cip cizeyordu. Ozet + modal
+                secici: ne secildigi bir bakista okunuyor.
+              */}
+              <TouchableOpacity
+                onPress={() => setLangPicker("target")}
+                style={styles.pickerRow}
+                accessibilityRole="button"
+              >
+                <Text style={styles.pickerValue} numberOfLines={2}>
+                  {filters.targetLanguages.length > 0
+                    ? filters.targetLanguages.map((l) => languageLabel(l, i18n.language)).join(", ")
+                    : t("edit.pick_languages")}
+                </Text>
+                <MaterialIcons name="chevron-right" size={22} color={colors.textSecondaryDark} />
+              </TouchableOpacity>
             </View>
 
             {/* Countries */}
@@ -612,6 +604,23 @@ const styles = StyleSheet.create({
   },
   segmentedButtonTextActive: {
     color: colors.onMedia,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 52,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondaryDark,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  pickerValue: {
+    fontSize: typography.fontSize.base,
+    color: colors.text,
+    flex: 1,
   },
   chipContainer: {
     flexDirection: "row",

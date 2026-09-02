@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { languageLabel } from "@/src/data/languages";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
+import { typography, textStyles } from "@/src/theme/typography";
+import { radius } from "@/src/theme/radius";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { getToken, clearToken } from "@/src/services/authStore";
@@ -19,10 +20,12 @@ import {
 } from "@/src/services/purchases";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { tabBarClearance } from "@/src/config/layout";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { UpsellModal } from "@/src/components/UpsellModal";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -284,7 +287,7 @@ export default function ProfileScreen() {
       />
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarClearance(insets.bottom) + spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
@@ -292,7 +295,6 @@ export default function ProfileScreen() {
 
           {/* Profile Photo with Glow */}
           <View style={styles.avatarContainer}>
-            <View style={styles.avatarGlow} />
             {profile?.photos && profile.photos.length > 0 ? (
               <TouchableOpacity activeOpacity={0.85} onPress={() => setShowPhotoViewer(true)}>
                 <Image
@@ -315,7 +317,7 @@ export default function ProfileScreen() {
               </View>
             ) : premiumStatus?.isPremium ? (
               <View style={styles.premiumBadgeSmall}>
-                <Text style={styles.premiumBadgeSmallText}>✨</Text>
+                <MaterialIcons name="workspace-premium" size={16} color={colors.textInverse} />
               </View>
             ) : null}
           </View>
@@ -327,7 +329,7 @@ export default function ProfileScreen() {
               {age && <Text style={styles.age}>, {age}</Text>}
             </Text>
             {(userInfo?.user as any)?.isVerified && (
-              <Ionicons name="checkmark-circle" size={22} color="#4C9EEB" style={styles.verifiedIcon} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.info} style={styles.verifiedIcon} />
             )}
           </View>
           {profile?.city && (
@@ -381,31 +383,64 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Quick Stats */}
+        {/* Hat ve dogrulanmis seviyeler.
+            Burada eskiden uc "istatistik" vardi: ana dil sayisi, ogrenilen
+            dil sayisi ve AMAC YERINE BIR EMOJI. Ilk ikisi neredeyse her
+            kullanicida "1" yaziyordu, yani buyuk rakam gostermenin bir
+            anlami yoktu; ucuncusu ise emojiyi veri yerine koyuyordu.
+            Yerine gercekten bilgi tasiyan iki sey: hangi hattasin ve
+            hangi dilin dogrulandi. */}
         {profile && (
-          <View style={[styles.statsContainer, userInfo && !(userInfo.user as any)?.isVerified && { marginTop: spacing.md }]}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile.languagesNative?.length || 0}</Text>
-              <Text style={styles.statLabel}>{t('profile.native_language')}</Text>
+          <View style={[styles.identityRow, userInfo && !(userInfo.user as any)?.isVerified && { marginTop: spacing.md }]}>
+            <View style={styles.identityBlock}>
+              <Overline style={styles.identityLabel}>{t('profile.track_label')}</Overline>
+              <View style={styles.trackChip}>
+                <MaterialIcons
+                  name={profile.track === "LANGUAGE" ? "translate" : "favorite"}
+                  size={14}
+                  color={colors.primaryTintText}
+                />
+                <Text style={styles.trackChipText}>
+                  {profile.track === "LANGUAGE" ? t('profile.track_language') : t('profile.track_date')}
+                </Text>
+              </View>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile.languagesPractice?.length || 0}</Text>
-              <Text style={styles.statLabel}>{t('profile.learning')}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {profile.purpose === "CONVERSATION" ? "💬" : profile.purpose === "PRACTICE" ? "📚" : "☕"}
-              </Text>
-              <Text style={styles.statLabel}>{t('profile.purpose')}</Text>
+
+            <View style={styles.identityDivider} />
+
+            <View style={[styles.identityBlock, { flex: 1 }]}>
+              <Overline style={styles.identityLabel}>{t('profile.verified_levels')}</Overline>
+              {profile.languageProofs && profile.languageProofs.length > 0 ? (
+                <View style={styles.proofRow}>
+                  {profile.languageProofs.map((pr: { language: string; role: string; cefr: string | null }) => (
+                    <View key={pr.language + pr.role} style={styles.proofChip}>
+                      <MaterialIcons name="verified" size={13} color={colors.success} />
+                      <Text style={styles.proofChipText}>
+                        {pr.language.toUpperCase()}
+                        {pr.cefr ? ` ${pr.cefr}` : ""}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.identityEmpty}>{t('profile.no_verified_levels')}</Text>
+              )}
             </View>
           </View>
         )}
 
-        {/* Languages Card */}
+        {/*
+          Diller ve Hakkinda artik KART DEGIL.
+
+          Ekranda dort kart alt alta duruyordu -- dogrulama, kimlik,
+          diller, hakkinda, premium -- hepsi ayni kenarlik, ayni dolgu,
+          ayni yaricapla. Hepsi ayni agirlikta olunca hicbiri one
+          cikmiyor ve goz nereye bakacagini bilemiyor. Kart cercevesi
+          artik yalnizca EYLEM isteyen bloklarda: profilini dogrula ve
+          premium.
+        */}
         {profile && (profile.languagesNative?.length > 0 || profile.languagesPractice?.length > 0) && (
-          <View style={styles.card}>
+          <View style={styles.plainSection}>
             <View style={styles.cardHeader}>
               <Ionicons name="globe-outline" size={20} color={colors.primary} />
               <Text style={styles.cardTitle}>{t('profile.languages')}</Text>
@@ -413,7 +448,7 @@ export default function ProfileScreen() {
 
             {profile.languagesNative?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>{t('profile.native_languages')}</Text>
+                <Overline style={styles.languageSectionTitle}>{t('profile.native_languages')}</Overline>
                 <View style={styles.languageTags}>
                   {profile.languagesNative.map((lang: string, index: number) => (
                     <LinearGradient
@@ -430,7 +465,7 @@ export default function ProfileScreen() {
 
             {profile.languagesPractice?.length > 0 && (
               <View style={styles.languageSection}>
-                <Text style={styles.languageSectionTitle}>{t('profile.learning')}</Text>
+                <Overline style={styles.languageSectionTitle}>{t('profile.learning')}</Overline>
                 <View style={styles.languageTags}>
                   {profile.languagesPractice.map((lang: string, index: number) => (
                     <LinearGradient
@@ -451,9 +486,9 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Bio Card */}
+        {/* Hakkinda -- kart degil, bolum. */}
         {profile?.bio && (
-          <View style={styles.card}>
+          <View style={styles.plainSection}>
             <View style={styles.cardHeader}>
               <Ionicons name="document-text-outline" size={20} color={colors.primary} />
               <Text style={styles.cardTitle}>{t('profile.about')}</Text>
@@ -473,7 +508,7 @@ export default function ProfileScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.premiumActiveBadge}
                 >
-                  <Text style={styles.premiumActiveIcon}>✨</Text>
+                  <MaterialIcons name="workspace-premium" size={18} color={colors.textInverse} />
                   <Text style={styles.premiumActiveText}>{t('profile.premium_active')}</Text>
                 </LinearGradient>
 
@@ -704,6 +739,49 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.lg,
+  },
+  identityBlock: { gap: spacing.sm },
+  identityLabel: {
+    ...textStyles.labelSmall,
+    color: colors.textTertiary,
+  },
+  identityDivider: { width: 1, alignSelf: "stretch", backgroundColor: colors.borderMuted },
+  identityEmpty: { ...textStyles.bodySmall, color: colors.textTertiary },
+  trackChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+  },
+  trackChipText: { ...textStyles.labelSmall, color: colors.primaryTintText },
+  proofRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  proofChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+  },
+  proofChipText: { ...textStyles.labelSmall, color: colors.text },
   container: {
     flex: 1,
     backgroundColor: colors.backgroundDark,
@@ -761,22 +839,21 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: spacing.md,
   },
-  avatarGlow: {
-    position: "absolute",
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: 70,
-    backgroundColor: colors.primary,
-    opacity: 0.3,
-  },
+  // "avatarGlow" kaldirildi.
+  //
+  // Isima degil, avatarin 10 piksel disina cizilmis %30 opakliginda DUZ
+  // bir pirinc diskti. Koyu zeminde yumusak bir hale gibi degil kalin
+  // kahverengi bir halka gibi okunuyor ve profil fotografinin CERCEVESINI
+  // ekranin en dikkat ceken lekesi yapiyordu. React Native bir View'i
+  // bulaniklastiramaz; "hale" bu yolla zaten yapilamiyor.
   avatar: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 4,
-    borderColor: "#FFF",
+    // Kalin beyaz halka eski paletten kalmaydi; pirinc kimlikte ekranin
+    // en parlak lekesi profil fotografinin CERCEVESI oluyordu.
+    borderWidth: 2,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholder: {
     width: 120,
@@ -785,13 +862,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 4,
-    borderColor: "#FFF",
+    // Kalin beyaz halka eski paletten kalmaydi; pirinc kimlikte ekranin
+    // en parlak lekesi profil fotografinin CERCEVESI oluyordu.
+    borderWidth: 2,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholderText: {
     fontSize: 48,
     fontWeight: "bold",
-    color: "#FFF",
+    color: colors.textInverse,
   },
   premiumBadgeSmall: {
     position: "absolute",
@@ -919,6 +998,11 @@ const styles = StyleSheet.create({
   },
 
   // Cards
+  // Kart cercevesi olmayan bolum: sayfanin kendi yuzeyinde duran icerik.
+  plainSection: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+  },
   card: {
     backgroundColor: colors.backgroundSecondaryDark,
     marginHorizontal: spacing.lg,
@@ -948,7 +1032,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondaryDark,
     marginBottom: 8,
-    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   languageTags: {

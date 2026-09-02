@@ -7,8 +7,9 @@
  * their first impression of it. Pink stays reserved for the like/affection
  * semantics in the deck.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '@/src/theme/colors';
 import { spacing } from '@/src/theme/spacing';
 import { typography } from '@/src/theme/typography';
@@ -22,13 +23,20 @@ export const AnimatedStepIndicator: React.FC<AnimatedStepIndicatorProps> = ({
                                                                                 currentStep,
                                                                                 totalSteps,
                                                                             }) => {
-    const ballAnimations = useRef(
-        Array.from({ length: totalSteps }, () => ({
-            scale: new Animated.Value(0.8),
-            opacity: new Animated.Value(0.3),
-            glow: new Animated.Value(0),
-        }))
-    ).current;
+    // Adim sayisi calisma zamaninda degisebiliyor: kayit akisi hatta gore
+    // 5 ya da 6 adim. useRef ile bir kez kurulan dizi, kullanici DIL
+    // hattini secip totalSteps 6'ya cikinca 5 elemanli kaliyordu ve render
+    // altinci elemanda `anim.glow` okurken cokuyordu. useMemo ile
+    // totalSteps'e bagliyoruz.
+    const ballAnimations = useMemo(
+        () =>
+            Array.from({ length: totalSteps }, () => ({
+                scale: new Animated.Value(0.8),
+                opacity: new Animated.Value(0.3),
+                glow: new Animated.Value(0),
+            })),
+        [totalSteps]
+    );
 
     const progressAnimation = useRef(new Animated.Value(0)).current;
 
@@ -148,7 +156,20 @@ export const AnimatedStepIndicator: React.FC<AnimatedStepIndicatorProps> = ({
 
                         return (
                             <View key={index} style={styles.ballWrapper}>
-                                {/* Glow effect */}
+                                {/*
+                                  Parlak cam kure kaldirildi.
+                                  Beyaz saydam dolgu + tepede spekuler bir
+                                  isik lekesi, tam olarak reddedilen
+                                  "oyuna girer gibi" gorunumu uretiyordu;
+                                  ustelik tamamlanan adimlar pirinc, ICINDE
+                                  BULUNULAN adim gri camdi -- hiyerarsi
+                                  tersine donmustu.
+
+                                  Yerine duz daireler: tamamlanan ve icinde
+                                  bulunulan pirinc, gelecek adimlar sessiz
+                                  yuzey. Isik halkasi yalnizca bulundugun
+                                  adimi isaret ediyor.
+                                */}
                                 <Animated.View
                                     style={[
                                         styles.glowOuter,
@@ -159,23 +180,30 @@ export const AnimatedStepIndicator: React.FC<AnimatedStepIndicatorProps> = ({
                                     ]}
                                 />
 
-                                {/* Glass ball */}
                                 <Animated.View
                                     style={[
                                         styles.ball,
+                                        (isCompleted || isCurrent) && styles.ballDone,
                                         {
                                             opacity: anim.opacity,
                                             transform: [{ scale: anim.scale }],
                                         },
                                     ]}
                                 >
-                                    {/* Glass inner reflection */}
-                                    <View style={styles.glassInner} />
-
                                     {/* Step number or checkmark */}
                                     <View style={styles.ballContent}>
                                         {isCompleted ? (
-                                            <Text style={styles.checkmark}>✓</Text>
+                                            // Metin "✓" yerine ikon: glif, yuklenen
+                                            // yazi tipinde bulunmadigi icin yedege
+                                            // dusuyor ve cizik gibi gorunuyordu.
+                                            // Ustelik rengi colors.primary'ydi, yani
+                                            // mor dairenin uzerinde mor -- gorsel
+                                            // incelemede secilmiyordu.
+                                            <MaterialIcons
+                                                name="check"
+                                                size={16}
+                                                color={colors.textInverse}
+                                            />
                                         ) : (
                                             <Text
                                                 style={[
@@ -287,26 +315,16 @@ const styles = StyleSheet.create({
         width: BALL_SIZE,
         height: BALL_SIZE,
         borderRadius: BALL_SIZE / 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+        backgroundColor: colors.surfaceElevated,
         borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.25)',
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
     },
-    glassInner: {
-        position: 'absolute',
-        top: -BALL_SIZE * 0.15,
-        left: -BALL_SIZE * 0.05,
-        width: BALL_SIZE * 0.5,
-        height: BALL_SIZE * 0.5,
-        borderRadius: (BALL_SIZE * 0.5) / 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.35)',
-        transform: [{ rotate: '-45deg' }],
+    ballDone: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
     },
     ballContent: {
         justifyContent: 'center',
@@ -314,18 +332,19 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     stepNumber: {
+        // 'monospace' web'de serif bir yedege dusuyordu ve %40 beyaz cok
+        // solgundu: rakamlar gorsel incelemede okunamiyor, kucuk isaretler
+        // gibi gorunuyordu. Tasarim token'i ve daha yuksek kontrast.
         fontSize: typography.fontSize.sm,
-        fontWeight: typography.fontWeight.bold,
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontFamily: 'monospace',
+        fontFamily: typography.fontFamily.bold,
+        color: colors.textTertiary,
     },
     stepNumberActive: {
-        color: colors.primary,
+        // colors.primary, aktif dairenin acik mor dolgusunun uzerinde
+        // mor demekti: bulundugun adimin numarasi okunmuyordu -- ki
+        // gostergede en cok okunmasi gereken sayi tam olarak o.
+        color: colors.textInverse,
         fontSize: typography.fontSize.base,
     },
-    checkmark: {
-        fontSize: typography.fontSize.base,
-        color: colors.primary,
-        fontWeight: typography.fontWeight.bold,
-    },
+
 });

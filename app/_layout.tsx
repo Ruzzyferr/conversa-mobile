@@ -1,4 +1,11 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -31,7 +38,15 @@ export {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  // Anahtar adlari src/theme/typography.ts icindeki fontFamily degerleriyle
+  // BIREBIR ayni olmali; aksi halde React Native sessizce System'e duser ve
+  // butun tipografi degisikligi gorunmez olur.
   const [loaded, error] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });

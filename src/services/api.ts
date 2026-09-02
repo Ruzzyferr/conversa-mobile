@@ -228,6 +228,13 @@ class ApiClient {
     photos: string[];
     interests?: string[];
     gender?: "MALE" | "FEMALE" | "OTHER" | null;
+    track: "DATE" | "LANGUAGE";
+    trackChangedAt: string | null;
+    languageProofs?: Array<{
+      language: string;
+      role: "NATIVE" | "LEARNING";
+      cefr: string | null;
+    }>;
     createdAt: string;
     updatedAt: string;
   }> {
@@ -247,6 +254,12 @@ class ApiClient {
     bio: string | null;
     photos: string[];
     gender?: "MALE" | "FEMALE" | "OTHER" | null;
+    track: "DATE" | "LANGUAGE";
+    languageProofs?: Array<{
+      language: string;
+      role: "NATIVE" | "LEARNING";
+      cefr: string | null;
+    }>;
     createdAt: string;
     updatedAt: string;
   }> {
@@ -266,6 +279,12 @@ class ApiClient {
     languagesNative?: string[];
     languagesPractice?: string[];
     purpose: "CONVERSATION" | "PRACTICE" | "COFFEE";
+    /**
+     * Hat degisimi. Sunucu iki kapiyla koruyor: 30 gunluk bekleme
+     * (TRACK_COOLDOWN) ve LANGUAGE'e gecerken en az bir gecerli dil
+     * kaniti (PROOF_REQUIRED). Kayitta ilk secim bedava.
+     */
+    track?: "DATE" | "LANGUAGE";
     bio?: string;
     photos?: string[];
     interests?: string[];
@@ -996,6 +1015,248 @@ class ApiClient {
     });
     return response.data;
   }
+
+  // ---------------------------------------------------------------------
+  // Hat, sinav ve dil urunu
+  // ---------------------------------------------------------------------
+
+  /** Bu sinav icin madde listesi. Havuz rotasyonlu. */
+  async getExamItems(
+    language: string,
+    role: "NATIVE" | "LEARNING" = "LEARNING"
+  ): Promise<{
+    data: {
+      items: Array<{
+        id: string;
+        kind: "written" | "spoken";
+        prompt: string;
+        seconds: number;
+      }>;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/exam/items", {
+      params: { language, role },
+    });
+    return response.data;
+  }
+
+  /**
+   * Dil kontrolunu gonderir.
+   *
+   * Istenen rol NATIVE olup dogrulanmazsa yanit LEARNING doner. Bu bir
+   * HATA DEGIL: hesap acik kalir, iddia dusurulur. Arayuz bunu boyle
+   * gostermeli.
+   */
+  async submitExam(
+    language: string,
+    role: "NATIVE" | "LEARNING",
+    answers: string[]
+  ): Promise<{
+    data: {
+      language: string;
+      role: "NATIVE" | "LEARNING";
+      cefr: string | null;
+      verified: boolean;
+      expiresAt: string;
+    };
+  }> {
+    const response = await this.client.post("/api/v1/exam/submit", {
+      language,
+      role,
+      answers,
+    });
+    return response.data;
+  }
+
+  async getExamStatus(): Promise<{
+    data: {
+      proofs: Array<{
+        language: string;
+        role: "NATIVE" | "LEARNING";
+        cefr: string | null;
+        expiresAt: string;
+        retakeAvailableAt: string | null;
+      }>;
+      unverified: string[];
+    };
+  }> {
+    const response = await this.client.get("/api/v1/exam/status");
+    return response.data;
+  }
+
+  async getEntitlements(): Promise<{
+    data: {
+      track: "DATE" | "LANGUAGE";
+      isPremium: boolean;
+      concurrencySlots: number;
+      concurrencyCeiling: number;
+      dailyConversations: number;
+      dailyIntake: number;
+      coachPerDay: number | null;
+      translationsPerDay: number | null;
+      sessionsPerWeek: number | null;
+      partnerCorrections: "unlimited";
+      /** Premium alinsa ne degisirdi. Odeme ekrani bu sayilari kendi
+       *  hesaplamasin diye sunucudan geliyor. */
+      premiumPreview: {
+        concurrencySlots: number;
+        dailyConversations: number;
+        coachPerDay: number | null;
+        translationsPerDay: number | null;
+        sessionsPerWeek: number | null;
+      };
+    };
+  }> {
+    const response = await this.client.get("/api/v1/billing/entitlements");
+    return response.data;
+  }
+
+  async getIntake(): Promise<{
+    data: { dailyLimit: number; queuedCount: number; lastReleaseAt: string | null };
+  }> {
+    const response = await this.client.get("/api/v1/requests/intake");
+    return response.data;
+  }
+
+  async setIntake(dailyLimit: number): Promise<{ data: { dailyLimit: number } }> {
+    const response = await this.client.put("/api/v1/requests/intake", { dailyLimit });
+    return response.data;
+  }
+
+  /** Cevaplanmamis kendi istegini geri ceker; slot aninda doner. */
+  async withdrawRequest(requestId: string): Promise<void> {
+    await this.client.delete(`/api/v1/requests/${requestId}`);
+  }
+
+  // --- Koc ve duzeltmeler ----------------------------------------------
+
+  /** Partner duzeltmesi. Ucretsiz ve kotasiz. */
+  async addCorrection(
+    messageId: string,
+    corrected: string,
+    note?: string
+  ): Promise<{ data: { id: string; original: string; corrected: string; note: string | null } }> {
+    const response = await this.client.post("/api/v1/coach/corrections", {
+      messageId,
+      corrected,
+      note,
+    });
+    return response.data;
+  }
+
+  async listCorrections(): Promise<{
+    data: {
+      corrections: Array<{
+        id: string;
+        original: string;
+        corrected: string;
+        note: string | null;
+        category: string | null;
+        source: "PARTNER" | "AI";
+        createdAt: string;
+      }>;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/coach/corrections");
+    return response.data;
+  }
+
+  /** AI kocu. Cikti OZELDIR: karsi taraf gormez. */
+  async coachReview(messageId: string): Promise<{
+    data: {
+      corrected: string | null;
+      note: string | null;
+      category: string | null;
+      quota: { used: number; limit: number | null; remaining: number | null };
+    };
+  }> {
+    const response = await this.client.post("/api/v1/coach/review", { messageId });
+    return response.data;
+  }
+
+  async getCoachQuota(): Promise<{
+    data: { used: number; limit: number | null; remaining: number | null };
+  }> {
+    const response = await this.client.get("/api/v1/coach/quota");
+    return response.data;
+  }
+
+  async getMistakeBook(): Promise<{
+    data: {
+      categories: Array<{ category: string; count: number }>;
+      entries: Array<{
+        id: string;
+        original: string;
+        corrected: string;
+        note: string | null;
+        category: string | null;
+        source: "PARTNER" | "AI";
+        createdAt: string;
+      }>;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/coach/book");
+    return response.data;
+  }
+
+  async getWeeklyReport(): Promise<{
+    data: {
+      total: number;
+      topCategory: string | null;
+      byCategory: Array<{ category: string; count: number }>;
+      from: string;
+      to: string;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/coach/report");
+    return response.data;
+  }
+
+  async translate(
+    text: string,
+    target: string
+  ): Promise<{ data: { translated: string; remaining: number | null } }> {
+    const response = await this.client.post("/api/v1/coach/translate", { text, target });
+    return response.data;
+  }
+
+  // --- Planli oturumlar -------------------------------------------------
+
+  async listSessions(): Promise<{
+    data: {
+      sessions: Array<{
+        id: string;
+        createdById: string;
+        withUserId: string;
+        startsAt: string;
+        durationMins: number;
+        topic: string | null;
+        status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+      }>;
+      weeklyUsed: number;
+    };
+  }> {
+    const response = await this.client.get("/api/v1/sessions");
+    return response.data;
+  }
+
+  async createSession(
+    withUserId: string,
+    startsAt: string,
+    topic?: string
+  ): Promise<{ data: { id: string; startsAt: string; topic: string | null } }> {
+    const response = await this.client.post("/api/v1/sessions", {
+      withUserId,
+      startsAt,
+      topic,
+    });
+    return response.data;
+  }
+
+  async cancelSession(sessionId: string): Promise<void> {
+    await this.client.delete(`/api/v1/sessions/${sessionId}`);
+  }
 }
 
 export const api = new ApiClient();
+

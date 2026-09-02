@@ -16,6 +16,7 @@ import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme/colors";
+import { Wordmark } from "@/src/components/brand/Wordmark";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
@@ -806,7 +807,7 @@ export default function HomeScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>Conversa</Text>
+              <Wordmark size="sm" />
               {isUserPremium && (
                 <LinearGradient
                   colors={[colors.primary, colors.primaryLight]}
@@ -814,7 +815,7 @@ export default function HomeScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.premiumBadge}
                 >
-                  <Text style={styles.premiumBadgeIcon}>✨</Text>
+                  <MaterialIcons name="workspace-premium" size={13} color={colors.textInverse} />
                   <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
                 </LinearGradient>
               )}
@@ -825,9 +826,8 @@ export default function HomeScreen() {
                   style={styles.boostPill}
                   onPress={() => setShowBoostModal(true)}
                 >
-                  <Text style={styles.boostPillText}>
-                    ⚡ {getTimeRemaining()}
-                  </Text>
+                  <MaterialIcons name="bolt" size={14} color={colors.boostGold} />
+                  <Text style={styles.boostPillText}>{getTimeRemaining()}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -842,7 +842,7 @@ export default function HomeScreen() {
           <View style={styles.emptyWrap}>
             <Card style={styles.emptyCard} elevated>
               <View style={styles.emptyEmojiBadge}>
-                <Text style={styles.emptyEmoji}>✨</Text>
+                <MaterialIcons name="explore" size={28} color={colors.primary} />
               </View>
               <Text style={styles.emptyTitle}>
                 {hasNonDefaultFilters
@@ -901,7 +901,7 @@ export default function HomeScreen() {
         {/* Compact Premium Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>Conversa</Text>
+            <Wordmark size="sm" />
             {isUserPremium && (
               <LinearGradient
                 colors={[colors.primary, colors.primaryLight]}
@@ -909,7 +909,7 @@ export default function HomeScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.premiumBadge}
               >
-                <Text style={styles.premiumBadgeIcon}>✨</Text>
+                <MaterialIcons name="workspace-premium" size={13} color={colors.textInverse} />
                 <Text style={styles.premiumBadgeText}>{t('home.premium_badge')}</Text>
               </LinearGradient>
             )}
@@ -920,9 +920,9 @@ export default function HomeScreen() {
                 style={styles.boostPill}
                 onPress={() => setShowBoostModal(true)}
               >
-                <Text style={styles.boostPillText}>
-                  ⚡ {getTimeRemaining()}
-                </Text>
+                {/* Emoji simsek platform fontuyla ciziliyordu; vektor ikon. */}
+                <MaterialIcons name="bolt" size={14} color={colors.boostGold} />
+                <Text style={styles.boostPillText}>{getTimeRemaining()}</Text>
               </TouchableOpacity>
             )}
             {!isUserPremium && likeLimitInfo && (
@@ -1163,7 +1163,7 @@ export default function HomeScreen() {
           <View style={styles.successModalOverlay}>
             <View style={styles.successModalContent}>
               <View style={styles.successIconContainer}>
-                <Text style={styles.successIcon}>✓</Text>
+                <MaterialIcons name="check" size={28} color={colors.textInverse} />
               </View>
               <Text style={styles.successModalTitle}>{t('home.favorite.success_title')}</Text>
               <Text style={styles.successModalMessage}>{successMessage}</Text>
@@ -1187,7 +1187,7 @@ export default function HomeScreen() {
           <View style={styles.directLimitModalOverlay}>
             <View style={styles.directLimitModalContent}>
               <View style={styles.directLimitIconContainer}>
-                <Text style={styles.directLimitIcon}>⚠️</Text>
+                <MaterialIcons name="hourglass-top" size={28} color={colors.warning} />
               </View>
               <Text style={styles.directLimitModalTitle}>{t('home.dm_limit.title')}</Text>
               <Text style={styles.directLimitModalMessage}>
@@ -1264,9 +1264,10 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
   },
   premiumBadgeText: {
+    // Pirinc gradyanin uzerinde kagit beyazi dusuk kontrastliydi.
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textInverse,
     letterSpacing: 0.5,
   },
   favoriteCounter: {
@@ -1308,6 +1309,9 @@ const styles = StyleSheet.create({
     color: colors.primaryTintText,
   },
   boostPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs / 2,
     borderRadius: 16,

@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { languageLabel } from "@/src/data/languages";
 import { OptimizedImage } from "./ui/OptimizedImage";
+import { Overline } from "@/src/components/ui/Overline";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -180,7 +181,7 @@ export function ProfileModal({
                             {/* Bio Section */}
                             {profileData.bio && (
                                 <View style={styles.detailSection}>
-                                    <Text style={styles.detailTitle}>{t('profile.about')}</Text>
+                                    <Overline style={styles.detailTitle}>{t('profile.about')}</Overline>
                                     <Text style={styles.bioText}>{profileData.bio}</Text>
                                 </View>
                             )}
@@ -196,7 +197,7 @@ export function ProfileModal({
                                     >
                                         <View style={styles.favoriteHeader}>
                                             <Ionicons name="star" size={16} color={colors.accent} />
-                                            <Text style={styles.favoriteLabel}>{t('profile.special_message')}</Text>
+                                            <Overline style={styles.favoriteLabel}>{t('profile.special_message')}</Overline>
                                         </View>
                                         <Text style={styles.favoriteText}>"{firstMessage.text}"</Text>
                                     </LinearGradient>
@@ -205,7 +206,7 @@ export function ProfileModal({
 
                             {/* Purpose Chip */}
                             <View style={styles.detailSection}>
-                                <Text style={styles.detailTitle}>{t('profile.seeking')}</Text>
+                                <Overline style={styles.detailTitle}>{t('profile.seeking')}</Overline>
                                 <View style={styles.chipContainer}>
                                     <View style={styles.purposeChip}>
                                         <Text style={styles.purposeText}>
@@ -217,7 +218,7 @@ export function ProfileModal({
 
                             {/* Languages */}
                             <View style={styles.detailSection}>
-                                <Text style={styles.detailTitle}>{t('profile.languages')}</Text>
+                                <Overline style={styles.detailTitle}>{t('profile.languages')}</Overline>
                                 <View style={styles.languageTags}>
                                     {profileData.languagesNative.map((lang, index) => (
                                         <View key={`native-${index}`} style={[styles.langTag, styles.nativeTag]}>
@@ -397,7 +398,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "700",
         color: colors.textSecondaryDark,
-        textTransform: "uppercase",
         letterSpacing: 1,
         marginBottom: spacing.md,
     },
@@ -470,7 +470,6 @@ const styles = StyleSheet.create({
         color: colors.accent,
         fontWeight: "700",
         fontSize: 12,
-        textTransform: "uppercase",
     },
     favoriteText: {
         color: colors.onMedia,

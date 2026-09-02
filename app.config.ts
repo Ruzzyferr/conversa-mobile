@@ -30,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     splash: {
         image: "./assets/splash-icon.png",
         resizeMode: "contain",
-        backgroundColor: "#111422"
+        backgroundColor: "#0B0E13"
     },
     ios: {
         bundleIdentifier: "com.conversa.app",
@@ -52,7 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         versionCode: versionConfig.versionCode,
         adaptiveIcon: {
             foregroundImage: "./assets/adaptive-icon.png",
-            backgroundColor: "#111422"
+            backgroundColor: "#0B0E13"
         },
         edgeToEdgeEnabled: true,
         predictiveBackGestureEnabled: false,
