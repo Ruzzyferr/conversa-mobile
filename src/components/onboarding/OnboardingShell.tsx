@@ -12,6 +12,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useDeviceType } from "@/src/hooks/useDeviceType";
 import { colors, spacing, radius, textStyles } from "@/src/theme";
 
 /**
@@ -70,6 +71,14 @@ export function OnboardingShell({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
+  // Tablette icerigi ortala ve genisligini sinirla.
+  //
+  // Kabuk telefon icin yazilmisti; iPad'de baslik ve secim satirlari ekranin
+  // tamamina yayilip sayfayi bos gosteriyordu. Apple bu uygulamayi
+  // iPad Air'da inceliyor -- gordugu duzen tam olarak buydu.
+  const { isTablet } = useDeviceType();
+  const wide = isTablet ? styles.wide : null;
+
   const body = (
     <>
       <Text style={styles.title}>{title}</Text>
@@ -114,7 +123,7 @@ export function OnboardingShell({
         {scroll ? (
           <ScrollView
             style={styles.flex}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, wide]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -125,7 +134,7 @@ export function OnboardingShell({
         )}
 
         {!hideCta && (
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+          <View style={[styles.footer, wide, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
             <Pressable
               onPress={onCta}
               disabled={ctaDisabled || ctaLoading}
@@ -179,6 +188,7 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
 
+  wide: { maxWidth: 620, width: "100%", alignSelf: "center" },
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
