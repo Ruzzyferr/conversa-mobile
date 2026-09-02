@@ -32,6 +32,13 @@ export type OptimizedImageProps = Omit<RNImageProps, "source" | "style"> & {
   fallbackIconSize?: number;
 };
 
+/** Kaynagin kimligi: ayni URI, ayni gorsel. */
+function sourceKey(source: ImageSourcePropType): string {
+  if (Array.isArray(source)) return source.map(sourceKey).join("|");
+  if (typeof source === "number") return `local:${source}`;
+  return (source as { uri?: string })?.uri ?? "";
+}
+
 export function OptimizedImage({
   source,
   style,
@@ -44,62 +51,71 @@ export function OptimizedImage({
   onError,
   ...rest
 }: OptimizedImageProps) {
-  const [loading, setLoading] = useState(true);
-  const [errored, setErrored] = useState(false);
+  const key = sourceKey(source);
 
   /**
-   * Yukleniyor halkasi icin guvenlik agi.
+   * Kaynagi URI'sine gore sabitliyoruz.
+   *
+   * Cagri yerleri `source={{ uri: photos[0] }}` yaziyor: her render YENI bir
+   * nesne. react-native-web bunu yeni bir kaynak sayip gorseli bastan
+   * yukluyor, bu da `onLoadStart` -> `setLoading(true)` -> yeniden render ->
+   * yeni nesne -> ... seklinde SONSUZ bir donguye giriyordu. Gorunen sonucu
+   * fotograf yuklendigi halde ustunde hic durmayan bir halkaydi; gorunmeyen
+   * sonucu her karede yeniden istenen bir gorsel.
+   *
+   * URI ayni kaldigi surece ayni nesneyi veriyoruz, dongu kapaniyor.
+   */
+  const stableSource = React.useMemo(() => source, [key]);
+
+  /**
+   * Yalnizca bu URI'yi ilk kez yuklerken halka goster.
+   *
+   * `loading`'i her `onLoadStart`'ta true'ya cekmek, onbellekten gelen bir
+   * gorselde bile bir kare boyunca halka gosteriyordu.
+   */
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [erroredKey, setErroredKey] = useState<string | null>(null);
+  const loading = loadedKey !== key && erroredKey !== key;
+  const errored = erroredKey === key;
+
+  /**
+   * Guvenlik agi.
    *
    * `onLoad` / `onLoadEnd` her platformda guvenilir degil --
    * react-native-web'de onbellekten gelen gorseller icin atesenmeyebiliyor.
-   * O zaman `loading` sonsuza kadar true kaliyor ve fotograf goruntulendigi
-   * halde ustunde donen bir halka duruyor: deste kartinda her yuzun
-   * ortasinda bir spinner vardi. Gorsel incelemede yakalandi.
-   *
    * Takili kalan bir gosterge, hic olmayan gostergeden kotudur.
    */
   React.useEffect(() => {
     if (!loading) return;
-    const id = setTimeout(() => setLoading(false), 2500);
+    const id = setTimeout(() => setLoadedKey(key), 2500);
     return () => clearTimeout(id);
-  }, [loading]);
+  }, [loading, key]);
 
   return (
     <View style={[styles.container, containerStyle]}>
       {!errored && (
         <RNImage
           {...rest}
-          source={source}
+          source={stableSource}
           style={[styles.image, style]}
           resizeMode={resizeMode}
-          onLoadStart={() => {
-            setLoading(true);
-            onLoadStart?.();
-          }}
-          // `onLoad` DA dinleniyor.
-          //
-          // react-native-web'de `onLoadEnd` her zaman atesleniyor degil
-          // (ozellikle onbellekten gelen gorsellerde), ve o zaman `loading`
-          // sonsuza kadar true kaliyordu: fotograf goruntuleniyor ama
-          // ustunde donen bir halka duruyordu. Deste kartinda her yuzun
-          // ortasinda bir spinner vardi.
+          onLoadStart={onLoadStart}
           onLoad={(e) => {
-            setLoading(false);
+            setLoadedKey(key);
             rest.onLoad?.(e);
           }}
           onLoadEnd={() => {
-            setLoading(false);
+            setLoadedKey(key);
             onLoadEnd?.();
           }}
           onError={(e) => {
-            setLoading(false);
-            setErrored(true);
+            setErroredKey(key);
             onError?.(e);
           }}
         />
       )}
 
-      {showLoader && loading && !errored && (
+      {showLoader && loading && (
         <View style={styles.stateOverlay} pointerEvents="none">
           <ActivityIndicator color={colors.primary} />
         </View>
