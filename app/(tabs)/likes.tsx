@@ -22,7 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
-import { typography } from "@/src/theme/typography";
+import { typography, textStyles } from "@/src/theme/typography";
 import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
@@ -97,7 +97,19 @@ const ExpirationTimer = ({ expiresAt }: { expiresAt: string }) => {
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-      if (hours > 0) {
+      // LANGUAGE isteklerinin omru 168 saat: "167sa 59dk" hicbir insanin
+      // okumadigi bir sayi. Bir gunden uzun sureler GUN cinsinden
+      // yaziliyor; kalan saat yalnizca son gunde anlam tasiyor.
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const restHours = hours % 24;
+        setTimeLeft(
+          restHours > 0
+            ? `${days}${t('likes.days')} ${restHours}${t('likes.hours')}`
+            : `${days}${t('likes.days')}`
+        );
+        setIsUrgent(false);
+      } else if (hours > 0) {
         setTimeLeft(`${hours}${t('likes.hours')} ${minutes}${t('likes.minutes')}`);
         setIsUrgent(hours < 6);
       } else {
@@ -399,6 +411,8 @@ export default function RequestsScreen() {
     }
   };
 
+  const lockedCount = incomingRequests.filter((r) => r.locked).length;
+
   const renderRequestItem = ({ item }: { item: Request }) => {
     // Bumble-style locked like: blurred anonymous card for free users.
     if (item.locked) {
@@ -437,7 +451,8 @@ export default function RequestsScreen() {
 
               <View style={styles.userDetails}>
                 <Text style={styles.userName}>{t("likes.locked_title")}</Text>
-                <Text style={styles.lockedDesc}>{t("likes.locked_desc")}</Text>
+                {/* Aciklama ust bannerda; her kartta tekrarlanmasi
+                    listeyi ayni cumlenin kopyalarina ceviriyordu. */}
                 {item.expiresAt && item.status === "PENDING" && (
                   <ExpirationTimer expiresAt={item.expiresAt} />
                 )}
@@ -446,21 +461,16 @@ export default function RequestsScreen() {
               <Ionicons name="chevron-forward" size={22} color={colors.textSecondaryDark} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setShowUpsellModal(true)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryLight]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.actionButton, styles.lockedCta]}
-              >
-                <Ionicons name="diamond" size={18} color={colors.onMedia} />
-                <Text style={styles.acceptButtonText}>{t("likes.locked_cta")}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            {/*
+              Kart basina tam genislikte bir pirinc dugme YOK.
+
+              Her kilitli kartin altinda ayni "Kim oldugunu gor" dugmesi
+              duruyordu: on bekleyen begenisi olan biri ekranda on ozdes
+              dugme goruyordu. Tekrar eden bir istek ikna etmiyor,
+              yalnizca ekrani doldurup listeyi okunmaz kiliyor. Satirin
+              kendisi zaten dokunulabilir ve tek satis mesaji listenin
+              en ustunde duruyor.
+            */}
           </LinearGradient>
         </View>
       );
@@ -659,6 +669,31 @@ export default function RequestsScreen() {
                 onRefresh={loadRequests}
                 tintColor={colors.primary}
               />
+            }
+            ListHeaderComponent={
+              /*
+                Tek satis mesaji, listenin en ustunde.
+                Eskiden bu istek her kartin altinda tekrar ediyordu.
+              */
+              lockedCount > 0 ? (
+                <TouchableOpacity
+                  style={styles.unlockBanner}
+                  onPress={() => setShowUpsellModal(true)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.unlockIcon}>
+                    <Ionicons name="lock-closed" size={18} color={colors.primaryTintText} />
+                  </View>
+                  <View style={styles.unlockTexts}>
+                    <Text style={styles.unlockTitle}>
+                      {t("likes.locked_banner_title", { count: lockedCount })}
+                    </Text>
+                    <Text style={styles.unlockBody}>{t("likes.locked_desc")}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
+                </TouchableOpacity>
+              ) : null
             }
           />
         )}
@@ -1048,6 +1083,34 @@ const styles = StyleSheet.create({
   },
   requestContent: {
     marginBottom: spacing.md,
+  },
+  unlockBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: 16,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryTintBorder,
+  },
+  unlockIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceTintStrong,
+  },
+  unlockTexts: { flex: 1, gap: 2 },
+  unlockTitle: {
+    ...textStyles.label,
+    color: colors.text,
+  },
+  unlockBody: {
+    ...textStyles.bodySmall,
+    color: colors.textSecondary,
   },
   lockedContent: {
     flexDirection: "row",

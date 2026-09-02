@@ -605,7 +605,9 @@
     "locked_desc": "Go Premium to see who it is",
     "locked_cta": "See Who It Is",
     "looking_for": "Looking for",
-    "profile_failed": "Could not load profile"
+    "profile_failed": "Could not load profile",
+    "locked_banner_title": "{{count}} people liked you",
+    "days": "d"
   },
   "chat": {
     "header": "Chat",

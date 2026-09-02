@@ -604,7 +604,9 @@
     "locked_desc": "Kim olduğunu görmek için Premium’a geç",
     "locked_cta": "Kim olduğunu gör",
     "looking_for": "Aradığım",
-    "profile_failed": "Profil yüklenemedi"
+    "profile_failed": "Profil yüklenemedi",
+    "locked_banner_title": "{{count}} kişi seni beğendi",
+    "days": "g"
   },
   "chat": {
     "header": "Sohbet",
