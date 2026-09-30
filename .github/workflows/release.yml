@@ -29,7 +29,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Depoyu al
@@ -152,6 +152,34 @@ jobs:
             }, null, 2));
           '
 
+      # Sürüm artışı iOS derlemesinden ÖNCE işleniyor.
+      #
+      # Eskiden en sondaydı ve iOS adımı EAS'ın bulut derlemesini + yükleme
+      # kuyruğunu beklediği için iş 120 dakikalık sınıra takılıp iptal oldu.
+      # İptal, artış adımını hiç çalıştırmadı: Play'e versionCode 28 gitmiş
+      # ama depo 27'de kalmıştı, yani bir sonraki koşum aynı numarayı üretip
+      # "bu versionCode zaten kullanılmış" hatası alacaktı.
+      #
+      # Artış, "bu sürümü göndermeye başladık" demektir; uzun bir bulut
+      # derlemesinin arkasında beklemesi için bir sebep yok. Derleme
+      # başarısız olursa yalnızca bir numara harcanır -- ucuz; numaraların
+      # depo ile mağaza arasında ayrışması ise değil.
+      - name: Sürüm artışını işle ve etiketle
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json app.config.ts
+          # [skip ci] olmazsa bu commit iş akışını yeniden tetikler.
+          git commit -m "Release $VERSION_NAME (Android $VERSION_CODE, iOS $BUILD_NUMBER) [skip ci]"
+          # Annotated, cunku --follow-tags lightweight etiketleri gondermez.
+          git tag -a "v$VERSION_NAME+$VERSION_CODE"             -m "Android $VERSION_CODE / iOS build $BUILD_NUMBER"
+          git push origin HEAD:${{ github.ref_name }} --follow-tags
+
       - name: iOS derle ve TestFlight'a gönder
         id: ios
         if: ${{ !inputs.dry_run }}
@@ -169,22 +197,6 @@ jobs:
         run: node scripts/ci/testflight-notes.mjs
 
       # --- Kayıt -----------------------------------------------------------
-
-      - name: Sürüm artışını işle ve etiketle
-        if: ${{ !inputs.dry_run }}
-        env:
-          VERSION_NAME: ${{ steps.version.outputs.version_name }}
-          VERSION_CODE: ${{ steps.version.outputs.version_code }}
-          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add version.json app.config.ts
-          # [skip ci] olmazsa bu commit iş akışını yeniden tetikler.
-          git commit -m "Release $VERSION_NAME (Android $VERSION_CODE, iOS $BUILD_NUMBER) [skip ci]"
-          # Annotated, cunku --follow-tags lightweight etiketleri gondermez.
-          git tag -a "v$VERSION_NAME+$VERSION_CODE"             -m "Android $VERSION_CODE / iOS build $BUILD_NUMBER"
-          git push origin HEAD:${{ github.ref_name }} --follow-tags
 
       - name: Özet
         if: always()

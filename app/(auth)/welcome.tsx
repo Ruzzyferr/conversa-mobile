@@ -45,7 +45,21 @@ export default function WelcomeScreen() {
   const { t } = useTranslation();
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
-  const [appleReady, setAppleReady] = useState(false);
+  /**
+   * iOS'ta Apple dugmesini bastan VAR sayiyoruz.
+   *
+   * Eskiden `false` ile basliyordu ve `isAvailableAsync()` cozulene kadar
+   * ekranda yalnizca Google duruyordu. O cagri herhangi bir nedenle geciker
+   * veya sessizce patlarsa dugme hic gelmiyor; iOS 13'ten beri her cihazda
+   * destekli olan bir sey icin bu, olmayan bir sorundan kacinmak adina
+   * gercek bir sorun uretiyor.
+   *
+   * Apple bu gonderimi 4.8 ile reddetti: "does not appear to offer as an
+   * equivalent login option another login service". Dugme kodda vardi ama
+   * incelemede gorunmedigi icin yok sayildi. Artik iOS'ta once gosterilir,
+   * yalnizca acikca desteklenmedigi soylenirse kaldirilir.
+   */
+  const [appleReady, setAppleReady] = useState(Platform.OS === "ios");
 
   const googleReady = isGoogleAvailable();
 
@@ -126,26 +140,10 @@ export default function WelcomeScreen() {
             </View>
           )}
 
-          {googleReady && (
-            <TouchableOpacity
-              style={[styles.socialButton, styles.googleButton]}
-              onPress={() => handleSocial("google")}
-              disabled={busy !== null}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={t("welcome.continue_google")}
-            >
-              {busy === "google" ? (
-                <ActivityIndicator size="small" color="#1F1F1F" />
-              ) : (
-                <>
-                  <GoogleMark />
-                  <Text style={styles.googleText}>{t("welcome.continue_google")}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
+          {/* iOS'ta Apple ustte.
+              4.8, Sign in with Apple'in Google ile "esdeger" sunulmasini
+              istiyor; esdeger olan sey ikinci sirada durmaz. Android'de
+              Apple dugmesi hic gosterilmediginden sira degismez. */}
           {appleReady && (
             <TouchableOpacity
               style={[styles.socialButton, styles.appleButton]}
@@ -161,6 +159,26 @@ export default function WelcomeScreen() {
                 <>
                   <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
                   <Text style={styles.appleText}>{t("welcome.continue_apple")}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {googleReady && (
+            <TouchableOpacity
+              style={[styles.socialButton, styles.googleButton]}
+              onPress={() => handleSocial("google")}
+              disabled={busy !== null}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t("welcome.continue_google")}
+            >
+              {busy === "google" ? (
+                <ActivityIndicator size="small" color="#1F1F1F" />
+              ) : (
+                <>
+                  <GoogleMark />
+                  <Text style={styles.googleText}>{t("welcome.continue_google")}</Text>
                 </>
               )}
             </TouchableOpacity>

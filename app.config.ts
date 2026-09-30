@@ -18,6 +18,30 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 import versionConfig from './version.json';
 
+/**
+ * Google oturum acmanin iOS URL semasi.
+ *
+ * Sema, iOS istemci kimliginin ters cevrilmis halidir ve ikisi AYNI anda
+ * dogru olmak zorunda. Elle yazildiginda bunu hicbir sey denetlemiyor:
+ * kimlik degisir, sema eskide kalir ve uygulama yalnizca dugmeye
+ * basildiginda -- yani incelemede -- cokerdi.
+ *
+ * Burada kimlikten turetiyoruz, boylece ikisi ayrisamiyor. Yayin
+ * derlemesinde kimlik hic yoksa derlemeyi burada durduruyoruz: sessizce
+ * semasiz bir paket uretmektense gurultuyle basarisiz olmak yegdir.
+ */
+const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+if (!googleIosClientId && process.env.EXPO_PUBLIC_ENV === 'prod') {
+    throw new Error(
+        'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID yok: iOS derlemesi Google URL semasi olmadan cikar ' +
+        've "Continue with Google" uygulamayi cokertir.'
+    );
+}
+const googleIosUrlScheme = googleIosClientId
+    ? 'com.googleusercontent.apps.' +
+      googleIosClientId.replace(/\.apps\.googleusercontent\.com$/, '')
+    : undefined;
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
     name: "Conversa",
     slug: "conversa",
@@ -96,6 +120,28 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "./plugins/withAndroidLaunchMode.js",
         "expo-audio",
         "expo-apple-authentication",
+        /**
+         * Google oturum acmanin iOS'ta CALISMASI icin gereken tek sey.
+         *
+         * Bu eklentinin isi ters cevrilmis istemci kimligini Info.plist'teki
+         * `CFBundleURLTypes`'a yazmak. Eklenti listede olmadigi icin sema
+         * pakete girmiyordu ve GIDSignIn, tarayici akisini acmaya calistiginda
+         * "Your app is missing support for the following URL schemes" diyerek
+         * YAKALANAMAYAN bir Objective-C istisnasi atiyordu -- yani uygulama
+         * try/catch'e hic ugramadan kapaniyordu.
+         *
+         * Apple bunu 2.1(a) olarak raporladi: "Tapped on 'Continue with
+         * Google' button -> App crashed" (iPad Air 11", iPadOS 27).
+         *
+         * Sema, iOS istemci kimliginin ters cevrilmis halidir; kimlik
+         * degisirse burasi da degismek zorunda.
+         */
+        [
+            "@react-native-google-signin/google-signin",
+            {
+                iosUrlScheme: googleIosUrlScheme
+            }
+        ],
         "expo-secure-store",
         "expo-localization",
         // These plugins must run AFTER expo-audio to strip its services
