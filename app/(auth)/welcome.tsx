@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -23,7 +23,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { LEGAL_URLS } from "@/src/config/legal";
 import {
   isGoogleAvailable,
-  isAppleAvailable,
   signInWithGoogle,
   signInWithApple,
   SocialCancelled,
@@ -46,30 +45,30 @@ export default function WelcomeScreen() {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   /**
-   * iOS'ta Apple dugmesini bastan VAR sayiyoruz.
+   * iOS'ta Apple ile giris KOSULSUZ gosteriliyor.
    *
-   * Eskiden `false` ile basliyordu ve `isAvailableAsync()` cozulene kadar
-   * ekranda yalnizca Google duruyordu. O cagri herhangi bir nedenle geciker
-   * veya sessizce patlarsa dugme hic gelmiyor; iOS 13'ten beri her cihazda
-   * destekli olan bir sey icin bu, olmayan bir sorundan kacinmak adina
-   * gercek bir sorun uretiyor.
+   * Once `useState(false)` ile baslayip `isAvailableAsync()` cozulunce
+   * aciyorduk. Iki ayri sekilde bos donuyordu: cozulene kadar ekranda
+   * yalnizca Google vardi, ve cagri herhangi bir nedenle false dondugunde
+   * (ya da catch'e dustugunde) dugme hic gelmiyordu. Bir ara "bastan true"
+   * yaptik ama effect yine uzerine yaziyordu -- web onizlemesinde dugmenin
+   * hic cikmamasi bunu ortaya cikardi.
    *
-   * Apple bu gonderimi 4.8 ile reddetti: "does not appear to offer as an
-   * equivalent login option another login service". Dugme kodda vardi ama
-   * incelemede gorunmedigi icin yok sayildi. Artik iOS'ta once gosterilir,
-   * yalnizca acikca desteklenmedigi soylenirse kaldirilir.
+   * Kontrolun tek isi iOS 12 ve oncesini elemekti; Expo SDK 54'un en dusuk
+   * hedefi iOS 15, yani destekledigimiz HER cihazda Sign in with Apple var.
+   * Kontrol boylece yalnizca yanlis negatif uretebilirdi -- ki Apple bu
+   * gonderimi tam olarak onun sonucuyla, 4.8 ile reddetti.
+   *
+   * `__DEV__` kapisi yalnizca web inceleme kosumu icin: yayin paketinde
+   * ifade her zaman false, dolayisiyla gercek kullaniciya iOS disinda
+   * calismayacak bir dugme gosterilmiyor.
    */
-  const [appleReady, setAppleReady] = useState(Platform.OS === "ios");
+  const appleReady =
+    Platform.OS === "ios" ||
+    (__DEV__ && process.env.EXPO_PUBLIC_PREVIEW_APPLE === "1");
+
 
   const googleReady = isGoogleAvailable();
-
-  useEffect(() => {
-    let alive = true;
-    isAppleAvailable().then((ok) => alive && setAppleReady(ok));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   /**
    * Social sign-in returns a session straight away, so route by whether the
