@@ -42,6 +42,21 @@ const googleIosUrlScheme = googleIosClientId
       googleIosClientId.replace(/\.apps\.googleusercontent\.com$/, '')
     : undefined;
 
+/**
+ * Sema bilinmiyorsa eklentiyi HIC eklemiyoruz.
+ *
+ * Eklentiyi `iosUrlScheme: undefined` ile cagirmak onu kendi icinde, hicbir
+ * sey yazmadan dusuruyor: `expo config` sessizce 1 ile cikiyor. Yayin
+ * derlemesi zaten yukarida duruyor; geri kalan her sey (eas-cli'nin
+ * `.env` yuklemeden yaptigi config cagrilari, dev kosumlari) bu yuzden
+ * kullanilamaz hale gelmisti -- yerel `eas submit` dahil.
+ *
+ * Yayinda sema her zaman var; disinda eksikligi aracları kirmiyor.
+ */
+const googleSignInPlugin: ExpoConfig['plugins'] = googleIosUrlScheme
+    ? [['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }]]
+    : [];
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
     name: "Conversa",
     slug: "conversa",
@@ -136,12 +151,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
          * Sema, iOS istemci kimliginin ters cevrilmis halidir; kimlik
          * degisirse burasi da degismek zorunda.
          */
-        [
-            "@react-native-google-signin/google-signin",
-            {
-                iosUrlScheme: googleIosUrlScheme
-            }
-        ],
+        ...(googleSignInPlugin ?? []),
         "expo-secure-store",
         "expo-localization",
         // These plugins must run AFTER expo-audio to strip its services
