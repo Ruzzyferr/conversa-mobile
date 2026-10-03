@@ -61,6 +61,16 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [favoritePackage, setFavoritePackage] = useState<PurchasesPackage | null>(null);
   const [feed, setFeed] = useState<DiscoveryCard[]>([]);
+  /**
+   * Bu kullaniciya HIC kimse gosterildi mi?
+   *
+   * Bos deste icin tek bir metin vardi: "Bugunluk herkesi gordun!". Yeni
+   * kayit olmus, henuz TEK bir profil bile gormemis birine bunu soylemek
+   * dogru degil -- ozellikle dil hattinda havuz basta kucuk oluyor ve bu,
+   * uygulamanin ilk ekrani olarak kaliyor. Iki durum ayri seyler: destenin
+   * bitmesi ile hic baslamamis olmasi.
+   */
+  const [everSawSomeone, setEverSawSomeone] = useState(false);
   const swipeDeckRef = useRef<SwipeDeckHandle>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -340,6 +350,7 @@ export default function HomeScreen() {
 
       const cards = await api.getFeed(20, Object.keys(filterParams).length > 0 ? filterParams : undefined);
       setFeed(cards);
+      if (cards.length > 0) setEverSawSomeone(true);
       setCurrentIndex(0);
 
     } catch (error) {
@@ -847,12 +858,16 @@ export default function HomeScreen() {
               <Text style={styles.emptyTitle}>
                 {hasNonDefaultFilters
                   ? t('home.empty.filtered_title')
-                  : t('home.empty.title')}
+                  : everSawSomeone
+                    ? t('home.empty.title')
+                    : t('home.empty.first_title')}
               </Text>
               <Text style={styles.emptyText}>
                 {hasNonDefaultFilters
                   ? t('home.empty.filtered_text')
-                  : t('home.empty.text')}
+                  : everSawSomeone
+                    ? t('home.empty.text')
+                    : t('home.empty.first_text')}
               </Text>
               <PrimaryButton
                 title={t('home.empty.refresh')}

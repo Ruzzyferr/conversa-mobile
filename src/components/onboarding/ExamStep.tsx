@@ -33,6 +33,19 @@ interface Props {
   language: string;
   role?: "NATIVE" | "LEARNING";
   onComplete: (outcome: ExamOutcome) => void;
+  /**
+   * Verildiginde sinav kendi dugmesini CIZMEZ; eylemi kabugun sabit alt
+   * cubuguna devreder.
+   *
+   * Sinavin dugmesi icerigin akisinda, en altta duruyordu. Klavye acilinca
+   * -- ki bu ekranda klavye hep acik, cevap yaziliyor -- dugme ekranin
+   * disina tasiyor, geriye yalnizca bir serit kaliyordu. Ustelik her sorunun
+   * suresi isliyor: kullanici cevabi yazip gonderecek yeri ARIYORDU.
+   *
+   * Kabugun alt cubugu klavyeyi zaten dogru kacirtiyor ve diger butun
+   * adimlar oradan ilerliyor; sinavin farkli davranmasi icin bir sebep yok.
+   */
+  onAction?: (action: { label: string; busy: boolean; run: () => void }) => void;
 }
 
 /**
@@ -44,7 +57,7 @@ interface Props {
  * Sesli gorev web'de calismaz (kayit izni yok), o yuzden web'de yazili
  * bir yedek gorev gosterilir. Cihazda mevcut ses kaydi bileseni kullanilir.
  */
-export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
+export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: Props) {
   const { t, i18n } = useTranslation();
 
   const [items, setItems] = useState<ExamItem[] | null>(null);
@@ -142,6 +155,27 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
     const timer = setTimeout(() => setRemaining((r) => r - 1), 1000);
     return () => clearTimeout(timer);
   }, [remaining, items, outcome, submitting, advance]);
+
+  /**
+   * Sinavin eylemini kabugun alt cubuguna bildir.
+   *
+   * Bu kanca BUTUN erken donuslerden once durmali: bir ara bunu `items`
+   * cozuldukten sonraya koymustum ve React "Rendered more hooks than during
+   * the previous render" ile ekrani dusurdu -- yukleme ekranindan soru
+   * ekranina gecerken kanca sayisi degisiyordu.
+   */
+  const total = items?.length ?? 0;
+  const isLastItem = total > 0 && index + 1 >= total;
+  const actionLabel = submitting
+    ? t("exam.submitting")
+    : isLastItem
+      ? t("exam.finish")
+      : t("common.continue");
+  const showAction = !!items && !outcome;
+  useEffect(() => {
+    if (!showAction) return;
+    onAction?.({ label: actionLabel, busy: submitting, run: advance });
+  }, [showAction, onAction, actionLabel, submitting, advance]);
 
   if (error && !items) {
     return (
@@ -286,6 +320,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
           altinda dursun, sorunun hemen altinda degil. */}
       <View style={styles.spacer} />
 
+      {onAction ? null : (
       <TouchableOpacity
         testID="exam-next"
         style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
@@ -304,6 +339,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete }: Props) {
           <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
         ) : null}
       </TouchableOpacity>
+      )}
 
       <Text style={styles.footnote}>{t("exam.no_back")}</Text>
     </View>

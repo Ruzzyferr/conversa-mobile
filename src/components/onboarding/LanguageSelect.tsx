@@ -28,6 +28,15 @@ interface Props {
   max?: number;
   placeholder: string;
   emptyHint: string;
+  /**
+   * Listede HIC gosterilmeyecek kodlar.
+   *
+   * Anadili Turkce olan biri "ogrenmek istedigim diller" adiminda da
+   * Turkce'yi secebiliyordu. Bu profil anlamsiz: kendi anadilini ogrenmek
+   * isteyen biri, eslesme kurallarinda hem "ogreten" hem "ogrenen" tarafa
+   * dusuyor. Secenegi hic gostermemek, secip sonra hata vermekten iyi.
+   */
+  exclude?: string[];
 }
 
 /** Turkce arama: "isvec" yazani Isvecce'ye goturebilmek icin. */
@@ -42,7 +51,7 @@ function fold(s: string) {
     .replace(/ç/g, "c");
 }
 
-export function LanguageSelect({ value, onChange, max, placeholder, emptyHint }: Props) {
+export function LanguageSelect({ value, onChange, max, placeholder, emptyHint, exclude }: Props) {
   const { i18n } = useTranslation();
   const [query, setQuery] = React.useState("");
 
@@ -54,17 +63,47 @@ export function LanguageSelect({ value, onChange, max, placeholder, emptyHint }:
     }
   };
 
+  /**
+   * Arama bosken once muhtemel diller geliyor.
+   *
+   * Liste dillerin kendi adlarina gore siralandigi icin en ustte Abhazca
+   * duruyordu. Arayuzu Turkce olan birinin anadili neredeyse her zaman
+   * Turkce; onu bulmak icin 120 satirlik listeyi kaydirmak ya da arama
+   * yazmak gerekiyordu. En cok kullanilan adimda en cok secilen secenegi
+   * gizlemek, kaydirma pahasina hicbir sey kazandirmiyor.
+   *
+   * Cihazin dili ve dunyada en cok konusulan birkac dil uste aliniyor;
+   * geri kalan sira aynen korunuyor, yani arayan birini sasirtmiyor.
+   */
+  const pool = React.useMemo(
+    () => (exclude?.length ? LANGUAGES.filter((l) => !exclude.includes(l.code)) : LANGUAGES),
+    [exclude]
+  );
+
+  const suggested = React.useMemo(() => {
+    const device = (i18n.language || "en").split("-")[0];
+    const wanted = [device, "en", "es", "fr", "de", "ar"];
+    const seen = new Set<string>();
+    return wanted
+      .filter((c) => (seen.has(c) ? false : (seen.add(c), true)))
+      .map((c) => pool.find((l) => l.code === c))
+      .filter((l): l is (typeof LANGUAGES)[number] => !!l);
+  }, [i18n.language, pool]);
+
   const results = React.useMemo(() => {
     const q = fold(query.trim());
-    if (!q) return LANGUAGES;
-    return LANGUAGES.filter(
+    if (!q) {
+      const top = suggested.map((l) => l.code);
+      return [...suggested, ...pool.filter((l) => !top.includes(l.code))];
+    }
+    return pool.filter(
       (l) =>
         fold(l.tr).includes(q) ||
         fold(l.en).includes(q) ||
         fold(l.native).includes(q) ||
         l.code.startsWith(q)
     );
-  }, [query]);
+  }, [query, suggested, pool]);
 
   return (
     <View style={styles.root}>

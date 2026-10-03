@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, Alert, Modal, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -203,7 +203,26 @@ export default function ProfileSetupScreen() {
 
   // ---- Konum -----------------------------------------------------------
 
+  /**
+   * Konum izni, kayit akisinin SON adiminda isteniyor.
+   *
+   * Eskiden bu efekt `[]` ile, ekran monte olur olmaz calisiyordu: kullanici
+   * daha ilk soruyu ("Burada ne ariyorsun?") goremeden sistemin konum
+   * penceresiyle karsilasiyordu. Hicbir sey gostermeden, hicbir sey
+   * aciklamadan sorulan izin hem reddedilmeye mahkum hem de magaza
+   * incelemesinde sorgulanan bir desen.
+   *
+   * Konum zaten yalnizca gonderimde kullaniliyor (sehir/ulke/koordinat) ve
+   * zorunlu degil; son adima birakmak veriyi kaybettirmiyor ama izni
+   * kullanicinin akisi tamamlamaya karar verdigi ana tasiyor.
+   */
+  const [examAction, setExamAction] =
+    useState<{ label: string; busy: boolean; run: () => void } | null>(null);
+
+  const locationAsked = useRef(false);
   useEffect(() => {
+    if (!isLast || locationAsked.current) return;
+    locationAsked.current = true;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") return;
@@ -227,7 +246,7 @@ export default function ProfileSetupScreen() {
         console.error("Location error:", error);
       }
     })();
-  }, []);
+  }, [isLast]);
 
   // ---- Fotograf --------------------------------------------------------
 
@@ -354,6 +373,8 @@ export default function ProfileSetupScreen() {
           <LanguageSelect
             value={languagesNative}
             onChange={setLanguagesNative}
+            // Geri donup anadil degistirirken de ayni kural gecerli.
+            exclude={languagesPractice}
             placeholder={t("setup.q.search")}
             emptyHint={t("setup.step2.native_helper")}
           />
@@ -363,6 +384,8 @@ export default function ProfileSetupScreen() {
           <LanguageSelect
             value={languagesPractice}
             onChange={setLanguagesPractice}
+            // Anadilini ogrenmek isteyen bir profil anlamsiz.
+            exclude={languagesNative}
             placeholder={t("setup.q.search")}
             emptyHint={t("setup.step2.practice_helper")}
           />
@@ -370,6 +393,9 @@ export default function ProfileSetupScreen() {
       case "exam":
         return (
           <ExamStep
+            // Sinavin eylemi kabugun sabit alt cubugundan surulsun; kendi
+            // dugmesi klavyenin altinda kaliyordu.
+            onAction={setExamAction}
             language={languagesPractice[0]}
             onComplete={(outcome) => {
               setExamOutcome(outcome);
@@ -402,7 +428,18 @@ export default function ProfileSetupScreen() {
   // yoksa ic ice iki kaydirma alani olusuyor. Sinav da kendi dugmesini
   // ekranin altina yaslamak icin esnek yukseklik istiyor -- ScrollView
   // icinde flex:1 cocuga gecmiyor.
-  const selfScrolling = key === "native" || key === "learning" || key === "exam";
+  /**
+   * Kendi kaydirmasini yoneten adimlar.
+   *
+   * Sinav buradan CIKARILDI. Kabuk, kaydirmayan adimlari duz bir `View`
+   * icinde veriyor; klavye acilinca `KeyboardAvoidingView` alttan bosluk
+   * ekliyor ama sabit yukseklikli cocuklar daralmak yerine tasiyor ve
+   * sinavin gonder dugmesi klavyenin ALTINDA kaliyordu -- ustelik soru
+   * suresi islerken. Sinavin kaydirilacak bir listesi yok; kabugun
+   * ScrollView'u hem sorunu cozuyor hem de uzun sorularda sayfayi
+   * kaydirilabilir yapiyor.
+   */
+  const selfScrolling = key === "native" || key === "learning";
 
   return (
     <>
@@ -412,8 +449,8 @@ export default function ProfileSetupScreen() {
         helper={copy[key].helper}
         onBack={index > 0 ? back : undefined}
         onCancel={cancel}
-        ctaLabel={isLast ? t("common.complete") : t("common.continue")}
-        onCta={next}
+        ctaLabel={key === "exam" && examAction ? examAction.label : isLast ? t("common.complete") : t("common.continue")}
+        onCta={key === "exam" && examAction ? examAction.run : next}
         /*
           Dugme KAPALI DEGIL.
 
@@ -427,8 +464,8 @@ export default function ProfileSetupScreen() {
           Dugme her zaman basilabilir; gecersizse alan-ici hata cikiyor.
         */
         ctaDisabled={false}
-        ctaLoading={loading}
-        hideCta={key === "exam"}
+        ctaLoading={key === "exam" && examAction ? examAction.busy : loading}
+        hideCta={key === "exam" && !examAction}
         scroll={!selfScrolling}
       >
         {body()}

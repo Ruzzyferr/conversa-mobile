@@ -4,12 +4,14 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
   Platform,
-  Modal,
+  Pressable,
   TouchableOpacity,
 } from "react-native";
+// RN'in KeyboardAvoidingView'i Android'de edge-to-edge ile calismiyor;
+// bu paket kokte zaten saglaniyor (KeyboardProvider).
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "@/src/theme/colors";
@@ -18,6 +20,7 @@ import { typography } from "@/src/theme/typography";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { Card } from "@/src/components/Card";
 import { BrandTexture } from "@/src/components/brand/BrandTexture";
+import { FieldError } from "@/src/components/ui/FieldError";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 import { useTranslation } from "react-i18next";
@@ -38,8 +41,8 @@ export default function VerifyCodeScreen() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [inlineNotice, setInlineNotice] = useState<string | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // A React state update is asynchronous, but the keyboard fires one
@@ -111,9 +114,16 @@ export default function VerifyCodeScreen() {
     const fullCode = codeToVerify || code.join("");
 
     if (fullCode.length !== 6) {
-      Alert.alert(t("common.error"), t("otp.incomplete"));
+      // Modal yerine alanin altinda.
+      //
+      // Hatayi bir modala tasimak kullaniciyi once kapatmaya, sonra hangi
+      // kutunun bos oldugunu aramaya zorluyordu; react-native-web'de ise
+      // Alert sessizce hicbir sey yapmiyor. Kayit akisinin geri kalani
+      // zaten satir ici hata gosteriyor.
+      setInlineError(t("otp.incomplete"));
       return;
     }
+    setInlineError(null);
     // Auto-submit and a tap on "Doğrula" can both fire for the last digit.
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -141,8 +151,7 @@ export default function VerifyCodeScreen() {
         }
       }
 
-      setErrorMessage(message);
-      setShowErrorModal(true);
+      setInlineError(message);
       // Clear code on error
       applyCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -159,13 +168,12 @@ export default function VerifyCodeScreen() {
         mode === "email" ? identifier : undefined,
         mode === "phone" ? identifier : undefined
       );
-      Alert.alert(t("common.success"), t("otp.resent"));
+      setInlineNotice(t("otp.resent"));
+      setInlineError(null);
       applyCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : t("otp.resend_failed");
-      Alert.alert(t("common.error"), errorMessage);
+      setInlineError(error instanceof Error ? error.message : t("otp.resend_failed"));
     } finally {
       setResending(false);
     }
@@ -174,9 +182,29 @@ export default function VerifyCodeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BrandTexture />
+
+      {/*
+        Geri cikisi.
+
+        Adres yanlis yazildiginda donup duzeltmenin bir yolu yoktu: ekran
+        yalnizca kod bekliyordu, iOS'ta donanim geri tusu de olmadigi icin
+        kullanici burada kaliyordu. Tek cikis uygulamayi kapatmakti.
+      */}
+      <View style={styles.bar}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.back")}
+          style={styles.backHit}
+        >
+          <MaterialIcons name="arrow-back" size={24} color={colors.textSecondaryDark} />
+        </Pressable>
+      </View>
+
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
       >
         <View style={styles.content}>
           <Text style={styles.title}>{t("otp.title")}</Text>
@@ -215,6 +243,11 @@ export default function VerifyCodeScreen() {
               ))}
             </View>
 
+            <FieldError message={inlineError ?? undefined} />
+            {inlineNotice && !inlineError ? (
+              <Text style={styles.notice}>{inlineNotice}</Text>
+            ) : null}
+
             <PrimaryButton
               title={t("otp.cta")}
               onPress={() => handleVerify()}
@@ -237,36 +270,24 @@ export default function VerifyCodeScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Error Modal */}
-      <Modal
-        visible={showErrorModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowErrorModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{t('common.error')}</Text>
-            <Text style={styles.modalMessage}>
-              {errorMessage || t('otp.generic_error')}
-            </Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => {
-                setShowErrorModal(false);
-                setErrorMessage(null);
-              }}
-            >
-              <Text style={styles.modalButtonText}>{t('common.ok')}</Text>
-            </TouchableOpacity>
-          </Card>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  notice: {
+    marginTop: spacing.xs,
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    textAlign: "center",
+  },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  backHit: { width: 24, height: 24, justifyContent: "center" },
   container: {
     flex: 1,
     backgroundColor: colors.background,

@@ -103,6 +103,25 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessages
             onPress={onPress}
             style={styles.tabButton}
             activeOpacity={0.7}
+            /*
+             * Sekmelerin erisilebilirlik bilgisi yoktu.
+             *
+             * Android etiketi cocuk metinlerden kendisi uretiyordu ve rozet
+             * gorunumu bos oldugunda basa bir virgul koyuyordu: ekran okuyucu
+             * "virgul, Sohbet" diye okuyordu. Secili sekme de duyurulmuyordu.
+             *
+             * Rozetteki sayi da artik sesli okunuyor; gorsel olarak bilgi
+             * veren bir seyin yalnizca goze hitap etmesi icin sebep yok.
+             */
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isFocused }}
+            accessibilityLabel={
+              tab.name === "likes" && incomingRequestsCount > 0
+                ? `${tab.label}, ${t("a11y.pending_requests", { count: incomingRequestsCount })}`
+                : tab.name === "chat" && unreadMessagesCount > 0
+                  ? `${tab.label}, ${t("a11y.unread_messages", { count: unreadMessagesCount })}`
+                  : tab.label
+            }
           >
             <View style={styles.tabContent}>
               <View style={styles.iconContainer}>
@@ -263,11 +282,30 @@ export default function TabLayout() {
   // No-ops silently until Firebase credentials ship in the build.
   const router = useRouter();
   useEffect(() => {
-    registerPushToken();
+    /**
+     * Bildirim izni, kullanici uygulamanin ICINE girdikten SONRA isteniyor.
+     *
+     * Bu sekme duzeni kayit akisi sirasinda da bir an monte oluyor; cagri
+     * dogrudan yapildiginda izin diyalogu, kullanici daha ilk soruyu
+     * ("Burada ne ariyorsun?") bile goremeden onun ustune aciliyordu. Ustelik
+     * konum izni de ayni anda soruluyordu: uygulamayi acan biri, hicbir sey
+     * gormeden iki izin penceresiyle karsilasiyordu.
+     *
+     * Kisa bir gecikme, kurulum sirasindaki gecici montaji eliyor (ekran
+     * degisince efekt temizleniyor) ve kalan durumda kullanici zaten
+     * uygulamanin icinde oluyor.
+     */
+    const timer = setTimeout(() => { void registerPushToken(); }, 4000);
     const unsubscribe = addNotificationResponseListener((path) => {
       router.push(path as any);
     });
-    return unsubscribe;
+    return () => {
+      // Kurulum sirasindaki gecici montajda zamanlayici iptal olsun; aksi
+      // halde gecikme bir ise yaramaz ve diyalog yine kayit akisinin
+      // ustune acilirdi.
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   return (

@@ -79,7 +79,9 @@
       "refresh": "Refresh",
       "filtered_title": "Your filters look narrow",
       "filtered_text": "We couldn't find anyone matching these.\nTry loosening the filters a bit",
-      "reset_filters": "Reset filters"
+      "reset_filters": "Reset filters",
+      "first_title": "Nobody here yet",
+      "first_text": "The pool for your languages is still new. People will show up here as they join."
     },
     "match": {
       "title": "It's a match!",
@@ -619,7 +621,7 @@
     "new_matches": "New Matches",
     "messages_title": "Messages",
     "no_messages": "No messages yet",
-    "no_messages_desc": "Start discovering to meet new people!",
+    "no_messages_desc": "Start exploring to get a conversation going!",
     "discover": "Discover",
     "voice_message": "Voice Message",
     "photo_message": "Photo",
@@ -715,7 +717,9 @@
     "favorite": "Favorite",
     "open_profile": "Open profile",
     "next_photo": "Next photo",
-    "previous_photo": "Previous photo"
+    "previous_photo": "Previous photo",
+    "unread_messages": "{{count}} unread messages",
+    "pending_requests": "{{count}} pending requests"
   },
   "verify": {
     "header": "Profile Verification",
@@ -914,7 +918,10 @@
     "subtitle_email": "Enter your email to get started",
     "label_email": "Email",
     "placeholder_email": "your@email.com",
-    "continue": "Continue"
+    "continue": "Continue",
+    "invalid_email": "Enter a valid email address.",
+    "empty_email": "Enter your email address.",
+    "failed": "Could not sign you in. Please try again."
   },
   "otp": {
     "title": "Enter verification code",
@@ -977,8 +984,8 @@
     "AU": "Australia"
   },
   "push": {
-    "primer_title": "Don’t miss your matches",
-    "primer_body": "Get a heads-up when someone matches with you or sends a message. You can turn notifications off any time.",
+    "primer_title": "Don’t miss a message",
+    "primer_body": "Get a heads-up when someone writes to you or accepts your request. You can turn notifications off any time.",
     "primer_allow": "Turn on notifications",
     "primer_later": "Not now"
   },

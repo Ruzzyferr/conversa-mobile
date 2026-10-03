@@ -79,7 +79,9 @@
       "refresh": "Yenile",
       "filtered_title": "Filtreler çok dar görünüyor",
       "filtered_text": "Bu kriterlere uyan kimseyi göremedik.\nFiltreleri biraz gevşetmeyi dene",
-      "reset_filters": "Filtreleri sıfırla"
+      "reset_filters": "Filtreleri sıfırla",
+      "first_title": "Henüz kimse yok",
+      "first_text": "Dil eşleşmen için havuz daha yeni. Birileri katıldığında burada görünecek."
     },
     "match": {
       "title": "Eşleşme var!",
@@ -618,7 +620,7 @@
     "new_matches": "Yeni eşleşmeler",
     "messages_title": "Mesajlar",
     "no_messages": "Henüz mesaj yok",
-    "no_messages_desc": "Yeni insanlarla tanışmak için keşfetmeye başla!",
+    "no_messages_desc": "Konuşmaya başlamak için keşfetmeye başla!",
     "discover": "Keşfet",
     "voice_message": "Sesli mesaj",
     "photo_message": "Fotoğraf",
@@ -714,7 +716,9 @@
     "favorite": "Favori",
     "open_profile": "Profili aç",
     "next_photo": "Sonraki fotoğraf",
-    "previous_photo": "Önceki fotoğraf"
+    "previous_photo": "Önceki fotoğraf",
+    "unread_messages": "{{count}} okunmamış mesaj",
+    "pending_requests": "{{count}} bekleyen istek"
   },
   "verify": {
     "header": "Profil doğrulama",
@@ -913,7 +917,10 @@
     "subtitle_email": "Başlamak için e-posta adresini gir",
     "label_email": "E-posta",
     "placeholder_email": "ornek@eposta.com",
-    "continue": "Devam et"
+    "continue": "Devam et",
+    "invalid_email": "Geçerli bir e-posta adresi gir.",
+    "empty_email": "E-posta adresini gir.",
+    "failed": "Giriş yapılamadı. Lütfen tekrar dene."
   },
   "otp": {
     "title": "Doğrulama kodunu gir",
@@ -976,8 +983,8 @@
     "AU": "Avustralya"
   },
   "push": {
-    "primer_title": "Eşleşmelerini kaçırma",
-    "primer_body": "Biri seninle eşleştiğinde ya da mesaj gönderdiğinde haberin olsun. Bildirimleri istediğin an kapatabilirsin.",
+    "primer_title": "Mesajları kaçırma",
+    "primer_body": "Biri sana yazdığında ya da isteğini kabul ettiğinde haberin olsun. Bildirimleri istediğin an kapatabilirsin.",
     "primer_allow": "Bildirimleri aç",
     "primer_later": "Şimdi değil"
   },

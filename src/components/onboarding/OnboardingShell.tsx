@@ -5,10 +5,23 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from "react-native";
+/**
+ * Klavye kacirma React Native'in kendi bileseniyle degil, keyboard-controller
+ * ile yapiliyor.
+ *
+ * RN'in `KeyboardAvoidingView`'i Android'de `behavior` verilmedigi icin
+ * hicbir sey yapmiyordu; manifestteki `adjustResize` de edge-to-edge acikken
+ * (android.edgeToEdgeEnabled) isletim sistemi tarafindan yok sayiliyor.
+ * Sonuc: adini yazan kullanici "Devam et"i goremiyordu -- dugme klavyenin
+ * ALTINDA kaliyor, arada da bos bir alan birakiyordu. Kayit akisinin ana
+ * yolunda cikissiz bir ekran demek.
+ *
+ * Bu paket zaten bagimlilikta ve `KeyboardProvider` kokte sariyor; eksik olan
+ * yalnizca dogru bileseni kullanmakti.
+ */
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -116,10 +129,7 @@ export function OnboardingShell({
         ) : null}
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         {scroll ? (
           <ScrollView
             style={styles.flex}

@@ -7,11 +7,13 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
   Image,
   Modal,
 } from "react-native";
+// RN'in KeyboardAvoidingView'i Android'de edge-to-edge ile calismiyor;
+// bu paket kokte zaten saglaniyor (KeyboardProvider).
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -314,7 +316,7 @@ export default function ProfileEditScreen() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         keyboardVerticalOffset={0}
       >
         <ScrollView

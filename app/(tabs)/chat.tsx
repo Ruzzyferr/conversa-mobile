@@ -11,9 +11,11 @@ import {
   TextInput,
   Modal,
   Alert,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
+// RN'in KeyboardAvoidingView'i Android'de edge-to-edge ile calismiyor;
+// bu paket kokte zaten saglaniyor (KeyboardProvider).
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { OptimizedImage } from "@/src/components/ui/OptimizedImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -593,7 +595,7 @@ export default function ChatScreen() {
         >
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior="padding"
           >
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>{t('chat.reply')}</Text>
