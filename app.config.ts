@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     ios: {
         bundleIdentifier: "com.conversa.app",
-        buildNumber: "15",
+        buildNumber: "16",
         supportsTablet: true,
         // Matches the APPLE_ID_AUTH capability enabled on the App ID; without
         // this entitlement the Apple button fails at runtime.
