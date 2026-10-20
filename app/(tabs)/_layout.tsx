@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Dimensions, TouchableOpacity, LayoutChangeEvent, Modal, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,29 +30,22 @@ let moderationWarningShownThisSession = false;
 // Custom Tab Bar with sliding indicator
 function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessagesCount, bottomMargin, isTablet }: any) {
   const { t } = useTranslation();
-  const [tabWidth, setTabWidth] = useState(0);
-
-  // Animated indicator position
+  // Gosterge, kabin genisligini olcmek yerine YUZDE ile konumlanir.
+  // Olcum yolu webde kenarlik/kutu modeli yuzunden tum pencere genisligini
+  // dondurebiliyordu: o zaman sekmelerden daha genis bir hap cikiyor ve
+  // son sekmede cubugun disina tasiyordu.
   const indicatorPosition = useSharedValue(0);
 
   useEffect(() => {
-    if (tabWidth > 0) {
-      indicatorPosition.value = withSpring(state.index * tabWidth, {
-        damping: 20,
-        stiffness: 200,
-      });
-    }
-  }, [state.index, tabWidth]);
+    indicatorPosition.value = withSpring(state.index / TAB_COUNT, {
+      damping: 20,
+      stiffness: 200,
+    });
+  }, [state.index]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorPosition.value }],
-    width: tabWidth,
+    left: `${indicatorPosition.value * 100}%`,
   }));
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout;
-    setTabWidth(width / TAB_COUNT);
-  };
 
   const tabs = [
     { name: 'home', icon: 'home', outlineIcon: 'home-outline', label: t('tabs.home') },
@@ -67,9 +60,9 @@ function CustomTabBar({ state, navigation, incomingRequestsCount, unreadMessages
     : [styles.tabBarContainer, { bottom: bottomMargin }];
 
   return (
-    <View style={tabBarStyle} onLayout={handleLayout}>
+    <View style={tabBarStyle}>
       {/* Sliding Indicator */}
-      {tabWidth > 0 && (
+      {(
         <Animated.View style={[styles.indicatorWrapper, indicatorStyle]}>
           <LinearGradient
             colors={[colors.primary, colors.primaryLight]}
@@ -404,6 +397,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 0,
+    width: `${100 / TAB_COUNT}%`,
     height: 48,
     paddingHorizontal: 8,
   },

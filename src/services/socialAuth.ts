@@ -156,6 +156,23 @@ export async function signInWithApple(): Promise<SocialResult> {
   }
 }
 
+/**
+ * A short, shippable code for a failed sign-in.
+ *
+ * The welcome screen turned every non-cancellation into one generic sentence,
+ * which is exactly what the App Review screenshot showed: no way to tell a
+ * missing native module from a rejected token from a dead network. One short
+ * parenthetical makes a tester's screenshot enough to name the failure.
+ */
+export function socialErrorCode(error: unknown): string {
+  const anyError = error as any;
+  const raw =
+    anyError?.code ??
+    anyError?.message ??
+    (typeof error === "string" ? error : "unknown");
+  return String(raw).replace(/\s+/g, " ").trim().slice(0, 48) || "unknown";
+}
+
 /** Clear the native Google session so the next sign-in shows the picker. */
 export async function signOutSocial(): Promise<void> {
   try {

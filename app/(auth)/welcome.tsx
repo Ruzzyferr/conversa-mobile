@@ -25,6 +25,7 @@ import {
   isGoogleAvailable,
   signInWithGoogle,
   signInWithApple,
+  socialErrorCode,
   SocialCancelled,
 } from "@/src/services/socialAuth";
 
@@ -92,7 +93,7 @@ export default function WelcomeScreen() {
     } catch (e) {
       // A user backing out of the provider sheet is not an error worth showing.
       if (!(e instanceof SocialCancelled)) {
-        setError(t("welcome.social_failed"));
+        setError(`${t("welcome.social_failed")} (${socialErrorCode(e)})`);
       }
     } finally {
       setBusy(null);

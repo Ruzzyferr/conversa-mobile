@@ -38,80 +38,45 @@ export default function VerifyCodeScreen() {
   const identifier = params.identifier || "";
   const userId = params.userId || "";
 
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  // TEK girdi, alti KUTU.
+  //
+  // Eskiden alti ayri TextInput vardi ve her tusa basista odak bir sonraki
+  // kutuya tasiniyordu. Odak degisimi native tarafta asenkron: hizli yazan
+  // biri siradaki rakami odak tasinmadan once basiyor, rakam eski kutuya
+  // dusuyor ve uzerine yaziliyordu -- 252999 yazip 229999 almanin sebebi
+  // tam olarak buydu. Stale state icin konan codeRef bu yarisi cozmuyor,
+  // cunku sorun React'in state'i degil isletim sisteminin odagi.
+  //
+  // Gorunmez tek bir girdi bu yarisi tamamen ortadan kaldiriyor: hicbir
+  // odak tasimasi yok, yapistirma ve SMS otomatik doldurma dogal calisiyor,
+  // geri silme de oyle.
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [inlineNotice, setInlineNotice] = useState<string | null>(null);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
-
-  // A React state update is asynchronous, but the keyboard fires one
-  // onChangeText per keystroke without waiting for a re-render. Reading `code`
-  // from the render closure therefore copied a *stale* array on fast input and
-  // dropped digits — typing 534322 landed as 53322. The ref always holds the
-  // newest value, so every handler builds on what actually got typed.
-  const codeRef = useRef<string[]>(["", "", "", "", "", ""]);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput | null>(null);
   const submittingRef = useRef(false);
 
-  const applyCode = (next: string[]) => {
-    codeRef.current = next;
-    setCode(next);
-  };
-
   useEffect(() => {
-    // Focus first input on mount
-    inputRefs.current[0]?.focus();
+    // Ekran acilir acilmaz klavye gelsin.
+    const t = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(t);
   }, []);
 
-  const handleCodeChange = (value: string, index: number) => {
-    const digits = value.replace(/[^0-9]/g, "");
-    const next = [...codeRef.current];
-
-    if (digits.length === 0) {
-      // Deletion inside a filled box.
-      next[index] = "";
-      applyCode(next);
-      return;
-    }
-
-    // A pasted or auto-filled code arrives in a single box as one string.
-    // The old handler bailed out on anything longer than one character, so
-    // pasting the e-mailed code did nothing at all. Spread it across the
-    // boxes instead, starting where the paste landed.
-    let cursor = index;
-    for (const d of digits) {
-      if (cursor > 5) break;
-      next[cursor] = d;
-      cursor += 1;
-    }
-    applyCode(next);
-
-    const focusAt = Math.min(cursor, 5);
-    inputRefs.current[focusAt]?.focus();
-
-    // Submit as soon as all six are present, no matter which box completed
-    // them — a paste fills the last box without ever "typing" into it.
-    const fullCode = next.join("");
-    if (fullCode.length === 6 && !next.includes("")) {
-      handleVerify(fullCode);
-    }
-  };
-
-  const handleKeyPress = (key: string, index: number) => {
-    if (key !== "Backspace") return;
-    // Backspace on an empty box steps back AND clears the previous digit;
-    // stepping back without clearing left the code un-editable, because the
-    // box you land on is already full and maxLength blocks re-typing.
-    if (!codeRef.current[index] && index > 0) {
-      const next = [...codeRef.current];
-      next[index - 1] = "";
-      applyCode(next);
-      inputRefs.current[index - 1]?.focus();
+  const handleCodeChange = (value: string) => {
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 6);
+    setCode(digits);
+    if (digits.length === 6) {
+      // Son rakam girilince kendiliginden gonder; "Dogrula" dugmesi de
+      // ayni isi yapiyor, submittingRef ikisinin birden gitmesini onluyor.
+      handleVerify(digits);
     }
   };
 
   const handleVerify = async (codeToVerify?: string) => {
-    const fullCode = codeToVerify || code.join("");
+    const fullCode = codeToVerify ?? code;
 
     if (fullCode.length !== 6) {
       // Modal yerine alanin altinda.
@@ -152,9 +117,11 @@ export default function VerifyCodeScreen() {
       }
 
       setInlineError(message);
-      // Clear code on error
-      applyCode(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
+      // Hatada kutulari temizle ve klavyeyi ACIK birak: eskiden odak
+      // kayboluyordu ve kullanici tekrar denemek icin once bir kutuya
+      // dokunmak zorunda kaliyordu.
+      setCode("");
+      inputRef.current?.focus();
     } finally {
       submittingRef.current = false;
       setLoading(false);
@@ -170,8 +137,8 @@ export default function VerifyCodeScreen() {
       );
       setInlineNotice(t("otp.resent"));
       setInlineError(null);
-      applyCode(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
+      setCode("");
+      inputRef.current?.focus();
     } catch (error: unknown) {
       setInlineError(error instanceof Error ? error.message : t("otp.resend_failed"));
     } finally {
@@ -214,34 +181,54 @@ export default function VerifyCodeScreen() {
           </Text>
 
           <Card style={styles.card}>
-            <View style={styles.codeContainer}>
-              {code.map((digit, index) => (
-                <TextInput
-                  key={index}
-                  ref={(ref) => {
-                    inputRefs.current[index] = ref;
-                  }}
-                  style={styles.codeInput}
-                  value={digit}
-                  onChangeText={(value) => handleCodeChange(value, index)}
-                  onKeyPress={({ nativeEvent }) =>
-                    handleKeyPress(nativeEvent.key, index)
-                  }
-                  keyboardType="number-pad"
-                  // maxLength must exceed 1 or the platform truncates a pasted
-                  // / auto-filled code to its first character before the
-                  // handler ever sees it. handleCodeChange spreads the extra
-                  // digits across the remaining boxes and keeps each at one.
-                  maxLength={6}
-                  selectTextOnFocus
-                  autoComplete={index === 0 ? "sms-otp" : "off"}
-                  textContentType={index === 0 ? "oneTimeCode" : "none"}
-                  importantForAutofill={index === 0 ? "yes" : "no"}
-                  accessibilityLabel={t("otp.digit_label", { n: index + 1 })}
-                  editable={!loading}
-                />
-              ))}
-            </View>
+            <Pressable
+              style={styles.codeContainer}
+              onPress={() => inputRef.current?.focus()}
+              accessibilityRole="button"
+              accessibilityLabel={t("otp.title")}
+            >
+              {[0, 1, 2, 3, 4, 5].map((index) => {
+                const filled = index < code.length;
+                const active = focused && index === Math.min(code.length, 5);
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.codeBox,
+                      filled && styles.codeBoxFilled,
+                      active && styles.codeBoxActive,
+                    ]}
+                  >
+                    <Text style={styles.codeDigit}>{code[index] ?? ""}</Text>
+                  </View>
+                );
+              })}
+
+              {/*
+                Gercek girdi: ekranda yok ama kutularin ustunde duruyor ki
+                dokunma onu odaklasin. `opacity: 0` yerine saydam metin ve
+                gizli imlec kullaniliyor; bazi Android surumlerinde tamamen
+                saydam bir girdi otomatik doldurmayi atliyor.
+              */}
+              <TextInput
+                ref={inputRef}
+                value={code}
+                onChangeText={handleCodeChange}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                style={styles.hiddenInput}
+                keyboardType="number-pad"
+                inputMode="numeric"
+                maxLength={6}
+                caretHidden
+                autoComplete="sms-otp"
+                textContentType="oneTimeCode"
+                importantForAutofill="yes"
+                editable={!loading}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
+            </Pressable>
 
             <FieldError message={inlineError ?? undefined} />
             {inlineNotice && !inlineError ? (
@@ -252,7 +239,7 @@ export default function VerifyCodeScreen() {
               title={t("otp.cta")}
               onPress={() => handleVerify()}
               loading={loading}
-              disabled={code.join("").length !== 6}
+              disabled={code.length !== 6}
               style={styles.button}
             />
 
@@ -327,7 +314,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     gap: spacing.sm,
   },
-  codeInput: {
+  codeBox: {
     flex: 1,
     // `flex: 1` tek basina yetmiyor: bir metin girdisinin ic genisligi
     // (tarayicida ~150px, native'de daha az) kucultmeyi engelliyor ve alti
@@ -337,14 +324,31 @@ const styles = StyleSheet.create({
     width: 0,
     backgroundColor: colors.backgroundSecondaryDark,
     borderRadius: 12,
-    padding: spacing.sm,
+    borderWidth: 2,
+    borderColor: colors.borderDark,
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  codeBoxFilled: {
+    borderColor: colors.primary,
+  },
+  codeBoxActive: {
+    borderColor: colors.primaryLight,
+  },
+  codeDigit: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.textDark,
-    borderWidth: 2,
-    borderColor: colors.borderDark,
     textAlign: "center",
-    minHeight: 50,
+  },
+  hiddenInput: {
+    ...StyleSheet.absoluteFillObject,
+    // Gorunmez ama dokunulabilir: metin ve imlec saydam, arka plan yok.
+    color: "transparent",
+    backgroundColor: "transparent",
+    fontSize: typography.fontSize.xl,
+    textAlign: "center",
   },
   button: {
     marginTop: spacing.sm,
