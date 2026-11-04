@@ -1065,6 +1065,8 @@
     "not_sent_title": "Mesaj gönderilmedi",
     "content_rejected": "Bu metin Conversa'da izin verilmeyen kelimeler veya içerik barındırıyor. Lütfen değiştirip tekrar dene.",
     "image_rejected": "Bu fotoğraf topluluk kurallarımıza uymadığı için kullanılamıyor. Lütfen başka bir fotoğraf seç.",
-    "age_locked": "Doğum yılın profil oluşturulduktan sonra değiştirilemez. Yanlışsa destekle iletişime geç."
+    "age_locked": "Doğum yılın profil oluşturulduktan sonra değiştirilemez. Yanlışsa destekle iletişime geç.",
+    "birth_year_required": "Profilini tamamlamak için doğum yılını ekle.",
+    "image_check_unavailable": "Bu fotoğrafı şu an kontrol edemedik. Lütfen birazdan tekrar dene."
   }
 }

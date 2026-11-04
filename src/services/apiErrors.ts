@@ -1,17 +1,25 @@
 /**
  * Backend error codes the UI turns into friendly, localized messages.
  *
- * The backend answers HTTP 422 with:
- *   { error: "CONTENT_REJECTED" } - message, display name or bio not allowed
- *   { error: "IMAGE_REJECTED" }   - uploaded profile/chat photo not allowed
- *   { error: "AGE_LOCKED" }       - birth year can no longer be changed
- * Older endpoints use { error: { code, message } }; both shapes are read.
+ * The backend answers { error: { code, message, requestId } } with:
+ *   422 CONTENT_REJECTED             - message, display name or bio not allowed
+ *   422 IMAGE_REJECTED               - uploaded profile/chat photo not allowed
+ *   422 AGE_LOCKED                   - birth year can no longer be changed
+ *   422 BIRTH_YEAR_REQUIRED          - first profile save without a birth year
+ *   503 IMAGE_MODERATION_UNAVAILABLE - photo check down; user can retry
+ * A flat { error: "CODE" } shape is also read.
  */
 
 import { AxiosError } from "axios";
 import i18n from "@/src/i18n";
 
-export const API_ERROR_CODES = ["CONTENT_REJECTED", "IMAGE_REJECTED", "AGE_LOCKED"] as const;
+export const API_ERROR_CODES = [
+  "CONTENT_REJECTED",
+  "IMAGE_REJECTED",
+  "AGE_LOCKED",
+  "BIRTH_YEAR_REQUIRED",
+  "IMAGE_MODERATION_UNAVAILABLE",
+] as const;
 export type KnownApiErrorCode = (typeof API_ERROR_CODES)[number];
 
 /** Thrown by the fetch-based upload helpers so callers can read the code. */
@@ -56,6 +64,8 @@ const MESSAGE_KEYS: Record<KnownApiErrorCode, string> = {
   CONTENT_REJECTED: "errors.content_rejected",
   IMAGE_REJECTED: "errors.image_rejected",
   AGE_LOCKED: "errors.age_locked",
+  BIRTH_YEAR_REQUIRED: "errors.birth_year_required",
+  IMAGE_MODERATION_UNAVAILABLE: "errors.image_check_unavailable",
 };
 
 /**

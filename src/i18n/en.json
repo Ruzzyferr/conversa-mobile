@@ -1066,6 +1066,8 @@
     "not_sent_title": "Message not sent",
     "content_rejected": "This contains words or content that aren't allowed on Conversa. Please change it and try again.",
     "image_rejected": "This photo can't be used because it doesn't meet our community guidelines. Please choose a different photo.",
-    "age_locked": "Your birth year can't be changed after your profile is created. Contact support if it's wrong."
+    "age_locked": "Your birth year can't be changed after your profile is created. Contact support if it's wrong.",
+    "birth_year_required": "Please add your birth year to finish your profile.",
+    "image_check_unavailable": "We couldn't check this photo right now. Please try again in a moment."
   }
 }
