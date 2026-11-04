@@ -326,7 +326,7 @@ export default function ProfileScreen() {
           {/* Name and Location */}
           <View style={styles.nameRow}>
             <Text style={styles.displayName}>
-              {profile?.displayName || "Profil"}
+              {profile?.displayName || t('tabs.profile')}
               {age && <Text style={styles.age}>, {age}</Text>}
             </Text>
             {(userInfo?.user as any)?.isVerified && (

@@ -139,7 +139,9 @@
       "success_msg": "Message request sent",
       "purchase_success": "5 Favorites added!",
       "purchase_error": "Purchase failed.",
-      "default_pack_name": "Favorite pack"
+      "default_pack_name": "Favorite pack",
+      "config_error_title": "Configuration Error",
+      "config_error_msg": "Favorite package not found. Please check App configuration."
     },
     "dm_limit": {
       "title": "Limit Reached",
@@ -612,7 +614,9 @@
     "looking_for": "Looking for",
     "profile_failed": "Could not load profile",
     "locked_banner_title": "{{count}} people liked you",
-    "days": "d"
+    "days": "d",
+    "user_fallback": "User",
+    "other_person": "the other person"
   },
   "chat": {
     "header": "Chat",
@@ -663,7 +667,13 @@
     },
     "new_thread_title": "You matched with {{name}}",
     "new_thread_body": "Break the ice. The easiest opener is something from their languages or one of their interests.",
-    "first_message_hint": "The first message must be at least 20 characters. Make it count!"
+    "first_message_hint": "The first message must be at least 20 characters. Make it count!",
+    "msg_limit_msg": "You've reached your daily message limit. Go Premium to send unlimited messages.",
+    "first_message_too_short_title": "First Message Too Short",
+    "first_message_too_short_msg": "Your first message must be at least 20 characters. Write something more meaningful or try fixing it with AI!",
+    "fix_with_ai": "Fix with AI",
+    "first_message_rule_title": "First Message Rule",
+    "first_message_rule_msg": "In this match, the woman sends the first message. Please wait for the other person to write first."
   },
   "safety": {
     "block": "Block",
@@ -908,7 +918,9 @@
     "bio_label": "About you",
     "update_location": "Update location",
     "practice_helper": "Choose the languages you want to practise",
-    "saved": "Profile updated"
+    "saved": "Profile updated",
+    "location": "Location",
+    "pick_photo_subtitle": "Where would you like to choose a photo from?"
   },
   "conversation": {
     "leave_title": "Leave Conversation",
@@ -916,12 +928,29 @@
     "ai_limit_title": "AI Limit Reached",
     "safety_title": "Safety Options",
     "waiting_title": "It's a match",
-    "waiting_body": "{{name}} will send the first message. Hang tight."
+    "waiting_body": "{{name}} will send the first message. Hang tight.",
+    "profile_load_error": "Couldn't load profile",
+    "rate_limit_title": "Too Many Requests",
+    "rate_limit_msg": "Please wait a few seconds and try again.",
+    "limit_title": "Limit Reached",
+    "ai_limit_msg": "You've reached your daily AI usage limit.",
+    "polish_error": "AI polish failed",
+    "go_premium": "Go Premium",
+    "leave_confirm_msg": "Are you sure you want to leave this conversation? It will be deleted for both you and {{name}}.",
+    "leave_action": "Leave",
+    "left_msg": "You left the conversation.",
+    "leave_error": "Couldn't leave the conversation",
+    "tone_neutral": "Neutral",
+    "tone_friendly": "Friendly",
+    "tone_playful": "Playful",
+    "ai_usage_today": "Used today: {{used}} / {{limit}}",
+    "ai_limit_premium_msg": "Go Premium for unlimited AI polish!"
   },
   "voice": {
     "permission_title": "Microphone Access Needed",
     "open_settings": "Open Settings",
-    "slide_to_cancel": "Slide to cancel"
+    "slide_to_cancel": "Slide to cancel",
+    "permission_msg": "We need microphone access to send voice messages. Please allow it in Settings."
   },
   "auth": {
     "title_email": "Continue with Email",

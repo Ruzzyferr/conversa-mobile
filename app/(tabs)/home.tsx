@@ -745,7 +745,7 @@ export default function HomeScreen() {
       } else {
         // Configuration Error - Do NOT give for free
         console.warn("No favorite package (conversa_favorite_5pack) found in RevenueCat offerings.");
-        Alert.alert("Configuration Error", "Favorite package not found. Please check App configuration.");
+        Alert.alert(t('home.favorite.config_error_title'), t('home.favorite.config_error_msg'));
       }
 
     } catch (error: any) {

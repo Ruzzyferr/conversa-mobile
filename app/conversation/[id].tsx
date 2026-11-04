@@ -356,10 +356,10 @@ export default function ConversationScreen() {
         console.error("Axios error:", error.response?.data);
       }
       const errorMessage =
-        error instanceof Error ? error.message : "Profil yüklenemedi";
-      Alert.alert("Hata", errorMessage, [
+        error instanceof Error ? error.message : t('conversation.profile_load_error');
+      Alert.alert(t('common.error'), errorMessage, [
         {
-          text: "Tamam",
+          text: t('common.ok'),
           onPress: () => {
             setShowProfileModal(false);
             setProfileData(null);
@@ -470,9 +470,9 @@ export default function ConversationScreen() {
       // Handle rate limit - show error but don't break UI
       if (error?.response?.status === 429) {
         Alert.alert(
-          "Çok Fazla İstek",
-          "Lütfen birkaç saniye bekleyip tekrar deneyin.",
-          [{ text: "Tamam", onPress: () => router.back() }]
+          t('conversation.rate_limit_title'),
+          t('conversation.rate_limit_msg'),
+          [{ text: t('common.ok'), onPress: () => router.back() }]
         );
       }
       // Always set loading to false on error
@@ -575,12 +575,12 @@ export default function ConversationScreen() {
           setUsageInfo(errorData.details?.usage || null);
           setShowPremiumModal(true);
         } else {
-          Alert.alert("Limit Aşıldı", "Günlük AI kullanım limitine ulaştın.");
+          Alert.alert(t('conversation.limit_title'), t('conversation.ai_limit_msg'));
         }
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : "AI polish failed";
-        Alert.alert("Hata", errorMessage);
+          error instanceof Error ? error.message : t('conversation.polish_error');
+        Alert.alert(t('common.error'), errorMessage);
       }
     } finally {
       setPolishing(false);
@@ -601,12 +601,12 @@ export default function ConversationScreen() {
           setUsageInfo(errorData.details?.usage || null);
           setShowPremiumModal(true);
         } else {
-          Alert.alert("Limit Aşıldı", "Günlük AI kullanım limitine ulaştın.");
+          Alert.alert(t('conversation.limit_title'), t('conversation.ai_limit_msg'));
         }
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : "AI polish failed";
-        Alert.alert("Hata", errorMessage);
+          error instanceof Error ? error.message : t('conversation.polish_error');
+        Alert.alert(t('common.error'), errorMessage);
       }
     } finally {
       setPolishing(false);
@@ -738,28 +738,28 @@ export default function ConversationScreen() {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;
         const code = errorData?.code;
-        const message = errorData?.message || "Failed to send message";
+        const message = errorData?.message || t('chat.send_error');
 
         if (code === "MSG_LIMIT_REACHED") {
           Alert.alert(
-            "Limit Aşıldı",
-            "Günlük mesaj limitine ulaştın. Premium'a geçerek sınırsız mesaj gönderebilirsin.",
+            t('conversation.limit_title'),
+            t('chat.msg_limit_msg'),
             [
-              { text: "Tamam", style: "cancel" },
+              { text: t('common.ok'), style: "cancel" },
               {
-                text: "Premium'a Geç",
+                text: t('conversation.go_premium'),
                 onPress: () => router.push("/premium"),
               },
             ]
           );
         } else if (code === "FIRST_MESSAGE_TOO_SHORT") {
           Alert.alert(
-            "İlk Mesaj Çok Kısa",
-            "İlk mesajın en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz veya AI ile düzeltmeyi dene!",
+            t('chat.first_message_too_short_title'),
+            t('chat.first_message_too_short_msg'),
             [
-              { text: "Tamam" },
+              { text: t('common.ok') },
               {
-                text: "AI ile Düzelt",
+                text: t('chat.fix_with_ai'),
                 onPress: () => {
                   setMessageText(text);
                   handlePolish();
@@ -770,19 +770,19 @@ export default function ConversationScreen() {
           setMessageText(text); // Restore text
         } else if (code === "FIRST_MESSAGE_RESTRICTED" || code === "MALE_CANNOT_SEND_FIRST_MESSAGE" || message.toLowerCase().includes("kadın") || message.toLowerCase().includes("first message")) {
           Alert.alert(
-            "İlk Mesaj Kuralı",
-            "Bu eşleşmede ilk mesajı kadın tarafı göndermelidir. Lütfen karşı tarafın ilk mesajı göndermesini bekleyin.",
-            [{ text: "Tamam" }]
+            t('chat.first_message_rule_title'),
+            t('chat.first_message_rule_msg'),
+            [{ text: t('common.ok') }]
           );
           setMessageText(text); // Restore text
         } else {
-          Alert.alert("Hata", message);
+          Alert.alert(t('common.error'), message);
           setMessageText(text); // Restore text on error
         }
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to send message";
-        Alert.alert("Hata", errorMessage);
+          error instanceof Error ? error.message : t('chat.send_error');
+        Alert.alert(t('common.error'), errorMessage);
         setMessageText(text);
       }
     } finally {
@@ -844,24 +844,24 @@ export default function ConversationScreen() {
     if (!otherUser) return;
 
     Alert.alert(
-      "Konuşmadan Ayrıl",
-      `Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de ${otherUser.displayName}'den silecektir.`,
+      t('conversation.leave_title'),
+      t('conversation.leave_confirm_msg', { name: otherUser.displayName }),
       [
-        { text: "İptal", style: "cancel" },
+        { text: t('common.cancel'), style: "cancel" },
         {
-          text: "Ayrıl",
+          text: t('conversation.leave_action'),
           style: "destructive",
           onPress: async () => {
             try {
               await api.deleteConversation(conversationId);
-              Alert.alert("Başarılı", "Konuşmadan ayrıldınız.");
+              Alert.alert(t('common.success'), t('conversation.left_msg'));
               router.replace("/(tabs)/chat");
             } catch (error) {
               const errorMessage =
                 error instanceof AxiosError && error.response?.data?.error?.message
                   ? error.response.data.error.message
-                  : "Konuşmadan ayrılma başarısız oldu";
-              Alert.alert("Hata", errorMessage);
+                  : t('conversation.leave_error');
+              Alert.alert(t('common.error'), errorMessage);
             }
           },
         },
@@ -882,12 +882,12 @@ export default function ConversationScreen() {
           <Text style={styles.modalTitle}>{t('conversation.leave_title')}</Text>
           {otherUser && (
             <Text style={styles.modalText}>
-              Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {otherUser.displayName}'den silecektir.
+              {t('conversation.leave_confirm_msg', { name: otherUser.displayName })}
             </Text>
           )}
           <View style={styles.modalActions}>
             <PrimaryButton
-              title="Konuşmadan Ayrıl"
+              title={t('conversation.leave_title')}
               onPress={() => {
                 setShowLeaveConversationModal(false);
                 handleLeaveConversation();
@@ -1030,7 +1030,7 @@ export default function ConversationScreen() {
             >
               <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.waitingScreenHeaderTitle}>Sohbet</Text>
+            <Text style={styles.waitingScreenHeaderTitle}>{t('chat.header')}</Text>
             <TouchableOpacity
               onPress={() => setShowLeaveConversationModal(true)}
               style={styles.backButton}
@@ -1249,9 +1249,9 @@ export default function ConversationScreen() {
                         },
                       ]}
                     >
-                      {(["neutral", "friendly", "playful"] as Tone[]).map((t, index) => (
+                      {(["neutral", "friendly", "playful"] as Tone[]).map((toneOption, index) => (
                         <Animated.View
-                          key={t}
+                          key={toneOption}
                           style={{
                             opacity: toneButtonAnims[index],
                             transform: [
@@ -1271,17 +1271,17 @@ export default function ConversationScreen() {
                           }}
                         >
                           <TouchableOpacity
-                            style={[styles.toneButton, tone === t && styles.toneButtonActive]}
-                            onPress={() => handleToneSelect(t)}
+                            style={[styles.toneButton, tone === toneOption && styles.toneButtonActive]}
+                            onPress={() => handleToneSelect(toneOption)}
                             disabled={polishing}
                           >
                             <Text
                               style={[
                                 styles.toneButtonText,
-                                tone === t && styles.toneButtonTextActive,
+                                tone === toneOption && styles.toneButtonTextActive,
                               ]}
                             >
-                              {t === "neutral" ? "Nötr" : t === "friendly" ? "Samimi" : "Neşeli"}
+                              {t(`conversation.tone_${toneOption}`)}
                             </Text>
                           </TouchableOpacity>
                         </Animated.View>
@@ -1399,16 +1399,16 @@ export default function ConversationScreen() {
             {usageInfo && (
               <View style={styles.usageInfo}>
                 <Text style={styles.usageText}>
-                  Bugün kullandın: {usageInfo.aiCount} / {usageInfo.aiLimit}
+                  {t('conversation.ai_usage_today', { used: usageInfo.aiCount, limit: usageInfo.aiLimit })}
                 </Text>
               </View>
             )}
             <Text style={styles.modalText}>
-              Premium'a geçerek sınırsız AI polish kullanabilirsin!
+              {t('conversation.ai_limit_premium_msg')}
             </Text>
             <View style={styles.modalActions}>
               <PrimaryButton
-                title="Premium'a Geç"
+                title={t('conversation.go_premium')}
                 onPress={() => {
                   setShowPremiumModal(false);
                   router.push("/premium");
@@ -1419,7 +1419,7 @@ export default function ConversationScreen() {
                 onPress={() => setShowPremiumModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>Kapat</Text>
+                <Text style={styles.modalCloseText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </Card>
@@ -1446,7 +1446,7 @@ export default function ConversationScreen() {
             <Text style={styles.modalTitle}>{t('conversation.safety_title')}</Text>
             <View style={styles.modalActions}>
               <PrimaryButton
-                title="Engelle"
+                title={t('safety.block')}
                 onPress={() => {
                   console.log("Block button pressed");
                   setShowSafetyModal(false);

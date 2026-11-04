@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
@@ -27,9 +28,10 @@ export function StatusModal({
     type,
     title,
     message,
-    buttonText = "Tamam",
+    buttonText,
     onClose,
 }: StatusModalProps) {
+    const { t } = useTranslation();
     // Emoji (🎉 ❌ ℹ️) yerine vektor ikon: platform emoji fontu cihazdan
     // cihaza degisiyor ve koyu zeminde renkli bir yama gibi duruyordu.
     const getIcon = (): { name: React.ComponentProps<typeof MaterialIcons>["name"]; color: string } => {
@@ -72,7 +74,7 @@ export function StatusModal({
                     <Text style={styles.message}>{message}</Text>
 
                     <PrimaryButton
-                        title={buttonText}
+                        title={buttonText ?? t("common.ok")}
                         onPress={onClose}
                         style={styles.button}
                     />

@@ -79,7 +79,7 @@ export default function ProfileEditScreen() {
         setLocation({ lat: 0, lng: 0, city: profile.city, country: profile.country || undefined });
       }
     } catch (error) {
-      Alert.alert("Hata", "Profil yüklenemedi");
+      Alert.alert(t('common.error'), t('profile.load_error'));
       router.back();
     } finally {
       setLoadingProfile(false);
@@ -90,8 +90,8 @@ export default function ProfileEditScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "İzin Gerekli",
-        "Fotoğraf seçmek için galeri erişim izni gereklidir."
+        t('setup.alerts.permission_required'),
+        t('setup.alerts.gallery_permission')
       );
       return false;
     }
@@ -102,8 +102,8 @@ export default function ProfileEditScreen() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "İzin Gerekli",
-        "Fotoğraf çekmek için kamera erişim izni gereklidir."
+        t('setup.alerts.permission_required'),
+        t('setup.alerts.camera_permission')
       );
       return false;
     }
@@ -578,7 +578,7 @@ export default function ProfileEditScreen() {
 
           {/* Location Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Konum</Text>
+            <Text style={styles.sectionTitle}>{t('edit.location')}</Text>
             <TouchableOpacity
               style={styles.locationButton}
               onPress={getCurrentLocation}
@@ -599,7 +599,7 @@ export default function ProfileEditScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.saveButtonText}>
-              {loading ? "Kaydediliyor..." : "Kaydet"}
+              {loading ? t('common.saving') : t('common.save')}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -620,7 +620,7 @@ export default function ProfileEditScreen() {
           <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>{t('edit.pick_photo')}</Text>
             <Text style={styles.modalSubtitle}>
-              Fotoğrafı nereden seçmek istersiniz?
+              {t('edit.pick_photo_subtitle')}
             </Text>
 
             <TouchableOpacity
@@ -631,7 +631,7 @@ export default function ProfileEditScreen() {
               <View style={styles.modalOptionIcon}>
                 <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
               </View>
-              <Text style={styles.modalOptionText}>Kamera</Text>
+              <Text style={styles.modalOptionText}>{t('setup.modal.camera')}</Text>
               <MaterialIcons name="chevron-right" size={24} color={colors.textSecondaryDark} />
             </TouchableOpacity>
 
@@ -643,7 +643,7 @@ export default function ProfileEditScreen() {
               <View style={styles.modalOptionIcon}>
                 <MaterialIcons name="photo-library" size={24} color={colors.primary} />
               </View>
-              <Text style={styles.modalOptionText}>Galeri</Text>
+              <Text style={styles.modalOptionText}>{t('setup.modal.gallery')}</Text>
               <MaterialIcons name="chevron-right" size={24} color={colors.textSecondaryDark} />
             </TouchableOpacity>
 

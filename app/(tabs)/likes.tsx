@@ -304,7 +304,7 @@ export default function RequestsScreen() {
         // Show a different message
         Alert.alert(
           t('likes.request_accepted'),
-          t('likes.match_hint', { name: matchedUserName || "Kullanıcı" }),
+          t('likes.match_hint', { name: matchedUserName || t('likes.user_fallback') }),
           [{ text: t('common.complete') }]
         );
       }
@@ -777,7 +777,7 @@ export default function RequestsScreen() {
                   {matchData?.shouldWaitForFirstMessage && (
                     <View style={styles.firstMessageInfo}>
                       <Text style={styles.firstMessageText}>
-                        {t('likes.first_message', { name: matchData?.matchedUserName || "karşı taraf" })}
+                        {t('likes.first_message', { name: matchData?.matchedUserName || t('likes.other_person') })}
                       </Text>
                     </View>
                   )}
@@ -959,8 +959,8 @@ export default function RequestsScreen() {
                     <View style={styles.chipContainer}>
                       <View style={styles.purposeChip}>
                         <Text style={styles.purposeText}>
-                          {profileData.purpose === "CONVERSATION" ? "Sohbet" :
-                            profileData.purpose === "PRACTICE" ? "Dil Pratiği" : "Kahve"}
+                          {profileData.purpose === "CONVERSATION" ? t('filter_sheet.purpose_conversation') :
+                            profileData.purpose === "PRACTICE" ? t('filter_sheet.purpose_practice') : t('filter_sheet.purpose_coffee')}
                         </Text>
                       </View>
                     </View>
@@ -1041,7 +1041,7 @@ export default function RequestsScreen() {
                   setProfileData(null);
                 }}
               >
-                <Text style={styles.profileCloseText}>Kapat</Text>
+                <Text style={styles.profileCloseText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           )}

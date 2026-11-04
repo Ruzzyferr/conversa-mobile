@@ -566,8 +566,7 @@ export function VoiceRecorder({
                     </View>
                     <Text style={styles.modalTitle}>{t('voice.permission_title')}</Text>
                     <Text style={styles.modalText}>
-                        Ses mesajı gönderebilmek için mikrofon erişimine ihtiyacımız var.
-                        Lütfen ayarlardan izin verin.
+                        {t('voice.permission_msg')}
                     </Text>
                     <View style={styles.modalActions}>
                         <TouchableOpacity

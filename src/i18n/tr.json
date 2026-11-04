@@ -139,7 +139,9 @@
       "success_msg": "Mesaj isteği gönderildi",
       "purchase_success": "5 favori hakkı eklendi!",
       "purchase_error": "Satın alma işlemi başarısız oldu.",
-      "default_pack_name": "Favori paketi"
+      "default_pack_name": "Favori paketi",
+      "config_error_title": "Yapılandırma hatası",
+      "config_error_msg": "Favori paketi bulunamadı. Lütfen uygulama yapılandırmasını kontrol edin."
     },
     "dm_limit": {
       "title": "Limit doldu",
@@ -611,7 +613,9 @@
     "looking_for": "Aradığım",
     "profile_failed": "Profil yüklenemedi",
     "locked_banner_title": "{{count}} kişi seni beğendi",
-    "days": "g"
+    "days": "g",
+    "user_fallback": "Kullanıcı",
+    "other_person": "karşı taraf"
   },
   "chat": {
     "header": "Sohbet",
@@ -662,7 +666,13 @@
     },
     "new_thread_title": "{{name}} ile eşleştin",
     "new_thread_body": "Sohbeti sen başlat. Profilindeki dillerden ya da bir ilgi alanından yola çıkmak en kolayı.",
-    "first_message_hint": "İlk mesaj en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz!"
+    "first_message_hint": "İlk mesaj en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz!",
+    "msg_limit_msg": "Günlük mesaj limitine ulaştın. Premium'a geçerek sınırsız mesaj gönderebilirsin.",
+    "first_message_too_short_title": "İlk Mesaj Çok Kısa",
+    "first_message_too_short_msg": "İlk mesajın en az 20 karakter olmalı. Daha anlamlı bir mesaj yaz veya AI ile düzeltmeyi dene!",
+    "fix_with_ai": "AI ile Düzelt",
+    "first_message_rule_title": "İlk Mesaj Kuralı",
+    "first_message_rule_msg": "Bu eşleşmede ilk mesajı kadın tarafı göndermelidir. Lütfen karşı tarafın ilk mesajı göndermesini bekleyin."
   },
   "safety": {
     "block": "Engelle",
@@ -907,7 +917,9 @@
     "bio_label": "Kendinden bahset",
     "update_location": "Konumu güncelle",
     "practice_helper": "Pratik yapmak istediğin dilleri seç",
-    "saved": "Profil güncellendi"
+    "saved": "Profil güncellendi",
+    "location": "Konum",
+    "pick_photo_subtitle": "Fotoğrafı nereden seçmek istersiniz?"
   },
   "conversation": {
     "leave_title": "Konuşmadan ayrıl",
@@ -915,12 +927,29 @@
     "ai_limit_title": "AI limiti aşıldı",
     "safety_title": "Güvenlik işlemleri",
     "waiting_title": "Eşleştiniz",
-    "waiting_body": "İlk mesajı {{name}} gönderecek. Biraz sabır."
+    "waiting_body": "İlk mesajı {{name}} gönderecek. Biraz sabır.",
+    "profile_load_error": "Profil yüklenemedi",
+    "rate_limit_title": "Çok Fazla İstek",
+    "rate_limit_msg": "Lütfen birkaç saniye bekleyip tekrar deneyin.",
+    "limit_title": "Limit Aşıldı",
+    "ai_limit_msg": "Günlük AI kullanım limitine ulaştın.",
+    "polish_error": "AI ile düzeltme başarısız oldu",
+    "go_premium": "Premium'a Geç",
+    "leave_confirm_msg": "Bu konuşmadan ayrılmak istediğine emin misin? Bu işlem konuşmayı hem sizden hem de {{name}}'den silecektir.",
+    "leave_action": "Ayrıl",
+    "left_msg": "Konuşmadan ayrıldınız.",
+    "leave_error": "Konuşmadan ayrılma başarısız oldu",
+    "tone_neutral": "Nötr",
+    "tone_friendly": "Samimi",
+    "tone_playful": "Neşeli",
+    "ai_usage_today": "Bugün kullandın: {{used}} / {{limit}}",
+    "ai_limit_premium_msg": "Premium'a geçerek sınırsız AI polish kullanabilirsin!"
   },
   "voice": {
     "permission_title": "Mikrofon izni gerekli",
     "open_settings": "Ayarları aç",
-    "slide_to_cancel": "İptal için kaydır"
+    "slide_to_cancel": "İptal için kaydır",
+    "permission_msg": "Ses mesajı gönderebilmek için mikrofon erişimine ihtiyacımız var. Lütfen ayarlardan izin verin."
   },
   "auth": {
     "title_email": "E-posta ile devam et",
