@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/src/services/api';
 import { getToken } from '@/src/services/authStore';
 import { badgeUpdater } from '@/src/utils/badgeUpdater';
-import { registerPushToken, addNotificationResponseListener } from '@/src/services/pushNotifications';
+import { addNotificationResponseListener } from '@/src/services/pushNotifications';
+import { runPostLoginPermissions } from '@/src/services/postLoginPermissions';
 import { useDeviceType } from '@/src/hooks/useDeviceType';
 import { useSocket } from '@/src/state/socket';
 import { MatchPopup } from '@/src/components/MatchPopup';
@@ -271,32 +272,22 @@ export default function TabLayout() {
     return unsubscribe;
   }, []);
 
-  // Push notifications: register token once logged-in, navigate on tap.
-  // No-ops silently until Firebase credentials ship in the build.
+  // Post-login permissions: ads consent (UMP -> ATT) THEN push notifications.
+  // See src/services/postLoginPermissions.ts for the exact sequence.
+  //
+  // Izinler kullanici uygulamanin ICINE girdikten SONRA, tek sirayla
+  // isteniyor: once reklam onayi / ATT, o bittikten sonra bildirim. Bu sekme
+  // duzeni kayit akisi sirasinda da bir an monte oluyor; temizlemede iptal
+  // edilen gecikme o gecici montaji eliyor.
   const router = useRouter();
   useEffect(() => {
-    /**
-     * Bildirim izni, kullanici uygulamanin ICINE girdikten SONRA isteniyor.
-     *
-     * Bu sekme duzeni kayit akisi sirasinda da bir an monte oluyor; cagri
-     * dogrudan yapildiginda izin diyalogu, kullanici daha ilk soruyu
-     * ("Burada ne ariyorsun?") bile goremeden onun ustune aciliyordu. Ustelik
-     * konum izni de ayni anda soruluyordu: uygulamayi acan biri, hicbir sey
-     * gormeden iki izin penceresiyle karsilasiyordu.
-     *
-     * Kisa bir gecikme, kurulum sirasindaki gecici montaji eliyor (ekran
-     * degisince efekt temizleniyor) ve kalan durumda kullanici zaten
-     * uygulamanin icinde oluyor.
-     */
-    const timer = setTimeout(() => { void registerPushToken(); }, 4000);
+    let cancelled = false;
+    void runPostLoginPermissions(() => cancelled);
     const unsubscribe = addNotificationResponseListener((path) => {
       router.push(path as any);
     });
     return () => {
-      // Kurulum sirasindaki gecici montajda zamanlayici iptal olsun; aksi
-      // halde gecikme bir ise yaramaz ve diyalog yine kayit akisinin
-      // ustune acilirdi.
-      clearTimeout(timer);
+      cancelled = true;
       unsubscribe();
     };
   }, []);

@@ -23,6 +23,14 @@ export function initializeAds(): Promise<void> {
   return Promise.resolve();
 }
 
+export function startAdsConsentFlow(): Promise<void> {
+  return Promise.resolve();
+}
+
+export function isAdsConsentFlowStarted(): boolean {
+  return false;
+}
+
 export function ensureAdsInitialized(): Promise<void> {
   return Promise.resolve();
 }

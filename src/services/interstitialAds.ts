@@ -8,7 +8,7 @@
 
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { ensureAdsInitialized, isAdsSdkInitialized, canServePersonalizedAds } from './rewardedAds';
+import { ensureAdsInitialized, isAdsSdkInitialized, canServePersonalizedAds, isAdsConsentFlowStarted } from './rewardedAds';
 
 let InterstitialAd: any = null;
 let AdEventType: any = null;
@@ -186,6 +186,11 @@ export async function showInterstitialAd(): Promise<InterstitialAdResult> {
     }
 
     if (!isInitialized) {
+        if (!isAdsConsentFlowStarted()) {
+            // Consent/ATT has not run yet (it runs post-login); never wait on
+            // it from a user action and never request an ad before it.
+            return { success: false, error: 'Ads not initialized' };
+        }
         await initializeInterstitialAds();
         if (!isInitialized) {
             return { success: false, error: 'Ads not initialized' };

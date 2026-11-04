@@ -7,6 +7,7 @@
 
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { runConsentAndTracking } from './adsConsent';
 
 // Lazy import AdMob to avoid errors in Expo Go
 let mobileAds: any = null;
@@ -90,63 +91,28 @@ export function isAdsSdkInitialized(): boolean {
 }
 
 /**
- * Show Apple's system App Tracking Transparency dialog (iOS only).
- * Asks only while the status is undetermined; if UMP already triggered ATT
- * (IDFA explainer message), the existing answer is reused. Never throws.
- * Returns true when tracking is allowed (always true off iOS).
+ * Consent gate.
+ *
+ * The UMP -> ATT -> mobileAds().initialize() flow must NOT run on cold start
+ * (Apple HIG / 5.1.2(i): iOS can silently return 'denied' when the app is not
+ * fully active, and the prompt must not be stacked with others). It is started
+ * explicitly by startAdsConsentFlow() from the post-login permission sequence
+ * (src/services/postLoginPermissions.ts). Every ad surface awaits
+ * ensureAdsInitialized(), which waits for that gate, so no ad request can
+ * happen before consent/ATT are resolved.
  */
-async function requestAppTrackingPermission(): Promise<boolean> {
-  if (Platform.OS !== 'ios') {
-    return true;
-  }
-  try {
-    const att = await import('expo-tracking-transparency');
-    const current = await att.getTrackingPermissionsAsync();
-    if (current.status !== 'undetermined') {
-      return current.granted;
-    }
-    const result = await att.requestTrackingPermissionsAsync();
-    return result.granted;
-  } catch (error) {
-    console.warn('ATT request failed, treating tracking as not allowed:', error);
-    return false;
-  }
+let consentFlowStarted = false;
+let releaseConsentGate: () => void = () => {};
+const consentGate = new Promise<void>((resolve) => {
+  releaseConsentGate = resolve;
+});
+
+/** Whether startAdsConsentFlow() has been called this session. */
+export function isAdsConsentFlowStarted(): boolean {
+  return consentFlowStarted;
 }
 
-/**
- * Run the UMP (User Messaging Platform) consent flow for GDPR/EEA compliance.
- * Never throws - consent failure must not block app startup or ad init.
- */
-async function requestUmpConsent(): Promise<void> {
-  try {
-    await AdsConsent.requestInfoUpdate();
-    await AdsConsent.loadAndShowConsentFormIfRequired();
-
-    const consentInfo = await AdsConsent.getConsentInfo();
-    // OBTAINED: user gave consent, NOT_REQUIRED: outside EEA (no consent needed)
-    // UNKNOWN/REQUIRED: no consent yet -> stick to non-personalized ads
-    const umpAllows =
-      consentInfo?.status === (AdsConsentStatus?.OBTAINED ?? 'OBTAINED') ||
-      consentInfo?.status === (AdsConsentStatus?.NOT_REQUIRED ?? 'NOT_REQUIRED');
-    // iOS: the system ATT dialog is the only valid way to ask for tracking
-    // (Apple 5.1.2(i)). It must run before the SDK initializes and collects data.
-    const attAllows = await requestAppTrackingPermission();
-    personalizedAdsAllowed = umpAllows && attAllows;
-    console.log(`UMP consent status: ${consentInfo?.status}, ATT allows: ${attAllows}, personalized ads: ${personalizedAdsAllowed}`);
-  } catch (error) {
-    // Log and continue with non-personalized ads
-    console.warn('UMP consent flow failed, falling back to non-personalized ads:', error);
-    personalizedAdsAllowed = false;
-  }
-}
-
-/**
- * Initialize AdMob (call once on app start)
- * Runs the UMP consent flow before SDK initialization.
- * Swallows errors and logs them instead of throwing
- * Does nothing in Expo Go
- */
-export function initializeAds(): Promise<void> {
+function runInitOnce(): Promise<void> {
   if (!initPromise) {
     initPromise = doInitializeAds();
   }
@@ -154,11 +120,30 @@ export function initializeAds(): Promise<void> {
 }
 
 /**
- * Shared initialization promise - other ad services (interstitial, banner)
- * should await this instead of calling mobileAds().initialize() themselves
+ * Start UMP consent -> ATT -> SDK init. Call only once the user is signed in,
+ * onboarded and the app is active. Never throws; does nothing in Expo Go.
  */
-export function ensureAdsInitialized(): Promise<void> {
-  return initializeAds();
+export function startAdsConsentFlow(): Promise<void> {
+  consentFlowStarted = true;
+  releaseConsentGate();
+  return runInitOnce();
+}
+
+/**
+ * @deprecated kept for compatibility; same as ensureAdsInitialized().
+ */
+export function initializeAds(): Promise<void> {
+  return ensureAdsInitialized();
+}
+
+/**
+ * Resolves once the consent flow has run and the SDK init was attempted.
+ * Does NOT start the flow itself - it waits for startAdsConsentFlow().
+ * Check isAdsSdkInitialized() afterwards.
+ */
+export async function ensureAdsInitialized(): Promise<void> {
+  await consentGate;
+  return runInitOnce();
 }
 
 async function doInitializeAds(): Promise<void> {
@@ -180,8 +165,9 @@ async function doInitializeAds(): Promise<void> {
     return;
   }
 
-  // Run the UMP consent flow BEFORE initializing the SDK (AdMob EEA policy)
-  await requestUmpConsent();
+  // UMP consent, then (maybe) the system ATT dialog, BEFORE initializing the
+  // SDK (AdMob EEA policy, Apple 5.1.2(i))
+  personalizedAdsAllowed = await runConsentAndTracking(AdsConsent, AdsConsentStatus);
 
   try {
     await mobileAds().initialize();
@@ -227,7 +213,11 @@ export async function showRewardedAd(
   }
 
   if (!isInitialized) {
-    await initializeAds();
+    if (!consentFlowStarted) {
+      // Never trigger consent/ATT from an ad surface; it runs post-login.
+      return { success: false, error: 'Ads are not ready yet' };
+    }
+    await ensureAdsInitialized();
     if (!isInitialized) {
       return { success: false, error: 'AdMob not initialized' };
     }
@@ -352,8 +342,11 @@ export async function showRewardedAd(
  */
 export async function areAdsAvailable(): Promise<boolean> {
   if (!isInitialized) {
+    if (!consentFlowStarted) {
+      return false;
+    }
     try {
-      await initializeAds();
+      await ensureAdsInitialized();
     } catch (error) {
       console.error('Failed to initialize ads:', error);
       return false;

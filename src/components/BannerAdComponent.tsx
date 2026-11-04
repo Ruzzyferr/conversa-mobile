@@ -11,7 +11,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePremium } from '@/src/state/premium';
-import { canServePersonalizedAds } from '@/src/services/rewardedAds';
+import { canServePersonalizedAds, ensureAdsInitialized, isAdsSdkInitialized } from '@/src/services/rewardedAds';
 import { loadAdMob } from '@/src/services/admob';
 
 // Must clear the floating tab bar so the banner is not hidden behind it.
@@ -91,10 +91,20 @@ export function BannerAdComponent({ style }: BannerAdComponentProps) {
             return;
         }
 
-        loadBannerModule().then((loaded) => {
-            setIsLoaded(loaded);
-            setIsAvailable(loaded);
-        });
+        let cancelled = false;
+        // Wait for the shared UMP consent -> ATT -> SDK init flow before
+        // rendering <BannerAd>: mounting it is an ad request.
+        (async () => {
+            const loaded = await loadBannerModule();
+            if (!loaded) return;
+            await ensureAdsInitialized();
+            if (cancelled || !isAdsSdkInitialized()) return;
+            setIsLoaded(true);
+            setIsAvailable(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [premiumEnabled, isPremiumLoading]);
 
     // Don't render while premium status is loading, for premium users, or in Expo Go

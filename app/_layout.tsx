@@ -25,7 +25,6 @@ import { colors } from '@/src/theme/colors';
 import { typography } from '@/src/theme/typography';
 import { PremiumProvider } from '@/src/state/premium';
 import { SocketProvider } from '@/src/state/socket';
-import { initializeAds } from '@/src/services/rewardedAds';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -74,14 +73,9 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
-  // Initialize AdMob on app start (only in dev builds, not Expo Go)
-  // Initialize AdMob on app start (only in dev builds, not Expo Go)
-  useEffect(() => {
-    // Initialize ads silently - it will check for Expo Go internally
-    initializeAds().catch(() => {
-      // Silently fail - ads are optional and don't work in Expo Go
-    });
-  }, []);
+  // Ads consent / ATT / AdMob init deliberately do NOT run here on cold start
+  // (Apple 5.1.2(i), HIG). They run post-login from app/(tabs)/_layout.tsx via
+  // src/services/postLoginPermissions.ts.
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
