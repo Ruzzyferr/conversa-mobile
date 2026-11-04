@@ -215,8 +215,8 @@ export default function ProfileEditScreen() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "İzin Gerekli",
-        "Yakınındaki insanları görmek için konum erişim izni gereklidir."
+        t("setup.alerts.permission_required"),
+        t("setup.alerts.location_permission")
       );
       return false;
     }
