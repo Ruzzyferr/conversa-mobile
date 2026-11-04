@@ -43,6 +43,17 @@ const googleIosUrlScheme = googleIosClientId
     : undefined;
 
 /**
+ * AdMob iOS app id. The plugin fallback below is the Google TEST app id: a
+ * release built with it serves no real ads, so stop the prod build here
+ * instead of shipping it silently (same idea as the Google client-id guard).
+ */
+if (!process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID && process.env.EXPO_PUBLIC_ENV === 'prod') {
+    throw new Error(
+        'EXPO_PUBLIC_ADMOB_IOS_APP_ID missing: the iOS release would ship with the Google TEST AdMob app id.'
+    );
+}
+
+/**
  * Sema bilinmiyorsa eklentiyi HIC eklemiyoruz.
  *
  * Eklentiyi `iosUrlScheme: undefined` ile cagirmak onu kendi icinde, hicbir
@@ -79,11 +90,52 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // this entitlement the Apple button fails at runtime.
         usesAppleSignIn: true,
         infoPlist: {
-            NSCameraUsageDescription: "Conversa uses the camera so you can take profile photos.",
+            NSCameraUsageDescription: "Conversa uses the camera so you can take profile photos, take a selfie to verify your profile, and send photos in chats.",
             NSLocationWhenInUseUsageDescription: "Conversa uses your location to show people near you.",
             NSMicrophoneUsageDescription: "Conversa uses the microphone so you can send voice messages.",
-            NSPhotoLibraryUsageDescription: "Conversa needs access to your photos so you can add them to your profile.",
+            NSPhotoLibraryUsageDescription: "Conversa uses your photo library so you can choose photos for your profile and send photos in chats.",
             ITSAppUsesNonExemptEncryption: false
+        },
+        /**
+         * App privacy manifest (PrivacyInfo.xcprivacy), per
+         * https://docs.expo.dev/guides/apple-privacy/.
+         *
+         * Required-reason APIs: the union of what the bundled Expo / React
+         * Native pods declare in their own manifests (Apple does not reliably
+         * parse manifests of static CocoaPods, so the app restates them):
+         *   UserDefaults CA92.1     - react-native, expo-constants,
+         *                             expo-localization, expo-notifications
+         *   FileTimestamp C617.1    - react-native, expo-application
+         *   FileTimestamp 0A2A.1, 3B52.1 - expo-file-system
+         *   DiskSpace E174.1, 85F4.1     - expo-file-system
+         *   SystemBootTime 35F9.1   - RN boost pod + RN privacy_manifest_utils.rb default
+         *
+         * NSPrivacyTracking: true - with the user's ATT permission, AdMob uses
+         * the IDFA for personalised ads. NSPrivacyTrackingDomains is left
+         * empty on purpose: the Google Mobile Ads SDK ships its own manifest
+         * for its domains, and the app itself contacts no tracking domains.
+         */
+        privacyManifests: {
+            NSPrivacyTracking: true,
+            NSPrivacyTrackingDomains: [],
+            NSPrivacyAccessedAPITypes: [
+                {
+                    NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+                    NSPrivacyAccessedAPITypeReasons: ["CA92.1"]
+                },
+                {
+                    NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp",
+                    NSPrivacyAccessedAPITypeReasons: ["C617.1", "0A2A.1", "3B52.1"]
+                },
+                {
+                    NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryDiskSpace",
+                    NSPrivacyAccessedAPITypeReasons: ["E174.1", "85F4.1"]
+                },
+                {
+                    NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategorySystemBootTime",
+                    NSPrivacyAccessedAPITypeReasons: ["35F9.1"]
+                }
+            ]
         }
     },
     android: {
