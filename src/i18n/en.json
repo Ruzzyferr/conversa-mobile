@@ -810,7 +810,13 @@
     "active_title": "Premium is active",
     "manage_hint": "You can manage your subscription in your store account settings.",
     "per_week_short": "/week",
-    "per_month_short": "/mo"
+    "per_month_short": "/month",
+    "per_day_short": "/day",
+    "per_year_short": "/year",
+    "per_n_days": "/{{count}} days",
+    "per_n_weeks": "/{{count}} weeks",
+    "per_n_months": "/{{count}} months",
+    "per_n_years": "/{{count}} years"
   },
   "interest_categories": {
     "self_care": "Self-care",

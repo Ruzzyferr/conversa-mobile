@@ -809,7 +809,13 @@
     "active_title": "Premium aktif",
     "manage_hint": "Aboneliğini mağaza hesabının ayarlarından yönetebilirsin.",
     "per_week_short": "/hafta",
-    "per_month_short": "/ay"
+    "per_month_short": "/ay",
+    "per_day_short": "/gün",
+    "per_year_short": "/yıl",
+    "per_n_days": "/{{count}} gün",
+    "per_n_weeks": "/{{count}} hafta",
+    "per_n_months": "/{{count}} ay",
+    "per_n_years": "/{{count}} yıl"
   },
   "interest_categories": {
     "self_care": "Öz bakım",

@@ -272,8 +272,23 @@ export default function PremiumScreen() {
   const priceOnly = (p: PurchasesPackage): string =>
     p.product.priceString.split("/")[0].trim();
 
-  const periodLabel = (p: PurchasesPackage): string =>
-    isWeekly(p) ? t("premium.per_week_short") : t("premium.per_month_short");
+  /**
+   * Billing period from the store product itself (RevenueCat
+   * `product.subscriptionPeriod`, ISO 8601: P1W, P1M, P3M, P1Y...), so the
+   * label always matches what the user is charged for. Falls back to the
+   * package type only if the store did not report a period.
+   */
+  const periodLabel = (p: PurchasesPackage): string => {
+    const match = /^P(\d+)([DWMY])$/.exec(p.product.subscriptionPeriod ?? "");
+    if (match) {
+      const count = parseInt(match[1], 10);
+      const unit = ({ D: "day", W: "week", M: "month", Y: "year" } as const)[match[2] as "D" | "W" | "M" | "Y"];
+      return count === 1
+        ? t(`premium.per_${unit}_short`)
+        : t(`premium.per_n_${unit}s`, { count });
+    }
+    return isWeekly(p) ? t("premium.per_week_short") : t("premium.per_month_short");
+  };
 
   const plans = (offering?.availablePackages ?? [])
     .filter((p) => isWeekly(p) || isMonthly(p))
