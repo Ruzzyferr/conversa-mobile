@@ -110,14 +110,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
          *   DiskSpace E174.1, 85F4.1     - expo-file-system
          *   SystemBootTime 35F9.1   - RN boost pod + RN privacy_manifest_utils.rb default
          *
-         * NSPrivacyTracking: true - with the user's ATT permission, AdMob uses
-         * the IDFA for personalised ads. NSPrivacyTrackingDomains is left
-         * empty on purpose: the Google Mobile Ads SDK ships its own manifest
-         * for its domains, and the app itself contacts no tracking domains.
+         * NSPrivacyTracking: false - Apple rejected build 21 with ITMS-91064
+         * because NSPrivacyTracking=true requires a non-empty
+         * NSPrivacyTrackingDomains (TN3181). The app contacts no tracking-only
+         * domains: AdMob serves personalised and non-personalised ads from the
+         * same hosts, and the Google Mobile Ads SDK's own manifest lists none.
+         * Listing those hosts would make iOS block every ad request once the
+         * user declines ATT. TN3181's fix for an app without tracking domains
+         * is "set NSPrivacyTracking to false". Tracking is still disclosed in
+         * the App Store privacy label, and ATT still gates the IDFA.
          */
         privacyManifests: {
-            NSPrivacyTracking: true,
-            NSPrivacyTrackingDomains: [],
+            NSPrivacyTracking: false,
             NSPrivacyAccessedAPITypes: [
                 {
                     NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
