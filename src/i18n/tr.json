@@ -221,7 +221,10 @@
     "track_label": "Hat",
     "verified_levels": "Doğrulanmış",
     "no_verified_levels": "Henüz doğrulanmış dil yok",
-    "take_exam": "Sınava gir"
+    "take_exam": "Sınava gir",
+    "privacy_policy": "Gizlilik Politikası",
+    "terms_of_use": "Kullanım Koşulları",
+    "contact_support": "Destekle İletişime Geç"
   },
   "setup": {
     "step1": {

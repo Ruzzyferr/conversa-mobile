@@ -26,6 +26,7 @@ import { tabBarClearance } from "@/src/config/layout";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { UpsellModal } from "@/src/components/UpsellModal";
 import { Overline } from "@/src/components/ui/Overline";
+import { LegalLinksRows } from "@/src/components/profile/LegalLinksRows";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -605,6 +606,13 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>
 
+          <LegalLinksRows
+            itemStyle={styles.settingsItem}
+            leftStyle={styles.settingsItemLeft}
+            iconStyle={styles.settingsIcon}
+            textStyle={styles.settingsItemText}
+          />
+
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <View style={styles.settingsItemLeft}>
               <View style={[styles.settingsIcon, { backgroundColor: colors.textSecondaryDark + '20' }]}>
@@ -695,7 +703,7 @@ export default function ProfileScreen() {
           </ScrollView>
           {(profile?.photos?.length || 0) > 1 && (
             <Text style={styles.photoViewerHint}>
-              {profile.photos.length} {t('profile.photos_swipe_hint', { defaultValue: 'fotoğraf • kaydır' })}
+              {profile.photos.length} {t('profile.photos_swipe_hint')}
             </Text>
           )}
         </View>

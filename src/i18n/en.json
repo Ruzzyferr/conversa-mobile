@@ -221,7 +221,10 @@
     "track_label": "Track",
     "verified_levels": "Verified",
     "no_verified_levels": "No verified language yet",
-    "take_exam": "Take the check"
+    "take_exam": "Take the check",
+    "privacy_policy": "Privacy Policy",
+    "terms_of_use": "Terms of Use",
+    "contact_support": "Contact Support"
   },
   "setup": {
     "step1": {
