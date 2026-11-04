@@ -330,6 +330,30 @@ export default function ChatScreen() {
     }
   };
 
+  // Block from the list, same API as the conversation screen's block action.
+  const confirmBlock = (item: Conversation) => {
+    if (item.conversationId) swipeableRefs.current.get(item.conversationId)?.close();
+    Alert.alert(t('safety.block_confirm_title'), t('safety.block_confirm_msg'), [
+      { text: t('common.cancel'), style: "cancel" },
+      {
+        text: t('safety.block'),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.blockUser(item.otherUser.userId);
+            setActiveConversations((prev) =>
+              prev.filter((c) => c.otherUser.userId !== item.otherUser.userId)
+            );
+            Alert.alert(t('safety.blocked_toast'));
+          } catch (error) {
+            console.error("Block failed:", error);
+            Alert.alert(t('common.error'), t('safety.action_error'));
+          }
+        },
+      },
+    ]);
+  };
+
   const renderSwipeActions = (item: Conversation) => (
     <View style={styles.swipeActions}>
       <TouchableOpacity
@@ -340,6 +364,15 @@ export default function ChatScreen() {
       >
         <MaterialIcons name="flag" size={22} color={colors.onMedia} />
         <Text style={styles.swipeActionText}>{t('safety.report_action')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.swipeAction, styles.swipeActionBlock]}
+        onPress={() => confirmBlock(item)}
+        accessibilityRole="button"
+        accessibilityLabel={t('safety.block')}
+      >
+        <MaterialIcons name="block" size={22} color={colors.onMedia} />
+        <Text style={styles.swipeActionText}>{t('safety.block')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.swipeAction, styles.swipeActionRemove]}
@@ -815,6 +848,9 @@ const styles = StyleSheet.create({
   },
   swipeActionReport: {
     backgroundColor: colors.warning,
+  },
+  swipeActionBlock: {
+    backgroundColor: colors.borderLight,
   },
   swipeActionRemove: {
     backgroundColor: colors.error,

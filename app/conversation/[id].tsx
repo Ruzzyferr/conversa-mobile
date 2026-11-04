@@ -785,24 +785,20 @@ export default function ConversationScreen() {
     if (!otherUser) return;
 
     Alert.alert(
-      "Engelle",
-      `${otherUser.displayName} kişisini engellemek istediğine emin misin? Bu işlem geri alınamaz.`,
+      t("safety.block_confirm_title"),
+      t("safety.block_confirm_msg"),
       [
-        { text: "İptal", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Engelle",
+          text: t("safety.block"),
           style: "destructive",
           onPress: async () => {
             try {
               await api.blockUser(otherUser.userId);
-              Alert.alert("Başarılı", `${otherUser.displayName} engellendi.`);
+              Alert.alert(t("safety.blocked_toast"));
               router.replace("/(tabs)/chat"); // Navigate back to chat list
             } catch (error) {
-              const errorMessage =
-                error instanceof AxiosError && error.response?.data?.error?.message
-                  ? error.response.data.error.message
-                  : "Engelleme başarısız oldu";
-              Alert.alert("Hata", errorMessage);
+              Alert.alert(t("common.error"), t("safety.action_error"));
             }
           },
         },
