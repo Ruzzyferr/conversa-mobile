@@ -28,6 +28,7 @@ import { LANGUAGES, languageLabel, normalizeLanguages } from "@/src/data/languag
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { api } from "@/src/services/api";
+import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 import { InterestPicker } from "@/src/components/InterestPicker";
 import { LanguagePickerModal } from "@/src/components/ui/LanguagePickerModal";
 import { LEGACY_INTEREST_MAP } from "@/src/data/interests";
@@ -252,7 +253,7 @@ export default function ProfileEditScreen() {
       return;
     }
     if (languagesPractice.length === 0) {
-      Alert.alert("Uyarı", "Lütfen en az bir öğrenmek istediğiniz dil seçin");
+      Alert.alert(t('common.error'), t('setup.alerts.practice_required'));
       return;
     }
 
@@ -268,7 +269,7 @@ export default function ProfileEditScreen() {
               return publicUrl;
             } catch (error) {
               console.error("Failed to upload photo:", photoUri, error);
-              throw new Error("Fotoğraflar yüklenirken hata oluştu");
+              throw new Error(friendlyApiErrorMessage(error) ?? t('setup.alerts.upload_error'));
             }
           }
           return photoUri; // Already a remote URL
@@ -291,12 +292,15 @@ export default function ProfileEditScreen() {
         lng: location?.lng,
       });
 
-      Alert.alert("Başarılı", "Profil güncellendi");
+      Alert.alert(t('common.success'), t('edit.saved'));
       router.back();
     } catch (error: unknown) {
+      // Moderation / locked-field errors get a clear, localized message;
+      // never show raw server or HTTP text.
       const errorMessage =
-        error instanceof Error ? error.message : "Profil güncellenemedi";
-      Alert.alert("Hata", errorMessage);
+        friendlyApiErrorMessage(error) ??
+        (error instanceof Error && !(error as any).isAxiosError ? error.message : t('setup.alerts.save_error'));
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setLoading(false);
     }

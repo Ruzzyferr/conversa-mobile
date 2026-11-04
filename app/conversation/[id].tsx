@@ -30,6 +30,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
+import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 import { setActiveConversation } from "@/src/services/pushNotifications";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
@@ -651,7 +652,7 @@ export default function ConversationScreen() {
       }, 100);
     } catch (error) {
       console.error("Failed to send image:", error);
-      Alert.alert(t('common.error'), t('chat.image_send_error'));
+      Alert.alert(t('common.error'), friendlyApiErrorMessage(error) ?? t('chat.image_send_error'));
     } finally {
       setSending(false);
     }
@@ -668,7 +669,7 @@ export default function ConversationScreen() {
       }, 100);
     } catch (error) {
       console.error("Failed to send audio:", error);
-      Alert.alert("Hata", "Ses gönderilemedi");
+      Alert.alert(t('common.error'), friendlyApiErrorMessage(error) ?? t('chat.send_error'));
       throw error; // Re-throw so VoiceRecorder can handle it
     } finally {
       setSending(false);
@@ -726,6 +727,14 @@ export default function ConversationScreen() {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
+      // Moderation (422 CONTENT_REJECTED etc.): clear, localized message and
+      // keep the draft so the user can edit it.
+      const friendly = friendlyApiErrorMessage(error);
+      if (friendly) {
+        Alert.alert(t('errors.not_sent_title'), friendly);
+        setMessageText(text);
+        return;
+      }
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;
         const code = errorData?.code;

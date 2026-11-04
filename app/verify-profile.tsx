@@ -19,6 +19,7 @@ import { SafeAreaView } from "@/src/components/SafeAreaView";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { StatusModal } from "@/src/components/StatusModal";
 import { api } from "@/src/services/api";
+import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 
 // Pose ids must match the backend's VERIFICATION_POSES list.
 const POSE_EMOJI: Record<string, string> = {
@@ -103,7 +104,7 @@ export default function VerifyProfileScreen() {
       setStep("pending");
     } catch (error) {
       setStep("capture");
-      showError(t("common.error"), t("verify.submit_failed"));
+      showError(t("common.error"), friendlyApiErrorMessage(error) ?? t("verify.submit_failed"));
     }
   };
 

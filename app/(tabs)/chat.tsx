@@ -33,6 +33,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
+import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 import { AxiosError } from "axios";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { useSocket } from "@/src/state/socket";
@@ -253,6 +254,12 @@ export default function ChatScreen() {
       await loadConversations();
     } catch (error: any) {
       let errorMessage = error instanceof Error ? error.message : t('chat.send_error');
+      const friendly = friendlyApiErrorMessage(error);
+      if (friendly) {
+        // Keep the draft (replyText) so the user can edit it.
+        Alert.alert(t('errors.not_sent_title'), friendly);
+        return;
+      }
 
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;

@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { colors, spacing, radius, textStyles } from "@/src/theme";
 import { api } from "@/src/services/api";
+import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 import { clearToken } from "@/src/services/authStore";
 import { InterestPicker } from "@/src/components/InterestPicker";
 import { OnboardingShell } from "@/src/components/onboarding/OnboardingShell";
@@ -298,6 +299,15 @@ export default function ProfileSetupScreen() {
   // ---- Kaydet ----------------------------------------------------------
 
   async function submit() {
+    // birthYear is required server-side at profile creation: never submit
+    // without a valid one (send the user back to that step instead).
+    const year = parseInt(birthYear, 10);
+    if (birthYear.length !== 4 || isNaN(year) || year < minYear || year > maxYear) {
+      const birthIndex = steps.indexOf("birth");
+      if (birthIndex >= 0) setIndex(birthIndex);
+      setErrors({ birth: t("setup.alerts.birth_required") });
+      return;
+    }
     setLoading(true);
     try {
       const uploaded = await Promise.all(
@@ -307,14 +317,14 @@ export default function ProfileSetupScreen() {
             return await api.uploadPhoto(uri);
           } catch (error) {
             console.error("Failed to upload photo:", uri, error);
-            throw new Error(t("setup.alerts.upload_error"));
+            throw new Error(friendlyApiErrorMessage(error) ?? t("setup.alerts.upload_error"));
           }
         })
       );
 
       await api.upsertMyProfile({
         displayName: displayName.trim(),
-        birthYear: parseInt(birthYear, 10),
+        birthYear: year,
         gender: gender || undefined,
         // Dil hattinda amac sorulmuyor: hattin kendisi zaten amaci soyluyor.
         purpose: track === "LANGUAGE" ? "PRACTICE" : purpose,
@@ -334,7 +344,9 @@ export default function ProfileSetupScreen() {
 
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t("setup.alerts.save_error");
+      const message =
+        friendlyApiErrorMessage(error) ??
+        (error instanceof Error && !(error as any).isAxiosError ? error.message : t("setup.alerts.save_error"));
       Alert.alert(t("common.error"), message);
     } finally {
       setLoading(false);

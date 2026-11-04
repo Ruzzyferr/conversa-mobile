@@ -901,7 +901,8 @@
     "pick_languages": "Choose languages",
     "bio_label": "About you",
     "update_location": "Update location",
-    "practice_helper": "Choose the languages you want to practise"
+    "practice_helper": "Choose the languages you want to practise",
+    "saved": "Profile updated"
   },
   "conversation": {
     "leave_title": "Leave Conversation",
@@ -1054,5 +1055,11 @@
     "word-order": "Word order",
     "spelling": "Spelling",
     "register": "Register"
+  },
+  "errors": {
+    "not_sent_title": "Message not sent",
+    "content_rejected": "This contains words or content that aren't allowed on Conversa. Please change it and try again.",
+    "image_rejected": "This photo can't be used because it doesn't meet our community guidelines. Please choose a different photo.",
+    "age_locked": "Your birth year can't be changed after your profile is created. Contact support if it's wrong."
   }
 }

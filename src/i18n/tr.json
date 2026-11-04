@@ -900,7 +900,8 @@
     "pick_languages": "Dil seç",
     "bio_label": "Kendinden bahset",
     "update_location": "Konumu güncelle",
-    "practice_helper": "Pratik yapmak istediğin dilleri seç"
+    "practice_helper": "Pratik yapmak istediğin dilleri seç",
+    "saved": "Profil güncellendi"
   },
   "conversation": {
     "leave_title": "Konuşmadan ayrıl",
@@ -1053,5 +1054,11 @@
     "word-order": "Sözcük sırası",
     "spelling": "Yazım",
     "register": "Üslup"
+  },
+  "errors": {
+    "not_sent_title": "Mesaj gönderilmedi",
+    "content_rejected": "Bu metin Conversa'da izin verilmeyen kelimeler veya içerik barındırıyor. Lütfen değiştirip tekrar dene.",
+    "image_rejected": "Bu fotoğraf topluluk kurallarımıza uymadığı için kullanılamıyor. Lütfen başka bir fotoğraf seç.",
+    "age_locked": "Doğum yılın profil oluşturulduktan sonra değiştirilemez. Yanlışsa destekle iletişime geç."
   }
 }

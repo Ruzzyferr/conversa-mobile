@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 import { Platform } from "react-native";
 import { getToken, clearToken } from "./authStore";
 import { router } from "expo-router";
+import { ApiResponseError } from "./apiErrors";
 
 // Determine API URL based on platform and environment
 function getApiUrl(): string {
@@ -197,7 +198,7 @@ class ApiClient {
     );
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Verification upload failed: ${response.status} ${errorText}`);
+      throw new ApiResponseError(response.status, errorText, "Verification upload failed");
     }
     return await response.json();
   }
@@ -580,7 +581,7 @@ class ApiClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+        throw new ApiResponseError(response.status, errorText, "Upload failed");
       }
 
       return await response.json();
@@ -631,7 +632,7 @@ class ApiClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Upload failed: ${response.status} ${errorText}`);
+      throw new ApiResponseError(response.status, errorText, "Upload failed");
     }
 
     return await response.json();
@@ -670,7 +671,7 @@ class ApiClient {
       const responseText = await response.text();
 
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status} - ${responseText}`);
+        throw new ApiResponseError(response.status, responseText, "Upload failed");
       }
 
       const data = JSON.parse(responseText);
