@@ -132,6 +132,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
                 }
             }
         ],
+        /**
+         * App Tracking Transparency (Apple 5.1.2(i)).
+         *
+         * Writes NSUserTrackingUsageDescription. Without this key the system
+         * ATT dialog can never appear: the UMP form showed its own explainer
+         * and iOS silently refused the request, so Apple saw only a custom
+         * "allow tracking" prompt and rejected build 1.1.0 (18).
+         */
+        [
+            "expo-tracking-transparency",
+            {
+                userTrackingPermission:
+                    "Conversa uses this to show ads that are more relevant to you. You can still use every feature if you say no."
+            }
+        ],
         "./plugins/withAndroidLaunchMode.js",
         "expo-audio",
         "expo-apple-authentication",

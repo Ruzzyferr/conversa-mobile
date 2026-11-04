@@ -90,6 +90,30 @@ export function isAdsSdkInitialized(): boolean {
 }
 
 /**
+ * Show Apple's system App Tracking Transparency dialog (iOS only).
+ * Asks only while the status is undetermined; if UMP already triggered ATT
+ * (IDFA explainer message), the existing answer is reused. Never throws.
+ * Returns true when tracking is allowed (always true off iOS).
+ */
+async function requestAppTrackingPermission(): Promise<boolean> {
+  if (Platform.OS !== 'ios') {
+    return true;
+  }
+  try {
+    const att = await import('expo-tracking-transparency');
+    const current = await att.getTrackingPermissionsAsync();
+    if (current.status !== 'undetermined') {
+      return current.granted;
+    }
+    const result = await att.requestTrackingPermissionsAsync();
+    return result.granted;
+  } catch (error) {
+    console.warn('ATT request failed, treating tracking as not allowed:', error);
+    return false;
+  }
+}
+
+/**
  * Run the UMP (User Messaging Platform) consent flow for GDPR/EEA compliance.
  * Never throws - consent failure must not block app startup or ad init.
  */
@@ -101,10 +125,14 @@ async function requestUmpConsent(): Promise<void> {
     const consentInfo = await AdsConsent.getConsentInfo();
     // OBTAINED: user gave consent, NOT_REQUIRED: outside EEA (no consent needed)
     // UNKNOWN/REQUIRED: no consent yet -> stick to non-personalized ads
-    personalizedAdsAllowed =
+    const umpAllows =
       consentInfo?.status === (AdsConsentStatus?.OBTAINED ?? 'OBTAINED') ||
       consentInfo?.status === (AdsConsentStatus?.NOT_REQUIRED ?? 'NOT_REQUIRED');
-    console.log(`UMP consent status: ${consentInfo?.status}, personalized ads: ${personalizedAdsAllowed}`);
+    // iOS: the system ATT dialog is the only valid way to ask for tracking
+    // (Apple 5.1.2(i)). It must run before the SDK initializes and collects data.
+    const attAllows = await requestAppTrackingPermission();
+    personalizedAdsAllowed = umpAllows && attAllows;
+    console.log(`UMP consent status: ${consentInfo?.status}, ATT allows: ${attAllows}, personalized ads: ${personalizedAdsAllowed}`);
   } catch (error) {
     // Log and continue with non-personalized ads
     console.warn('UMP consent flow failed, falling back to non-personalized ads:', error);

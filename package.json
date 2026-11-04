@@ -42,6 +42,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-tracking-transparency": "~6.0.8",
     "expo-web-browser": "~15.0.11",
     "i18next": "^25.7.3",
     "intl-pluralrules": "^2.0.1",
