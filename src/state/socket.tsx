@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import {
-    connectSocket,
-    disconnectSocket,
-    isConnected,
-    onNewMessage,
-} from "../services/socket";
+import { AppState } from "react-native";
 import { getToken } from "../services/authStore";
+import { onTokenChange } from "../services/tokenEvents";
+import {
+    disconnectSocket as disconnectChatSocket,
+    resetChatSocketState,
+} from "../services/socket";
 import { io, Socket } from "socket.io-client";
 
 // In production builds, fail fast instead of falling back to localhost
@@ -88,18 +88,36 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const [chatRequests, setChatRequests] = useState<NewChatRequestEvent[]>([]);
     const socketRef = useRef<Socket | null>(null);
 
-    const setupSocket = useCallback(async () => {
-        const token = await getToken();
+    // Token the current socket was opened with; a different token means a
+    // different user (or a fresh login), so the old socket must be replaced.
+    const socketTokenRef = useRef<string | null>(null);
+
+    const teardownSocket = useCallback(() => {
+        if (socketRef.current) {
+            socketRef.current.removeAllListeners();
+            socketRef.current.disconnect();
+            socketRef.current = null;
+        }
+        socketTokenRef.current = null;
+        setConnected(false);
+    }, []);
+
+    const setupSocket = useCallback(async (tokenOverride?: string | null) => {
+        const token = tokenOverride !== undefined ? tokenOverride : await getToken();
         if (!token) {
             console.log("[SocketProvider] No token, skipping connection");
+            teardownSocket();
             return;
         }
 
-        if (socketRef.current?.connected) {
-            console.log("[SocketProvider] Already connected");
-            setConnected(true);
+        if (socketRef.current && socketTokenRef.current === token) {
+            // Same session: socket.io reconnects on its own; just make sure it is trying.
+            if (!socketRef.current.connected) socketRef.current.connect();
             return;
         }
+
+        // New or different token: drop the old socket before opening a new one.
+        teardownSocket();
 
         try {
             const socket = io(API_URL, {
@@ -112,6 +130,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             });
 
             socketRef.current = socket;
+            socketTokenRef.current = token;
 
             socket.on("connect", () => {
                 console.log("[SocketProvider] Connected:", socket.id);
@@ -172,19 +191,50 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             console.error("[SocketProvider] Setup error:", error);
         }
-    }, []);
+    }, [teardownSocket]);
 
-    // Connect on mount
+    // Connect on mount, then follow the auth token: reconnect with the new
+    // token after login, disconnect (and reset per-user state) on logout.
     useEffect(() => {
         setupSocket();
 
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-                socketRef.current = null;
+        const unsubscribe = onTokenChange((token) => {
+            if (token) {
+                if (token !== socketTokenRef.current) {
+                    setLikesCount(0);
+                    setNewMatches([]);
+                    setChatRequests([]);
+                    setConversationUpdates(new Map());
+                    // Chat socket carries the old token too; the conversation
+                    // screen reopens it with the new one when it is needed.
+                    disconnectChatSocket();
+                    resetChatSocketState();
+                }
+                setupSocket(token);
+            } else {
+                teardownSocket();
+                disconnectChatSocket();
+                resetChatSocketState();
+                setLikesCount(0);
+                setNewMatches([]);
+                setChatRequests([]);
+                setConversationUpdates(new Map());
             }
+        });
+
+        // Back in the foreground after the OS dropped the socket or the
+        // reconnect attempts ran out: reconnect with the current token.
+        const appStateSub = AppState.addEventListener("change", (state) => {
+            if (state !== "active") return;
+            if (!socketRef.current || !socketRef.current.connected) setupSocket();
+        });
+
+        return () => {
+            unsubscribe();
+            appStateSub.remove();
+            teardownSocket();
         };
-    }, [setupSocket]);
+    }, [setupSocket, teardownSocket]);
 
     const clearNewMatches = useCallback(() => {
         setNewMatches([]);
@@ -195,12 +245,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const refreshConnection = useCallback(async () => {
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-            socketRef.current = null;
-        }
+        teardownSocket();
         await setupSocket();
-    }, [setupSocket]);
+    }, [setupSocket, teardownSocket]);
 
     return (
         <SocketContext.Provider

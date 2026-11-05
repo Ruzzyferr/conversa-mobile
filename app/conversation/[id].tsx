@@ -30,7 +30,7 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
-import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
+import { friendlyApiErrorMessage, apiErrorMessage } from "@/src/services/apiErrors";
 import { setActiveConversation } from "@/src/services/pushNotifications";
 import { badgeUpdater } from "@/src/utils/badgeUpdater";
 import { AxiosError } from "axios";
@@ -38,6 +38,7 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { OptimizedImage } from "@/src/components/ui/OptimizedImage";
 import { VoiceRecorder } from "@/src/components/chat/VoiceRecorder";
+import { useAiConsentGate } from "@/src/components/AiConsentSheet";
 import { AudioPlayer } from "@/src/components/chat/AudioPlayer";
 import { ProfileModal } from "@/src/components/ProfileModal";
 import { LeaveReasonModal } from "@/src/components/chat/LeaveReasonModal";
@@ -45,6 +46,7 @@ import {
   connectSocket,
   joinConversation,
   leaveConversation,
+  markConversationLeft,
   onNewMessage,
   onTyping,
   onTypingStop,
@@ -59,10 +61,74 @@ type Message = {
   text: string;
   audioUrl?: string;
   imageUrl?: string;
+  isRead?: boolean;
   createdAt: string;
 };
 
 type Tone = "neutral" | "friendly" | "playful";
+
+const PAGE_SIZE = 50;
+
+/**
+ * Merge incoming messages into the list: dedupe by id (socket and poll can
+ * deliver the same message), refresh a known message whose media URL or read
+ * state changed, keep chronological order. Returns `prev` itself
+ * when nothing changed so React can skip the render.
+ */
+function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return prev;
+  const byId = new Map<string, Message>();
+  prev.forEach((m) => byId.set(m.id, m));
+  let changed = false;
+  incoming.forEach((m) => {
+    const existing = byId.get(m.id);
+    if (!existing) {
+      byId.set(m.id, m);
+      changed = true;
+      return;
+    }
+    // Same message again with a fresh signed media URL (they expire after
+    // 1h) or a new read state: take the new values. A copy that simply lacks
+    // a field (e.g. a lighter socket payload) never erases it.
+    if (
+      (m.audioUrl !== undefined && m.audioUrl !== existing.audioUrl) ||
+      (m.imageUrl !== undefined && m.imageUrl !== existing.imageUrl) ||
+      (m.isRead !== undefined && m.isRead !== existing.isRead)
+    ) {
+      byId.set(m.id, {
+        ...existing,
+        ...m,
+        audioUrl: m.audioUrl ?? existing.audioUrl,
+        imageUrl: m.imageUrl ?? existing.imageUrl,
+        isRead: m.isRead ?? existing.isRead,
+      });
+      changed = true;
+    }
+  });
+  if (!changed) return prev;
+  return Array.from(byId.values()).sort(
+    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)
+  );
+}
+
+function normalizeMessage(m: {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  text?: string | null;
+  audioUrl?: string | null;
+  imageUrl?: string | null;
+  isRead?: boolean | null;
+  createdAt: string;
+}): Message {
+  return {
+    ...m,
+    text: m.text || "",
+    audioUrl: m.audioUrl || undefined,
+    imageUrl: m.imageUrl || undefined,
+    isRead: typeof m.isRead === "boolean" ? m.isRead : undefined,
+  } as Message;
+}
 
 // Custom hook for smooth keyboard animation using react-native-keyboard-controller
 const useKeyboardAnimation = () => {
@@ -90,6 +156,8 @@ export default function ConversationScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [polishing, setPolishing] = useState(false);
+  // AI data-sharing consent (App Store 5.1.2(i)): polish + voice notes.
+  const { requireAiConsent, handleAiError, consentSheet } = useAiConsentGate();
   const [messageText, setMessageText] = useState(prefillFromRoute ?? "");
   // Track which prefill values have been applied so navigating to the same
   // conversation later (without a prefill) doesn't clobber the user's draft.
@@ -214,24 +282,17 @@ export default function ConversationScreen() {
     let unsubTyping: (() => void) | undefined;
     let unsubTypingStop: (() => void) | undefined;
 
-    const setupSocket = async () => {
-      await connectSocket();
-      joinConversation(conversationId);
+    const setupSocket = () => {
+      // Listeners first, then join: joinConversation remembers the room and
+      // (re)joins it on every connect, so the first open and reconnects after
+      // backgrounding or a network change all receive messages.
 
       // Handle real-time messages
       unsubMessage = onNewMessage(conversationId, (newMessage) => {
-        // Don't add if it's our own message (already added optimistically)
+        // Own messages usually arrive first from the send response (or from
+        // another device); mergeMessages dedupes by id either way.
+        setMessages((prev) => mergeMessages(prev, [normalizeMessage(newMessage)]));
         if (newMessage.senderUserId === currentUserId) return;
-
-        setMessages((prev) => {
-          // Check if message already exists
-          if (prev.some((m) => m.id === newMessage.id)) return prev;
-          return [...prev, {
-            ...newMessage,
-            audioUrl: newMessage.audioUrl || undefined,
-            imageUrl: newMessage.imageUrl || undefined,
-          }];
-        });
         setHasMessages(true);
 
         // Mark as read
@@ -267,6 +328,9 @@ export default function ConversationScreen() {
           }
         }
       });
+
+      joinConversation(conversationId);
+      connectSocket().catch(() => { });
     };
 
     setupSocket();
@@ -293,6 +357,44 @@ export default function ConversationScreen() {
 
   // Fallback polling - only runs every 15 seconds as backup for missed WebSocket messages
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number>(0);
+  const lastMessageIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    lastMessageIdRef.current = messages.length > 0 ? messages[messages.length - 1].id : null;
+  }, [messages]);
+
+  // Older history (contract: GET messages?before=<oldest id>&limit -> hasMore)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  // While older messages are prepended, do not jump to the bottom.
+  const suppressAutoScrollRef = useRef(false);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingOlderRef.current || !hasMoreOlder || messages.length === 0) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    suppressAutoScrollRef.current = true;
+    try {
+      const page = await api.getMessagesPage(conversationId, {
+        before: messages[0].id,
+        limit: PAGE_SIZE,
+      });
+      setMessages((prev) => mergeMessages(prev, page.messages.map(normalizeMessage)));
+      // Defensive: a server without `before` support returns the latest page
+      // again; nothing new means there is nothing older to fetch.
+      const known = new Set(messages.map((m) => m.id));
+      const gotNew = page.messages.some((m) => !known.has(m.id));
+      setHasMoreOlder(page.hasMore && gotNew);
+    } catch (error) {
+      console.warn("Failed to load older messages:", error);
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+      setTimeout(() => {
+        suppressAutoScrollRef.current = false;
+      }, 300);
+    }
+  }, [conversationId, hasMoreOlder, messages]);
 
   useEffect(() => {
     // Start polling only after initial load is complete
@@ -304,11 +406,13 @@ export default function ConversationScreen() {
         }
 
         try {
-          const newMessages = await api.getMessages(conversationId, 50);
-          // Only update if there are new messages
-          if (newMessages.length !== messages.length) {
-            setMessages(newMessages);
-            setHasMessages(newMessages.length > 0);
+          // Latest page; merge by id instead of comparing lengths (with a full
+          // page the length never changes, so new messages never appeared).
+          const latest = await api.getMessages(conversationId, PAGE_SIZE);
+          const newestId = latest.length > 0 ? latest[latest.length - 1].id : null;
+          if (newestId && newestId !== lastMessageIdRef.current) {
+            setMessages((prev) => mergeMessages(prev, latest.map(normalizeMessage)));
+            setHasMessages(true);
             // Mark new messages as read
             try {
               await api.markConversationAsRead(conversationId);
@@ -332,7 +436,7 @@ export default function ConversationScreen() {
         pollingRef.current = null;
       }
     };
-  }, [loading, conversationId, currentUserId, messages.length, rateLimitedUntil]);
+  }, [loading, conversationId, currentUserId, rateLimitedUntil]);
 
   const handleAvatarPress = async () => {
     if (!otherUser) {
@@ -355,8 +459,7 @@ export default function ConversationScreen() {
       if (error instanceof AxiosError) {
         console.error("Axios error:", error.response?.data);
       }
-      const errorMessage =
-        error instanceof Error ? error.message : t('conversation.profile_load_error');
+      const errorMessage = apiErrorMessage(error, t('conversation.profile_load_error'));
       Alert.alert(t('common.error'), errorMessage, [
         {
           text: t('common.ok'),
@@ -483,9 +586,14 @@ export default function ConversationScreen() {
   const loadMessages = async () => {
     try {
       setLoading(true);
-      const data = await api.getMessages(conversationId, 50);
-      setMessages(data);
-      setHasMessages(data.length > 0);
+      const page = await api.getMessagesPage(conversationId, { limit: PAGE_SIZE });
+      setMessages((prev) => mergeMessages(
+        // Fresh load replaces the list; keep anything the socket delivered meanwhile.
+        prev.filter((m) => !page.messages.some((n) => n.id === m.id)),
+        page.messages.map(normalizeMessage)
+      ));
+      setHasMoreOlder(page.hasMore);
+      setHasMessages(page.messages.length > 0);
     } catch (error: any) {
       console.error("Failed to load messages:", error);
       // Handle rate limit gracefully - don't break the UI
@@ -543,6 +651,7 @@ export default function ConversationScreen() {
 
   const handleToneSelect = async (selectedTone: Tone) => {
     if (!messageText.trim() || polishing) return;
+    if (!(await requireAiConsent("ai"))) return;
 
     // Close tone selector first
     Animated.parallel([
@@ -569,7 +678,9 @@ export default function ConversationScreen() {
       const result = await api.polishMessage(messageText, selectedTone);
       setMessageText(result.polishedText);
     } catch (error) {
-      if (error instanceof AxiosError && (error.response?.status === 429 || error.response?.status === 402)) {
+      if (handleAiError(error, "ai")) {
+        // Consent missing or revoked: the consent sheet is now showing.
+      } else if (error instanceof AxiosError && (error.response?.status === 429 || error.response?.status === 402)) {
         const errorData = error.response.data?.error;
         if (errorData?.code === "AI_LIMIT_REACHED") {
           setUsageInfo(errorData.details?.usage || null);
@@ -578,8 +689,7 @@ export default function ConversationScreen() {
           Alert.alert(t('conversation.limit_title'), t('conversation.ai_limit_msg'));
         }
       } else {
-        const errorMessage =
-          error instanceof Error ? error.message : t('conversation.polish_error');
+        const errorMessage = apiErrorMessage(error, t('conversation.polish_error'));
         Alert.alert(t('common.error'), errorMessage);
       }
     } finally {
@@ -589,13 +699,16 @@ export default function ConversationScreen() {
 
   const handlePolish = async () => {
     if (!messageText.trim() || polishing) return;
+    if (!(await requireAiConsent("ai"))) return;
 
     setPolishing(true);
     try {
       const result = await api.polishMessage(messageText, tone);
       setMessageText(result.polishedText);
     } catch (error) {
-      if (error instanceof AxiosError && (error.response?.status === 429 || error.response?.status === 402)) {
+      if (handleAiError(error, "ai")) {
+        // Consent missing or revoked: the consent sheet is now showing.
+      } else if (error instanceof AxiosError && (error.response?.status === 429 || error.response?.status === 402)) {
         const errorData = error.response.data?.error;
         if (errorData?.code === "AI_LIMIT_REACHED") {
           setUsageInfo(errorData.details?.usage || null);
@@ -604,8 +717,7 @@ export default function ConversationScreen() {
           Alert.alert(t('conversation.limit_title'), t('conversation.ai_limit_msg'));
         }
       } else {
-        const errorMessage =
-          error instanceof Error ? error.message : t('conversation.polish_error');
+        const errorMessage = apiErrorMessage(error, t('conversation.polish_error'));
         Alert.alert(t('common.error'), errorMessage);
       }
     } finally {
@@ -646,7 +758,7 @@ export default function ConversationScreen() {
     try {
       setSending(true);
       const newMessage = await api.sendImageMessage(conversationId, uri);
-      setMessages((prev) => [...prev, { ...newMessage, text: newMessage.text || "" }]);
+      setMessages((prev) => mergeMessages(prev, [normalizeMessage(newMessage as any)]));
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -662,13 +774,14 @@ export default function ConversationScreen() {
     try {
       setSending(true);
       const newMessage = await api.sendAudioMessage(conversationId, uri);
-      setMessages((prev) => [...prev, { ...newMessage, text: newMessage.text || "" }]);
+      setMessages((prev) => mergeMessages(prev, [normalizeMessage(newMessage as any)]));
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
       console.error("Failed to send audio:", error);
+      if (handleAiError(error, "voice")) throw error;
       Alert.alert(t('common.error'), friendlyApiErrorMessage(error) ?? t('chat.send_error'));
       throw error; // Re-throw so VoiceRecorder can handle it
     } finally {
@@ -721,7 +834,7 @@ export default function ConversationScreen() {
 
     try {
       const newMessage = await api.sendMessage(conversationId, text);
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => mergeMessages(prev, [normalizeMessage(newMessage)]));
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -776,12 +889,11 @@ export default function ConversationScreen() {
           );
           setMessageText(text); // Restore text
         } else {
-          Alert.alert(t('common.error'), message);
+          Alert.alert(t('common.error'), apiErrorMessage(error, t('chat.send_error')));
           setMessageText(text); // Restore text on error
         }
       } else {
-        const errorMessage =
-          error instanceof Error ? error.message : t('chat.send_error');
+        const errorMessage = apiErrorMessage(error, t('chat.send_error'));
         Alert.alert(t('common.error'), errorMessage);
         setMessageText(text);
       }
@@ -804,6 +916,7 @@ export default function ConversationScreen() {
           onPress: async () => {
             try {
               await api.blockUser(otherUser.userId);
+              markConversationLeft(conversationId);
               Alert.alert(t("safety.blocked_toast"));
               router.replace("/(tabs)/chat"); // Navigate back to chat list
             } catch (error) {
@@ -813,6 +926,14 @@ export default function ConversationScreen() {
         },
       ]
     );
+  };
+
+  // Block / report from the profile sheet opened inside this chat: the
+  // conversation is over for us, so drop it from the list and go back.
+  const handleProfileSafetyAction = () => {
+    setShowProfileModal(false);
+    markConversationLeft(conversationId);
+    router.replace("/(tabs)/chat");
   };
 
   // Handles both report (user) and remove (leave chat) submissions
@@ -828,14 +949,12 @@ export default function ConversationScreen() {
         Alert.alert(t('safety.report_thanks'));
       } else {
         await api.leaveConversation(conversationId, reason, details);
+        markConversationLeft(conversationId);
         setSafetyReasonMode(null);
         router.replace("/(tabs)/chat");
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof AxiosError && error.response?.data?.error?.message
-          ? error.response.data.error.message
-          : t('safety.action_error');
+      const errorMessage = apiErrorMessage(error, t('safety.action_error'));
       Alert.alert(t('common.error'), errorMessage);
     }
   };
@@ -853,14 +972,13 @@ export default function ConversationScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await api.deleteConversation(conversationId);
+              // Same call as the reason-picker path, so both leave the same way.
+              await api.leaveConversation(conversationId);
+              markConversationLeft(conversationId);
               Alert.alert(t('common.success'), t('conversation.left_msg'));
               router.replace("/(tabs)/chat");
             } catch (error) {
-              const errorMessage =
-                error instanceof AxiosError && error.response?.data?.error?.message
-                  ? error.response.data.error.message
-                  : t('conversation.leave_error');
+              const errorMessage = apiErrorMessage(error, t('conversation.leave_error'));
               Alert.alert(t('common.error'), errorMessage);
             }
           },
@@ -993,6 +1111,13 @@ export default function ConversationScreen() {
 
   // Render first message from FAVORITE request if it exists and no messages yet
   const renderFirstMessage = () => {
+    if (loadingOlder) {
+      return (
+        <View style={{ paddingVertical: spacing.sm, alignItems: "center" }}>
+          <ActivityIndicator size="small" color={colors.textDark} />
+        </View>
+      );
+    }
     if (firstMessage && messages.length === 0) {
       return (
         <View style={styles.messageContainer}>
@@ -1087,6 +1212,7 @@ export default function ConversationScreen() {
             visible={showProfileModal}
             onClose={() => setShowProfileModal(false)}
             userId={otherUser?.userId || null}
+            onSafetyAction={handleProfileSafetyAction}
           />
 
           {/* Leave Conversation Modal for waiting screen */}
@@ -1130,8 +1256,17 @@ export default function ConversationScreen() {
         }
         inverted={false}
         onContentSizeChange={() => {
+          if (suppressAutoScrollRef.current) return;
           flatListRef.current?.scrollToEnd({ animated: false });
         }}
+        // Keep the reading position when older messages are prepended.
+        maintainVisibleContentPosition={hasMoreOlder || loadingOlder ? { minIndexForVisible: 0 } : undefined}
+        onScroll={(e) => {
+          if (e.nativeEvent.contentOffset.y < 80 && hasMoreOlder && !loadingOlderRef.current) {
+            loadOlderMessages();
+          }
+        }}
+        scrollEventThrottle={200}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       />
@@ -1324,6 +1459,11 @@ export default function ConversationScreen() {
           onCancel={() => { }}
           onRecordingStateChange={setIsRecordingActive}
           disabled={sending}
+          beforeRecord={() =>
+            // Record right away only if consent was already granted; after the
+            // sheet (even on Allow) the user presses the mic again.
+            requireAiConsent("voice", { proceedAfterSheet: false })
+          }
         />
       </View>
 
@@ -1431,6 +1571,7 @@ export default function ConversationScreen() {
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         userId={otherUser?.userId || null}
+        onSafetyAction={handleProfileSafetyAction}
       />
 
       {/* Safety Modal (Android) */}
@@ -1498,6 +1639,7 @@ export default function ConversationScreen() {
 
       {/* Leave Conversation Modal */}
       {renderLeaveConversationModal()}
+      {consentSheet}
       <Reanimated.View style={keyboardSpacerStyle} />
     </View>
   );

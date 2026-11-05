@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { colors, spacing, radius, textStyles } from "@/src/theme";
 import { api } from "@/src/services/api";
-import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
+import { friendlyApiErrorMessage, getApiErrorCode } from "@/src/services/apiErrors";
 import { clearToken } from "@/src/services/authStore";
 import { InterestPicker } from "@/src/components/InterestPicker";
 import { OnboardingShell } from "@/src/components/onboarding/OnboardingShell";
@@ -71,6 +71,9 @@ export default function ProfileSetupScreen() {
     typeof suggestedName === "string" ? suggestedName : ""
   );
   const [birthYear, setBirthYear] = useState("");
+  /** Asked only when the year alone cannot prove 18+ (see needsMonth). */
+  const [birthMonth, setBirthMonth] = useState<number | null>(null);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [gender, setGender] = useState<Gender | null>(null);
   const [purpose, setPurpose] = useState<Purpose>("CONVERSATION");
   const [track, setTrack] = useState<Track | null>(null);
@@ -120,6 +123,13 @@ export default function ProfileSetupScreen() {
   const currentYear = new Date().getFullYear();
   const minYear = currentYear - 100;
   const maxYear = currentYear - 18;
+  // 1-based. Someone born in maxYear is 18 only once their birthday has
+  // passed, so for that year we also ask the month (the server re-checks and
+  // answers UNDER_18). A month after this one means not yet 18.
+  const currentMonth = new Date().getMonth() + 1;
+  const parsedYear = parseInt(birthYear, 10);
+  const needsMonth = birthYear.length === 4 && parsedYear === maxYear;
+  const monthOk = !needsMonth || (birthMonth !== null && birthMonth <= currentMonth);
 
   /** Adim gecerli mi. Dugme her zaman basilabilir; bu yalnizca
    *  ilerleyip ilerlemeyecegimizi soyluyor. */
@@ -131,7 +141,10 @@ export default function ProfileSetupScreen() {
         return displayName.trim().length >= 2;
       case "birth": {
         const y = parseInt(birthYear, 10);
-        return birthYear.length === 4 && !isNaN(y) && y >= minYear && y <= maxYear;
+        return (
+          birthYear.length === 4 && !isNaN(y) && y >= minYear && y <= maxYear &&
+          monthOk && adultConfirmed
+        );
       }
       case "gender":
         return gender !== null;
@@ -152,7 +165,7 @@ export default function ProfileSetupScreen() {
     }
   }, [
     key, track, displayName, birthYear, gender, languagesNative,
-    languagesPractice, examOutcome, photos, minYear, maxYear,
+    languagesPractice, examOutcome, photos, minYear, maxYear, monthOk, adultConfirmed,
   ]);
 
   /**
@@ -170,10 +183,16 @@ export default function ProfileSetupScreen() {
         return displayName.trim()
           ? { name: t("setup.alerts.name_length") }
           : { name: t("setup.alerts.name_required") };
-      case "birth":
-        return birthYear.length === 4
-          ? { birth: t("setup.alerts.birth_range", { min: minYear, max: maxYear }) }
-          : { birth: t("setup.alerts.birth_required") };
+      case "birth": {
+        if (birthYear.length !== 4) return { birth: t("setup.alerts.birth_required") };
+        const y = parseInt(birthYear, 10);
+        if (isNaN(y) || y < minYear || y > maxYear) {
+          return { birth: t("setup.alerts.birth_range", { min: minYear, max: maxYear }) };
+        }
+        if (needsMonth && birthMonth === null) return { birth: t("age_gate.month_required") };
+        if (!monthOk) return { birth: t("age_gate.under_18") };
+        return { birth: t("age_gate.confirm_required") };
+      }
       case "gender":
         return { gender: t("setup.alerts.gender_required") };
       case "native":
@@ -185,7 +204,7 @@ export default function ProfileSetupScreen() {
       default:
         return {};
     }
-  }, [key, displayName, birthYear, minYear, maxYear, t]);
+  }, [key, displayName, birthYear, minYear, maxYear, needsMonth, birthMonth, monthOk, t]);
 
   const next = useCallback(() => {
     if (!valid) {
@@ -302,7 +321,10 @@ export default function ProfileSetupScreen() {
     // birthYear is required server-side at profile creation: never submit
     // without a valid one (send the user back to that step instead).
     const year = parseInt(birthYear, 10);
-    if (birthYear.length !== 4 || isNaN(year) || year < minYear || year > maxYear) {
+    if (
+      birthYear.length !== 4 || isNaN(year) || year < minYear || year > maxYear ||
+      !monthOk || !adultConfirmed
+    ) {
       const birthIndex = steps.indexOf("birth");
       if (birthIndex >= 0) setIndex(birthIndex);
       setErrors({ birth: t("setup.alerts.birth_required") });
@@ -325,6 +347,7 @@ export default function ProfileSetupScreen() {
       await api.upsertMyProfile({
         displayName: displayName.trim(),
         birthYear: year,
+        ...(needsMonth && birthMonth !== null ? { birthMonth } : {}),
         gender: gender || undefined,
         // Dil hattinda amac sorulmuyor: hattin kendisi zaten amaci soyluyor.
         purpose: track === "LANGUAGE" ? "PRACTICE" : purpose,
@@ -344,6 +367,12 @@ export default function ProfileSetupScreen() {
 
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
+      if (getApiErrorCode(error) === "UNDER_18") {
+        const birthIndex = steps.indexOf("birth");
+        if (birthIndex >= 0) setIndex(birthIndex);
+        setErrors({ birth: t("age_gate.under_18") });
+        return;
+      }
       const message =
         friendlyApiErrorMessage(error) ??
         (error instanceof Error && !(error as any).isAxiosError ? error.message : t("setup.alerts.save_error"));
@@ -375,7 +404,21 @@ export default function ProfileSetupScreen() {
       case "name":
         return <NameStep value={displayName} onChange={setDisplayName} error={errors.name} />;
       case "birth":
-        return <BirthStep value={birthYear} onChange={setBirthYear} error={errors.birth} />;
+        return (
+          <BirthStep
+            value={birthYear}
+            onChange={(v) => {
+              setBirthYear(v);
+              setBirthMonth(null);
+            }}
+            error={errors.birth}
+            askMonth={needsMonth}
+            month={birthMonth}
+            onMonth={setBirthMonth}
+            adultConfirmed={adultConfirmed}
+            onAdultConfirmed={setAdultConfirmed}
+          />
+        );
       case "gender":
         return <GenderStep value={gender} onChange={setGender} error={errors.gender} />;
       case "purpose":

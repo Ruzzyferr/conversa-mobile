@@ -124,7 +124,9 @@
       "not_completed_msg": "Ödülü kazanmak için reklamı sonuna kadar izle.",
       "error": "Reklam izlenemedi",
       "success": "Başarılı",
-      "reward_msg": "+{{amount}} beğeni kazandın!"
+      "reward_msg": "+{{amount}} beğeni kazandın!",
+      "reward_slot_msg_one": "Bugün için +{{count}} sohbet hakkı kazandın!",
+      "reward_slot_msg_other": "Bugün için +{{count}} sohbet hakkı kazandın!"
     },
     "favorite": {
       "limit_title": "Favori hakkı kalmadı",
@@ -157,7 +159,9 @@
       "go_premium": "Premium'a geç",
       "watch_ad": "Reklam izle → +3 beğeni",
       "later": "Yarın tekrar gel"
-    }
+    },
+    "like_failed_title": "Beğeni gönderilemedi",
+    "load_error_title": "Profiller yüklenemedi"
   },
   "profile": {
     "loading": "Yükleniyor...",
@@ -170,7 +174,6 @@
     "about": "Hakkında",
     "premium_active": "Premium aktif",
     "remaining": "Kalan: {{time}}",
-    "unlimited_messages": "Sınırsız mesaj",
     "who_liked": "Seni kim beğendi",
     "boost": "Boost",
     "direct_message": "Direkt mesaj",
@@ -220,13 +223,20 @@
     "boost_package_missing": "Boost paketi şu anda yüklenemedi. Biraz sonra tekrar dene.",
     "track_date": "Tanışma",
     "track_language": "Dil",
-    "track_label": "Hat",
+    "track_label": "Taraf",
     "verified_levels": "Doğrulanmış",
     "no_verified_levels": "Henüz doğrulanmış dil yok",
     "take_exam": "Sınava gir",
     "privacy_policy": "Gizlilik Politikası",
     "terms_of_use": "Kullanım Koşulları",
-    "contact_support": "Destekle İletişime Geç"
+    "contact_support": "Destekle İletişime Geç",
+    "perk_likes": "Sınırsız beğeni",
+    "perk_favorites": "Her hafta ücretsiz Favori",
+    "perk_boosts": "Her hafta ücretsiz Boost",
+    "perk_filters": "Gelişmiş filtreler",
+    "perk_ads_free": "Reklamsız",
+    "delete_account_subscription_note": "Hesabını silmek Premium aboneliğini iptal etmez. Yeniden ücret alınmaması için aboneliği kendin iptal etmelisin: iPhone'da Ayarlar > [adın] > Abonelikler; Android'de Play Store > Profil > Ödemeler ve abonelikler > Abonelikler.",
+    "manage_subscription": "Aboneliği yönet"
   },
   "setup": {
     "step1": {
@@ -557,7 +567,7 @@
     "mobile_gaming": "Mobil oyunlar",
     "esports": "E-spor",
     "coding": "Kod yazmak",
-    "ai_tech": "Yapay zeka & teknoloji",
+    "ai_tech": "Yapay zekâ & teknoloji",
     "crypto": "Kripto",
     "gadgets": "Teknolojik aletler",
     "vr": "Sanal gerçeklik",
@@ -618,6 +628,10 @@
     "other_person": "karşı taraf"
   },
   "chat": {
+    "load_error_title": "Sohbetler yüklenemedi",
+    "load_error": "Sohbetlerin yüklenemedi. Bağlantını kontrol edip tekrar dene.",
+    "match_not_ready_title": "Sohbet henüz hazır değil",
+    "match_not_ready_msg": "Bu sohbet hâlâ hazırlanıyor. Listeni yeniledik; birazdan tekrar dene.",
     "header": "Sohbet",
     "warning": "Uyarı",
     "write_message": "Önce bir mesaj yaz",
@@ -746,7 +760,7 @@
     "submit_button": "Gönder",
     "submitting": "Gönderiliyor...",
     "pending_title": "İncelemede",
-    "pending_desc": "Selfien otomatik olarak kontrol ediliyor. Genellikle 1 dakikadan kısa sürer — ekranı yenileyebilirsin.",
+    "pending_desc": "Selfien otomatik olarak kontrol ediliyor. Bu genellikle bir dakikadan kısa sürer.",
     "verified_title": "Profilin doğrulandı!",
     "verified_desc": "Mavi doğrulama rozeti artık profilinde görünüyor.",
     "start_failed": "Doğrulama başlatılamadı. Tekrar dene.",
@@ -825,7 +839,24 @@
     "per_n_days": "/{{count}} gün",
     "per_n_weeks": "/{{count}} hafta",
     "per_n_months": "/{{count}} ay",
-    "per_n_years": "/{{count}} yıl"
+    "per_n_years": "/{{count}} yıl",
+    "col_free": "Ücretsiz",
+    "val_none": "Yok",
+    "row_ai_polish": "Yapay zekâ ile mesaj düzeltme",
+    "row_likes": "Beğeni",
+    "row_favorites": "Favori (ilk mesajı sen gönder)",
+    "row_boosts": "Ücretsiz Boost",
+    "row_ads_free": "Reklamsız",
+    "duration_day_one": "{{count}} gün",
+    "duration_day_other": "{{count}} gün",
+    "duration_week_one": "{{count}} hafta",
+    "duration_week_other": "{{count}} hafta",
+    "duration_month_one": "{{count}} ay",
+    "duration_month_other": "{{count}} ay",
+    "duration_year_one": "{{count}} yıl",
+    "duration_year_other": "{{count}} yıl",
+    "intro_free": "{{duration}} ücretsiz, ardından {{price}}",
+    "intro_paid": "{{duration}} boyunca {{introPrice}}, ardından {{price}}"
   },
   "interest_categories": {
     "self_care": "Öz bakım",
@@ -860,8 +891,8 @@
       "features": [
         "Sınırsız beğeni",
         "Seni beğenenleri gör",
-        "Haftada 2 ücretsiz Boost",
-        "Haftada 5 Favori mesajı",
+        "Haftada {{boosts}} ücretsiz Boost",
+        "Haftada {{favorites}} Favori mesajı",
         "Gelişmiş filtreler",
         "Reklamsız deneyim"
       ]
@@ -872,9 +903,11 @@
       "features": [
         "Profilin 30 dakika boyunca en üstte",
         "10 kata kadar daha fazla görüntülenme",
-        "Premium ile haftada 2 Boost ücretsiz"
+        "Premium ile haftada {{boosts}} Boost ücretsiz"
       ],
-      "pack_cta": "2'li Boost paketi — {{price}}"
+      "pack_cta": "2'li Boost paketi — {{price}}",
+      "balance_now_one": "Artık {{count}} Boost'un var.",
+      "balance_now_other": "Artık {{count}} Boost'un var."
     },
     "favorite": {
       "title": "Favori ile fark yarat",
@@ -882,9 +915,11 @@
       "features": [
         "Mesajın doğrudan karşı tarafa ulaşır",
         "Normal beğeniden çok daha etkili",
-        "Premium ile haftada 5 Favori ücretsiz"
+        "Premium ile haftada {{favorites}} Favori ücretsiz"
       ],
-      "pack_cta": "5'li favori paketi — {{price}}"
+      "pack_cta": "5'li favori paketi — {{price}}",
+      "balance_now_one": "Artık {{count}} Favori hakkın var.",
+      "balance_now_other": "Artık {{count}} Favori hakkın var."
     },
     "whoLiked": {
       "title": "Seni kimin beğendiğini gör",
@@ -894,6 +929,19 @@
         "Bulanıklığı kaldır, hemen eşleş",
         "Sınırsız beğeni ile geri beğen"
       ]
+    },
+    "purchase_pending_msg": "Ödemen alındı. Paketin hesabına ekleniyor, kısa süre içinde görünecek.",
+    "perk": {
+      "likes_unlimited": "Sınırsız beğeni",
+      "likes_per_day": "Günde {{count}} beğeni",
+      "who_liked": "Seni kimlerin beğendiğini gör",
+      "boosts_per_week_one": "Her hafta {{count}} ücretsiz Boost",
+      "boosts_per_week_other": "Her hafta {{count}} ücretsiz Boost",
+      "favorites_per_week_one": "Her hafta {{count}} Favori mesaj",
+      "favorites_per_week_other": "Her hafta {{count}} Favori mesaj",
+      "filters": "Gelişmiş filtreler",
+      "ai_polish_unlimited": "Sınırsız yapay zekâ mesaj düzeltme",
+      "ads_free": "Reklamsız deneyim"
     }
   },
   "edit": {
@@ -962,6 +1010,8 @@
     "failed": "Giriş yapılamadı. Lütfen tekrar dene."
   },
   "otp": {
+    "too_many_attempts": "Çok fazla hatalı deneme yapıldı. Yeni bir kod iste.",
+    "send_new_code": "Yeni kod gönder",
     "title": "Doğrulama kodunu gir",
     "subtitle": "6 haneli kodu şuraya gönderdik:",
     "cta": "Doğrula",
@@ -1090,12 +1140,116 @@
     "spelling": "Yazım",
     "register": "Üslup"
   },
+  "launch": {
+    "error_title": "Şu anda bağlanılamıyor",
+    "error_body": "Conversa'ya ulaşamadık. Bağlantını kontrol edip tekrar dene."
+  },
   "errors": {
+    "generic": "Bir şeyler ters gitti. Lütfen tekrar dene.",
+    "network": "İnternet bağlantın yok gibi görünüyor. Bağlantını kontrol edip tekrar dene.",
+    "rate_limited": "Biraz hızlı gidiyorsun. Lütfen biraz bekleyip tekrar dene.",
+    "request_already_exists": "Bu kişi sana zaten bir istek gönderdi. Önce onu kabul et ya da reddet.",
+    "request_already_sent": "Bu kişiye zaten bir istek gönderdin.",
+    "concurrency_full": "Cevap bekleyen sohbetlerin dolu. Biri cevap verince yenisini açabilirsin.",
+    "throughput_full": "Bugünlük yeni sohbet hakkın doldu. Yarın yenilerini açabilirsin.",
+    "ai_consent_required": "Yapay zekâ özellikleri kapalı. Bunu kullanmak için ayarlardan yapay zekâ özelliklerini aç.",
+    "track_cooldown": "Taraf değişikliğini 30 günde bir yapabilirsin.",
+    "proof_required": "Dil tarafına geçmeden önce dillerinden en az birini doğrula.",
+    "under_18": "Conversa'yı kullanmak için en az 18 yaşında olmalısın.",
+    "exam_cooldown": "Bu dil için seviye kontrolünü 7 günde bir tekrarlayabilirsin.",
+    "boost_unavailable": "Boost şu anda hesabında kullanılamıyor.",
+    "blocked": "Bu sohbet artık kullanılamıyor.",
+    "code_expired": "Bu kodun süresi doldu. Yeni bir kod iste.",
+    "code_invalid": "Kod doğru değil. Lütfen tekrar dene.",
+    "too_many_attempts": "Çok fazla hatalı deneme yapıldı. Yeni bir kod iste.",
     "not_sent_title": "Mesaj gönderilmedi",
     "content_rejected": "Bu metin Conversa'da izin verilmeyen kelimeler veya içerik barındırıyor. Lütfen değiştirip tekrar dene.",
     "image_rejected": "Bu fotoğraf topluluk kurallarımıza uymadığı için kullanılamıyor. Lütfen başka bir fotoğraf seç.",
     "age_locked": "Doğum yılın profil oluşturulduktan sonra değiştirilemez. Yanlışsa destekle iletişime geç.",
     "birth_year_required": "Profilini tamamlamak için doğum yılını ekle.",
-    "image_check_unavailable": "Bu fotoğrafı şu an kontrol edemedik. Lütfen birazdan tekrar dene."
+    "image_check_unavailable": "Bu fotoğrafı şu an kontrol edemedik. Lütfen birazdan tekrar dene.",
+    "action_failed": "İşlem tamamlanamadı. Lütfen tekrar dene.",
+    "first_message_text": "Sohbete yazılı bir mesajla başla. Fotoğraf ve sesli mesaj, konuşmaya başladıktan sonra gönderilebilir.",
+    "first_message_restricted": "Tanışma eşleşmelerinde ilk mesajı kadınlar gönderir. O yazdıktan sonra cevap verebilirsin.",
+    "first_message_too_short": "İlk mesajın en az 20 karakter olmalı. Neden yazdığını biraz daha anlat.",
+    "already_verified": "Profilin zaten doğrulanmış.",
+    "verification_pending": "Son selfien hâlâ kontrol ediliyor. Birkaç dakika sonra tekrar dene.",
+    "boost_already_active": "Zaten aktif bir boost’un var.",
+    "no_boosts_remaining": "Hiç boost hakkın kalmadı."
+  },
+  "ai_consent": {
+    "title": "Yapay zekâ özelliklerini kullanmadan önce",
+    "intro": "Conversa'nın bazı özellikleri içeriğini dış yapay zekâ hizmetlerine gönderir. Bunu yalnızca sen izin verirsen yaparız.",
+    "voice_title": "Sesli mesajlar → OpenAI",
+    "voice_body": "Gönderdiğin her sesli mesaj, iletilmeden önce güvenlik açısından (taciz, tehdit, dolandırıcılık) taranabilmesi için OpenAI'ın konuşmayı metne çeviren hizmetiyle yazıya dökülür.",
+    "ai_title": "Yapay zekâ yardımı → Google Gemini",
+    "ai_body": "\"Yapay zekâ ile düzelt\", yapay zekâ koçu, çeviri veya dil kontrolünü kullandığında seçtiğin metin (ya da sınav cevapların) sonucu üretmesi için yapay zekâ ağ geçidimiz üzerinden Google Gemini'ye gönderilir.",
+    "not_used": "Yalnızca o isteğin içeriği gönderilir; adın, fotoğrafların veya iletişim bilgilerin gönderilmez.",
+    "voice_required": "Buna izin vermeden sesli mesaj gönderilemez, çünkü her sesli mesaj güvenlik için taranır.",
+    "change_later": "Bunu istediğin zaman profil ayarlarındaki Yapay zekâ özellikleri bölümünden değiştirebilirsin.",
+    "privacy_link": "Gizlilik politikasını oku",
+    "allow": "İzin ver",
+    "not_now": "Şimdi değil",
+    "save_error": "Seçimin kaydedilemedi. Bağlantını kontrol edip tekrar dene.",
+    "setting_title": "Yapay zekâ özellikleri",
+    "setting_on": "Açık: sesli mesajlar OpenAI ile taranır; yapay zekâ yardımı Google Gemini kullanır.",
+    "setting_off": "Kapalı: yapay zekâ yardımı ve sesli mesajlar kullanılamaz.",
+    "revoke_title": "Yapay zekâ özellikleri kapatılsın mı?",
+    "revoke_msg": "\"Yapay zekâ ile düzelt\", koç, çeviri, dil kontrolü ve sesli mesajlar sen tekrar açana kadar çalışmaz.",
+    "revoke_confirm": "Kapat",
+    "exam_required": "Dil kontrolü, yapay zekâ ağ geçidimiz üzerinden Google Gemini tarafından puanlanır. Başlamak için yapay zekâ özelliklerine izin ver. Süre ancak ondan sonra başlar.",
+    "exam_cta": "İncele ve izin ver",
+    "exam_reused": "Bu kontrolü zaten geçmişsin, mevcut sonucunu kullandık. Tekrar girmene gerek yok."
+  },
+  "age_gate": {
+    "month_label": "Hangi ayda doğdun?",
+    "month_required": "Lütfen doğum ayını seç.",
+    "under_18": "Conversa'yı kullanmak için 18 yaşında veya daha büyük olmalısın.",
+    "confirm_18": "18 yaşında veya daha büyük olduğumu onaylıyorum",
+    "confirm_required": "Lütfen 18 yaşında veya daha büyük olduğunu onayla."
+  },
+  "track_switch": {
+    "section_title": "Tarafın",
+    "current_date": "Tanışma tarafındasın.",
+    "current_language": "Dil tarafındasın.",
+    "switch_to_language": "Dil tarafına geç",
+    "switch_to_date": "Tanışma tarafına geç",
+    "confirm_title_language": "Dil tarafına geçilsin mi?",
+    "confirm_title_date": "Tanışma tarafına geçilsin mi?",
+    "consequence_wall": "İki taraf birbirinden ayrıdır: diğer taraftayken şu anki tarafındaki eşleşmelerin ve sohbetlerin gizlenir.",
+    "consequence_cooldown": "Geçtikten sonra 30 gün boyunca tekrar taraf değiştiremezsin.",
+    "consequence_exam": "Dil tarafı için en az bir doğrulanmış dilin olmalı. Henüz yoksa önce dil kontrolünü yap.",
+    "confirm": "Geç",
+    "done_title": "Taraf değişti",
+    "done_language": "Artık dil tarafındasın.",
+    "done_date": "Artık tanışma tarafındasın.",
+    "error_cooldown": "Kısa süre önce taraf değiştirdin. Son değişikliğinden 30 gün sonra tekrar değiştirebilirsin.",
+    "error_cooldown_until": "Kısa süre önce taraf değiştirdin. {{date}} tarihinde tekrar değiştirebilirsin.",
+    "error_proof": "Dil tarafına katılmak için en az bir doğrulanmış dilin olmalı. Önce dil kontrolünü yap.",
+    "error_generic": "Şu anda taraf değiştirilemedi. Lütfen tekrar dene."
+  },
+  "safety_actions": {
+    "failed": "Bir şeyler ters gitti. Lütfen tekrar dene."
+  },
+  "verify_result": {
+    "disclosure": "Doğrulama isteğe bağlıdır. Sen olduğunu teyit etmek için selfien profil fotoğraflarınla otomatik olarak karşılaştırılır (yüz karşılaştırması). Selfienin nasıl saklanıp silindiği için gizlilik politikamıza bak.",
+    "capture_disclosure": "Selfien profil fotoğraflarınla otomatik olarak karşılaştırılacak (yüz karşılaştırması). Doğrulama isteğe bağlıdır.",
+    "privacy_link": "Gizlilik politikası",
+    "rejected_title": "Seni doğrulayamadık",
+    "reason_no_face_in_selfie": "Selfiende bir yüz bulamadık.",
+    "reason_no_face_in_photos": "Karşılaştırmak için profil fotoğraflarında net bir yüz bulamadık.",
+    "reason_no_match": "Selfien profil fotoğraflarınla yeterince eşleşmedi.",
+    "reason_error": "Otomatik kontrol bizim tarafımızda başarısız oldu. Bu seninle ilgili değil.",
+    "reason_generic": "Son doğrulama denemen başarılı olmadı.",
+    "rejected_tip": "İpucu: iyi ışık kullan, kameraya bak ve en az bir profil fotoğrafında yüzünün net göründüğünden emin ol.",
+    "try_again": "Tekrar dene",
+    "check_again": "Durumu kontrol et",
+    "checking": "Kontrol ediliyor…",
+    "still_pending": "Hâlâ kontrol ediliyor. Bu genellikle bir dakikadan kısa sürer.",
+    "check_failed": "Durum kontrol edilemedi. Bağlantını kontrol edip tekrar dene.",
+    "start_over": "Çok mu uzun sürdü? Yeniden başla",
+    "stale_pending": "Son selfien hâlâ kontrol ediliyor. Birkaç dakika sonra tekrar dene.",
+    "reason_timeout": "Kontrol bizim tarafımızda çok uzun sürdü. Lütfen tekrar dene.",
+    "reason_photos_changed": "Profil fotoğraflarını değiştirdiğin için tekrar doğrulaman gerekiyor."
   }
 }

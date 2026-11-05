@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -20,6 +21,17 @@ import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { StatusModal } from "@/src/components/StatusModal";
 import { api } from "@/src/services/api";
 import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
+import { LEGAL_URLS } from "@/src/config/legal";
+
+/** Reason codes the automatic face check reports (backend lib/faceVerify.ts). */
+const KNOWN_REJECT_REASONS = ["no_face_in_selfie", "no_face_in_photos", "no_match", "error", "timeout", "photos_changed"];
+
+function rejectReasonKey(reason: string | null | undefined): string {
+  const code = (reason || "").toLowerCase();
+  return KNOWN_REJECT_REASONS.includes(code)
+    ? `verify_result.reason_${code}`
+    : "verify_result.reason_generic";
+}
 
 // Pose ids must match the backend's VERIFICATION_POSES list.
 const POSE_EMOJI: Record<string, string> = {
@@ -31,7 +43,7 @@ const POSE_EMOJI: Record<string, string> = {
   hand_on_chin: "🤔",
 };
 
-type Step = "loading" | "intro" | "capture" | "submitting" | "pending" | "verified";
+type Step = "loading" | "intro" | "capture" | "submitting" | "pending" | "rejected" | "verified";
 
 export default function VerifyProfileScreen() {
   const { t } = useTranslation();
@@ -40,6 +52,9 @@ export default function VerifyProfileScreen() {
   const [step, setStep] = useState<Step>("loading");
   const [pose, setPose] = useState<string | null>(null);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [pendingNote, setPendingNote] = useState<string | null>(null);
 
   const [statusVisible, setStatusVisible] = useState(false);
   const [statusTitle, setStatusTitle] = useState("");
@@ -51,29 +66,57 @@ export default function VerifyProfileScreen() {
     setStatusVisible(true);
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const me = await api.getMe();
-        if (me.user.isVerified) {
-          setStep("verified");
-        } else if (me.user.verificationStatus === "PENDING") {
-          setStep("pending");
-        } else {
-          setStep("intro");
-        }
-      } catch {
+  /** Reads the server state. Returns the status, or null when offline. */
+  const refreshStatus = async (fallback: Step): Promise<string | null> => {
+    try {
+      const me = await api.getMe();
+      if (me.user.isVerified) {
+        setStep("verified");
+      } else if (me.user.verificationStatus === "PENDING") {
+        setStep("pending");
+      } else if (me.user.verificationStatus === "REJECTED") {
+        // Used to fall through to the intro screen: the user never learned
+        // that (or why) the last attempt failed.
+        setRejectReason(me.user.verificationRejectReason ?? null);
+        setStep("rejected");
+      } else {
         setStep("intro");
       }
-    })();
+      return me.user.isVerified ? "APPROVED" : me.user.verificationStatus ?? "NONE";
+    } catch {
+      setStep(fallback);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    void refreshStatus("intro");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleCheckAgain = async () => {
+    setChecking(true);
+    setPendingNote(null);
+    const status = await refreshStatus("pending");
+    setChecking(false);
+    if (status === "PENDING") setPendingNote(t("verify_result.still_pending"));
+    else if (status === null) setPendingNote(t("verify_result.check_failed"));
+  };
 
   const handleStart = async () => {
     try {
       const res = await api.startVerification();
       setPose(res.pose);
+      setSelfieUri(null);
       setStep("capture");
     } catch (error: any) {
+      // 409: the server still has an attempt marked pending. Re-read the
+      // real state instead of leaving the user on a dead screen.
+      if (error?.response?.status === 409) {
+        const status = await refreshStatus("intro");
+        if (status === "PENDING") setPendingNote(t("verify_result.stale_pending"));
+        return;
+      }
       showError(t("common.error"), t("verify.start_failed"));
     }
   };
@@ -127,6 +170,11 @@ export default function VerifyProfileScreen() {
         ))}
       </View>
 
+      <Text style={styles.disclosure}>{t("verify_result.disclosure")}</Text>
+      <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.privacy)} accessibilityRole="link">
+        <Text style={styles.link}>{t("verify_result.privacy_link")}</Text>
+      </TouchableOpacity>
+
       <PrimaryButton title={t("verify.start_button")} onPress={handleStart} />
     </>
   );
@@ -136,6 +184,7 @@ export default function VerifyProfileScreen() {
       <Text style={styles.poseEmoji}>{pose ? POSE_EMOJI[pose] || "🤳" : "🤳"}</Text>
       <Text style={styles.title}>{t(`verify.pose.${pose}`)}</Text>
       <Text style={styles.subtitle}>{t("verify.capture_hint")}</Text>
+      <Text style={styles.disclosure}>{t("verify_result.capture_disclosure")}</Text>
 
       {selfieUri ? (
         <View style={styles.previewWrap}>
@@ -162,7 +211,33 @@ export default function VerifyProfileScreen() {
       <Text style={styles.poseEmoji}>⏳</Text>
       <Text style={styles.title}>{t("verify.pending_title")}</Text>
       <Text style={styles.subtitle}>{t("verify.pending_desc")}</Text>
-      <PrimaryButton title={t("common.ok")} onPress={() => router.back()} />
+      {pendingNote ? <Text style={styles.disclosure}>{pendingNote}</Text> : null}
+      <PrimaryButton
+        title={checking ? t("verify_result.checking") : t("verify_result.check_again")}
+        onPress={handleCheckAgain}
+        disabled={checking}
+      />
+      <TouchableOpacity onPress={handleStart} style={styles.secondaryAction}>
+        <Text style={styles.link}>{t("verify_result.start_over")}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.back()} style={styles.secondaryAction}>
+        <Text style={styles.retakeText}>{t("common.close")}</Text>
+      </TouchableOpacity>
+    </>
+  );
+
+  const renderRejected = () => (
+    <>
+      <View style={[styles.heroBadge, { backgroundColor: colors.surface }]}>
+        <MaterialIcons name="error-outline" size={56} color={colors.warning} />
+      </View>
+      <Text style={styles.title}>{t("verify_result.rejected_title")}</Text>
+      <Text style={styles.subtitle}>{t(rejectReasonKey(rejectReason))}</Text>
+      <Text style={styles.disclosure}>{t("verify_result.rejected_tip")}</Text>
+      <PrimaryButton title={t("verify_result.try_again")} onPress={handleStart} />
+      <TouchableOpacity onPress={() => router.back()} style={styles.secondaryAction}>
+        <Text style={styles.retakeText}>{t("common.close")}</Text>
+      </TouchableOpacity>
     </>
   );
 
@@ -204,6 +279,8 @@ export default function VerifyProfileScreen() {
           renderCapture()
         ) : step === "pending" ? (
           renderPending()
+        ) : step === "rejected" ? (
+          renderRejected()
         ) : (
           renderVerified()
         )}
@@ -333,6 +410,21 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
+  },
+  disclosure: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  link: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    textDecorationLine: "underline",
+    textAlign: "center",
+  },
+  secondaryAction: {
+    paddingVertical: spacing.sm,
   },
   retakeText: {
     fontSize: typography.fontSize.sm,

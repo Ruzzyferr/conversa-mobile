@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@/src/services/apiErrors";
 import {
   View,
   Text,
@@ -70,7 +71,7 @@ export default function AuthScreen() {
         params: { mode: "email", identifier: value },
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t("auth.failed"));
+      setError(apiErrorMessage(err, t("auth.failed")));
       setLoading(false);
     }
   };

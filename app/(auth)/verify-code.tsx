@@ -24,6 +24,7 @@ import { FieldError } from "@/src/components/ui/FieldError";
 import { api } from "@/src/services/api";
 import { setToken } from "@/src/services/authStore";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage, otpErrorKind } from "@/src/services/apiErrors";
 
 export default function VerifyCodeScreen() {
   const { t } = useTranslation();
@@ -55,6 +56,9 @@ export default function VerifyCodeScreen() {
   const [resending, setResending] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [inlineNotice, setInlineNotice] = useState<string | null>(null);
+  // Expired code or too many attempts: the current code can never work, so
+  // the screen offers a new one right under the error.
+  const [needsNewCode, setNeedsNewCode] = useState(false);
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput | null>(null);
   const submittingRef = useRef(false);
@@ -103,19 +107,24 @@ export default function VerifyCodeScreen() {
       await setToken(result.token);
       router.replace("/(tabs)/home");
     } catch (error: unknown) {
-      let message = t('otp.invalid_code');
-
-      if (error instanceof Error) {
-        // Try to extract a user-friendly message
-        if (error.message.includes("400") || error.message.includes("Invalid")) {
+      // Classified by backend code (then status/message), never by searching
+      // the axios text for "400": that turned every failure into "invalid".
+      const kind = otpErrorKind(error);
+      let message: string;
+      switch (kind) {
+        case "invalid":
           message = t('otp.invalid_code');
-        } else if (error.message.includes("expired") || error.message.includes("Expired")) {
+          break;
+        case "expired":
           message = t('otp.expired_code');
-        } else {
-          message = error.message;
-        }
+          break;
+        case "too_many_attempts":
+          message = t('otp.too_many_attempts');
+          break;
+        default:
+          message = apiErrorMessage(error, t('otp.generic_error'));
       }
-
+      setNeedsNewCode(kind === "expired" || kind === "too_many_attempts");
       setInlineError(message);
       // Hatada kutulari temizle ve klavyeyi ACIK birak: eskiden odak
       // kayboluyordu ve kullanici tekrar denemek icin once bir kutuya
@@ -137,10 +146,11 @@ export default function VerifyCodeScreen() {
       );
       setInlineNotice(t("otp.resent"));
       setInlineError(null);
+      setNeedsNewCode(false);
       setCode("");
       inputRef.current?.focus();
     } catch (error: unknown) {
-      setInlineError(error instanceof Error ? error.message : t("otp.resend_failed"));
+      setInlineError(apiErrorMessage(error, t("otp.resend_failed")));
     } finally {
       setResending(false);
     }
@@ -231,6 +241,14 @@ export default function VerifyCodeScreen() {
             </Pressable>
 
             <FieldError message={inlineError ?? undefined} />
+            {needsNewCode && inlineError ? (
+              <PrimaryButton
+                title={resending ? t("otp.sending") : t("otp.send_new_code")}
+                onPress={handleResend}
+                loading={resending}
+                style={styles.button}
+              />
+            ) : null}
             {inlineNotice && !inlineError ? (
               <Text style={styles.notice}>{inlineNotice}</Text>
             ) : null}

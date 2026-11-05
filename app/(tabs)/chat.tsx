@@ -33,7 +33,8 @@ import { Card } from "@/src/components/Card";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { getToken } from "@/src/services/authStore";
 import { api } from "@/src/services/api";
-import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
+import { friendlyApiErrorMessage, apiErrorMessage } from "@/src/services/apiErrors";
+import { isConversationLeft, markConversationLeft } from "@/src/services/socket";
 import { AxiosError } from "axios";
 import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { useSocket } from "@/src/state/socket";
@@ -84,6 +85,9 @@ export default function ChatScreen() {
   const [newMatches, setNewMatches] = useState<any[]>([]);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  // Set when the conversation list itself could not be loaded, so the screen
+  // shows an error + retry instead of a misleading "no conversations".
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [replyingToRequestId, setReplyingToRequestId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
 
@@ -103,6 +107,7 @@ export default function ChatScreen() {
   React.useEffect(() => {
     if (socketNewMatches.length > 0) {
       const latestMatch = socketNewMatches[socketNewMatches.length - 1];
+      if (isConversationLeft(latestMatch.conversationId)) return;
       // Add to newMatches if not already present
       setNewMatches(prev => {
         if (prev.some(m => m.matchId === latestMatch.matchId)) return prev;
@@ -157,28 +162,37 @@ export default function ChatScreen() {
       }
 
       setLoading(true);
-      const [conversationsData, requestsData, matchesData, meData] = await Promise.all([
+      // allSettled: one failing side call (requests, matches, me) must not
+      // blank the whole screen. Only the conversation list is essential.
+      const [conversationsRes, requestsRes, matchesRes, meRes] = await Promise.allSettled([
         api.getConversations(),
         api.getChatRequests(),
         api.listMatches(),
         api.getMe(),
       ]);
 
-      setCurrentUserId(meData.user.id);
+      if (conversationsRes.status === "rejected") {
+        console.error("Failed to load conversations:", conversationsRes.reason);
+        setLoadError(apiErrorMessage(conversationsRes.reason, t('chat.load_error')));
+        return;
+      }
+      setLoadError(null);
+
+      if (meRes.status === "fulfilled") setCurrentUserId(meRes.value.user.id);
+
+      const conversationsData = conversationsRes.value.filter(
+        (c) => !isConversationLeft(c.conversationId)
+      );
+      const matchesData = matchesRes.status === "fulfilled" ? matchesRes.value : [];
 
       // 1. Separate Active Conversations (those with messages)
       const active = conversationsData.filter(c => c.lastMessage !== null && c.lastMessage !== undefined);
 
       // 2. Identify New Matches (matches without active conversations)
-      // Start with all explicit matches
-      let matches = [...matchesData];
+      let matches = [...matchesData].filter((m: any) => !isConversationLeft(m.conversationId));
 
       // Add conversations that have NO messages (technically just matches still)
       const emptyConversations = conversationsData.filter(c => !c.lastMessage);
-
-      // Map empty conversations to match format if needed, or just treat duplicate logic
-      // Ideally, simple Matches don't imply a conversation exists yet.
-      // We want to show a unique list of people to start chatting with.
 
       const activeUserIds = new Set(active.map(c => c.otherUser.userId));
 
@@ -199,13 +213,21 @@ export default function ChatScreen() {
 
       setActiveConversations(active as Conversation[]);
       setNewMatches(uniqueNewMatches);
-      setChatRequests(requestsData);
+      if (requestsRes.status === "fulfilled") {
+        setChatRequests(requestsRes.value);
+      } else {
+        console.warn("Failed to load chat requests:", requestsRes.reason);
+      }
+      if (matchesRes.status === "rejected") {
+        console.warn("Failed to load matches:", matchesRes.reason);
+      }
     } catch (error) {
       console.error("Failed to load conversations:", error);
+      setLoadError(apiErrorMessage(error, t('chat.load_error')));
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, t]);
 
   // Reload conversations every time the screen comes into focus
   useFocusEffect(
@@ -221,15 +243,13 @@ export default function ChatScreen() {
   const handleMatchPress = async (match: any) => {
     if (match.conversationId) {
       router.push(`/conversation/${match.conversationId}`);
-    } else {
-      // Should create conversation or just navigate with matchId context?
-      // Usually we need conversationId. If it's null, verify backend logic.
-      // Assuming backend creates conversation on match or on first message.
-      // If null, we might need an endpoint to "start" conversation or passing user ID.
-      // For now, let's assume we can navigate to conversation/new?userId=... or similar.
-      // Conversation almost always has a conversationId on this surface.
-      console.warn("No conversation ID for match", match);
+      return;
     }
+    // A match whose conversation is not created yet (or not in this list
+    // yet). Refresh once and tell the user instead of silently doing nothing.
+    console.warn("No conversation ID for match", match.matchId);
+    await loadConversations();
+    Alert.alert(t('chat.match_not_ready_title'), t('chat.match_not_ready_msg'));
   };
 
   const handleDiscoverPress = () => {
@@ -253,7 +273,7 @@ export default function ChatScreen() {
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
-      let errorMessage = error instanceof Error ? error.message : t('chat.send_error');
+      let errorMessage = apiErrorMessage(error, t('chat.send_error'));
       const friendly = friendlyApiErrorMessage(error);
       if (friendly) {
         // Keep the draft (replyText) so the user can edit it.
@@ -264,12 +284,10 @@ export default function ChatScreen() {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data?.error;
         const code = errorData?.code;
-        const message = errorData?.message || errorMessage;
+        const message: string = errorData?.message || "";
 
         if (code === "FIRST_MESSAGE_RESTRICTED" || code === "MALE_CANNOT_SEND_FIRST_MESSAGE" || message.toLowerCase().includes("kadın") || message.toLowerCase().includes("first message")) {
           errorMessage = t('chat.first_message_restriction');
-        } else {
-          errorMessage = message;
         }
       }
 
@@ -288,7 +306,7 @@ export default function ChatScreen() {
       // Reload conversations
       await loadConversations();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : t('likes.accept_error');
+      const message = apiErrorMessage(error, t('likes.accept_error'));
       Alert.alert(t('common.error'), message);
     }
   };
@@ -299,7 +317,7 @@ export default function ChatScreen() {
       // Reload conversations/requests
       await loadConversations();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : t('likes.decline_error');
+      const message = apiErrorMessage(error, t('likes.decline_error'));
       Alert.alert(t('common.error'), message);
     }
   };
@@ -326,14 +344,16 @@ export default function ChatScreen() {
       } else {
         await api.leaveConversation(safetyTarget.conversationId, reason, details);
         const removedId = safetyTarget.conversationId;
+        markConversationLeft(removedId);
         setActiveConversations((prev) =>
           prev.filter((c) => c.conversationId !== removedId)
         );
+        setNewMatches((prev) => prev.filter((m) => m.conversationId !== removedId));
         setSafetyTarget(null);
       }
     } catch (error) {
       console.error("Safety action failed:", error);
-      Alert.alert(t('common.error'), t('safety.action_error'));
+      Alert.alert(t('common.error'), apiErrorMessage(error, t('safety.action_error')));
     }
   };
 
@@ -431,6 +451,19 @@ export default function ChatScreen() {
           }
           ListHeaderComponent={
             <>
+              {/* List refresh failed but older data is still on screen */}
+              {loadError && activeConversations.length > 0 && (
+                <TouchableOpacity
+                  style={styles.loadErrorBanner}
+                  onPress={loadConversations}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.loadErrorBannerText}>
+                    {`${loadError} ${t('common.retry')}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {/* Requests Section */}
               {chatRequests.length > 0 && (
                 <View style={styles.section}>
@@ -519,7 +552,7 @@ export default function ChatScreen() {
                     renderItem={({ item }) => (
                       <TouchableOpacity
                         style={styles.matchItem}
-                        onPress={() => item.conversationId && handleConversationPress(item.conversationId)}
+                        onPress={() => handleMatchPress(item)}
                         accessibilityRole="button"
                         accessibilityLabel={t("chat.open_conversation_with", { name: item.otherUser.displayName })}
                       >
@@ -559,15 +592,27 @@ export default function ChatScreen() {
             </>
           }
           ListEmptyComponent={
-            <View style={{ marginTop: 50 }}>
-              <EmptyState
-                icon="chatbubbles-outline"
-                title={t('chat.no_messages')}
-                description={t('chat.no_messages_desc')}
-                ctaText={t('chat.discover')}
-                onCtaPress={handleDiscoverPress}
-              />
-            </View>
+            loadError ? (
+              <View style={{ marginTop: 50 }}>
+                <EmptyState
+                  icon="cloud-offline-outline"
+                  title={t('chat.load_error_title')}
+                  description={loadError}
+                  ctaText={t('common.retry')}
+                  onCtaPress={loadConversations}
+                />
+              </View>
+            ) : (
+              <View style={{ marginTop: 50 }}>
+                <EmptyState
+                  icon="chatbubbles-outline"
+                  title={t('chat.no_messages')}
+                  description={t('chat.no_messages_desc')}
+                  ctaText={t('chat.discover')}
+                  onCtaPress={handleDiscoverPress}
+                />
+              </View>
+            )
           }
           renderItem={({ item }) => {
             const row = (
@@ -684,6 +729,18 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadErrorBanner: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: 10,
+    backgroundColor: colors.backgroundSecondaryDark,
+  },
+  loadErrorBannerText: {
+    color: colors.textDark,
+    fontSize: typography.fontSize.sm,
+    textAlign: "center",
+  },
   container: {
     flex: 1,
     backgroundColor: colors.backgroundDark,

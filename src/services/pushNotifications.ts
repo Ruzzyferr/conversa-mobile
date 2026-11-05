@@ -4,9 +4,31 @@ import Constants from "expo-constants";
 import { api } from "./api";
 import { getItem, setItem } from "./kv";
 import i18n from "@/src/i18n";
+import { onTokenChange } from "./tokenEvents";
 
 let isConfigured = false;
 let tokenRegistered = false;
+/** Push token registered with the backend for the current session. */
+let registeredToken: string | null = null;
+const REGISTERED_TOKEN_KEY = "conversa_push_token";
+
+/**
+ * The push token this device registered for the signed-in account, so logout
+ * can ask the server to delete it (otherwise the next person using the phone
+ * keeps receiving the previous account's notifications).
+ */
+export async function getRegisteredPushToken(): Promise<string | null> {
+  if (registeredToken) return registeredToken;
+  const stored = await getItem(REGISTERED_TOKEN_KEY);
+  return stored ? stored : null;
+}
+
+/** Forget the registration so the next account on this device registers its own. */
+export function resetPushTokenState(): void {
+  tokenRegistered = false;
+  registeredToken = null;
+  setItem(REGISTERED_TOKEN_KEY, "").catch(() => undefined);
+}
 
 /**
  * Conversation currently on screen, if any.
@@ -138,27 +160,77 @@ export async function registerPushToken(): Promise<void> {
       return;
     }
 
-    const projectId =
-      (Constants.expoConfig?.extra as any)?.eas?.projectId ||
-      process.env.EXPO_PUBLIC_PROJECT_ID;
-
-    const tokenData = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
-    );
-    const token = tokenData.data;
-    if (!token) return;
-
-    const platform = Platform.OS === "ios" ? "IOS" : "ANDROID";
-    // The backend renders notification copy per device from this; without it
-    // every user received Turkish push notifications.
-    await api.registerPushToken({ token, platform, locale: i18n.language });
-    tokenRegistered = true;
-    console.log("Push token registered");
+    await sendPushTokenToBackend();
   } catch (error) {
     // Expected until google-services.json ships in the build — stay silent-ish.
     console.warn("Push token registration skipped:", error instanceof Error ? error.message : error);
   }
 }
+
+/** Fetch the Expo push token and register it for the signed-in account. Throws. */
+async function sendPushTokenToBackend(): Promise<void> {
+  const projectId =
+    (Constants.expoConfig?.extra as any)?.eas?.projectId ||
+    process.env.EXPO_PUBLIC_PROJECT_ID;
+
+  const tokenData = await Notifications.getExpoPushTokenAsync(
+    projectId ? { projectId } : undefined
+  );
+  const token = tokenData.data;
+  if (!token) return;
+
+  const platform = Platform.OS === "ios" ? "IOS" : "ANDROID";
+  // The backend renders notification copy per device from this; without it
+  // every user received Turkish push notifications. The server upserts by
+  // token, so registering moves this device to the account now signed in.
+  await api.registerPushToken({ token, platform, locale: i18n.language });
+  tokenRegistered = true;
+  registeredToken = token;
+  await setItem(REGISTERED_TOKEN_KEY, token);
+  console.log("Push token registered");
+}
+
+let silentRegistration: Promise<void> | null = null;
+
+/**
+ * Register this device's push token for the signed-in account WITHOUT any
+ * prompt, when notification permission is already granted.
+ *
+ * The automatic logout on a 401 cannot call /auth/logout (the session is
+ * already dead), so the server still maps this device's token to the old
+ * account. Re-registering after every login moves it to the new one, even
+ * when the post-login permission sequence has nothing left to ask.
+ * Never throws.
+ */
+export function registerPushTokenIfPermitted(): Promise<void> {
+  if (Platform.OS === "web") return Promise.resolve();
+  if (tokenRegistered) return Promise.resolve();
+  if (silentRegistration) return silentRegistration;
+  silentRegistration = (async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") return;
+      await configureNotifications();
+      await sendPushTokenToBackend();
+    } catch (error) {
+      console.warn(
+        "Push token re-registration skipped:",
+        error instanceof Error ? error.message : error
+      );
+    } finally {
+      silentRegistration = null;
+    }
+  })();
+  return silentRegistration;
+}
+
+// Every successful login (setToken emits the new token).
+onTokenChange((token) => {
+  if (!token) return;
+  tokenRegistered = false;
+  registeredToken = null;
+  void registerPushTokenIfPermitted();
+});
 
 /**
  * Wire the tap-on-notification handler. Returns an unsubscribe function.
@@ -168,19 +240,63 @@ export async function registerPushToken(): Promise<void> {
 export function addNotificationResponseListener(
   onNavigate: (path: string) => void
 ): () => void {
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-    try {
-      const data = response.notification.request.content.data as any;
-      if (data?.conversationId) {
-        onNavigate(`/conversation/${data.conversationId}`);
-      } else if (data?.type === "match" || data?.type === "request") {
-        onNavigate("/(tabs)/likes");
-      } else {
-        onNavigate("/(tabs)/chat");
-      }
-    } catch {
-      onNavigate("/(tabs)/chat");
+  let active = true;
+
+  const handle = (response: Notifications.NotificationResponse) => {
+    // One navigation per tap: the cold-start lookup below and the live
+    // listener can both see the same response.
+    const id = responseId(response);
+    if (id && handledResponseIds.has(id)) return;
+    if (id) {
+      handledResponseIds.add(id);
+      setItem(LAST_HANDLED_RESPONSE_KEY, id).catch(() => undefined);
     }
-  });
-  return () => sub.remove();
+    onNavigate(pathForResponse(response));
+  };
+
+  const sub = Notifications.addNotificationResponseReceivedListener(handle);
+
+  // Cold start: a tap that launched the killed app (or arrived while the user
+  // was still on the splash / sign-in screens) fired before this listener
+  // existed. The listener is installed once the signed-in tabs mount, i.e.
+  // after auth completes, so replaying the last response here opens the right
+  // conversation at the right moment.
+  (async () => {
+    try {
+      const last = await Notifications.getLastNotificationResponseAsync();
+      if (!active || !last) return;
+      const id = responseId(last);
+      // Android can keep returning the same response on later launches.
+      if (id && id === (await getItem(LAST_HANDLED_RESPONSE_KEY))) return;
+      if (!active) return;
+      handle(last);
+    } catch (error) {
+      console.warn("Cold-start notification lookup failed:", error);
+    }
+  })();
+
+  return () => {
+    active = false;
+    sub.remove();
+  };
+}
+
+const LAST_HANDLED_RESPONSE_KEY = "conversa_last_notification_response";
+const handledResponseIds = new Set<string>();
+
+function responseId(response: Notifications.NotificationResponse): string | null {
+  const id = response?.notification?.request?.identifier;
+  if (!id) return null;
+  return `${id}:${response.notification.date ?? ""}`;
+}
+
+function pathForResponse(response: Notifications.NotificationResponse): string {
+  try {
+    const data = response.notification.request.content.data as any;
+    if (data?.conversationId) return `/conversation/${data.conversationId}`;
+    if (data?.type === "match" || data?.type === "request") return "/(tabs)/likes";
+    return "/(tabs)/chat";
+  } catch {
+    return "/(tabs)/chat";
+  }
 }

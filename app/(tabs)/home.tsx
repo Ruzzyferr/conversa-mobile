@@ -33,12 +33,14 @@ import { api } from "@/src/services/api";
 import { getToken } from "@/src/services/authStore";
 import { showRewardedAd } from "@/src/services/rewardedAds";
 import { showInterstitialAd, initializeInterstitialAds, preloadInterstitialAd } from "@/src/services/interstitialAds";
-import { usePremium } from "@/src/state/premium";
-import { getOfferings, purchasePremium, PurchasesPackage } from "@/src/services/purchases";
+import { usePremium, confirmPackCredit, readPackBalance } from "@/src/state/premium";
+import { getOfferings, purchasePack, PurchasesPackage } from "@/src/services/purchases";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { MatchPopup } from "@/src/components/MatchPopup";
+import { ReportReasonSheet, type ReportReason } from "@/src/components/ReportReasonSheet";
 import { useSocket, NewMatchEvent } from "@/src/state/socket";
+import { apiErrorMessage, getApiErrorCode } from "@/src/services/apiErrors";
 
 type DiscoveryCard = {
   userId: string;
@@ -122,7 +124,8 @@ export default function HomeScreen() {
     loadFeed(false, defaultFilters);
   };
   const [userLanguages, setUserLanguages] = useState<string[]>([]);
-  const [isPremium, setIsPremium] = useState(false);
+  /** First load failed (getMe / feed): show it with a retry, not "Loading..." forever. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showLikeLimitModal, setShowLikeLimitModal] = useState(false);
   const [watchingAd, setWatchingAd] = useState(false);
   const [likeLimitInfo, setLikeLimitInfo] = useState<{
@@ -145,15 +148,17 @@ export default function HomeScreen() {
   const swipeCountRef = useRef(0);
   const SWIPES_BEFORE_AD = 10;
 
-  const { premiumEnabled, refreshPremiumStatus } = usePremium();
+  // Shared premium state only. A local copy read once from /auth/me on mount
+  // stayed stale after a purchase (filters stayed locked, ads kept showing)
+  // and after expiry (premium filters kept being sent).
+  const { premiumEnabled } = usePremium();
+  const isUserPremium = premiumEnabled;
 
-  // Use both premiumEnabled from context and local isPremium state
-  const isUserPremium = premiumEnabled || isPremium;
-
-  // Debug: Log premium status
-  useEffect(() => {
-    console.log("Premium status - Context:", premiumEnabled, "Local:", isPremium, "Combined:", isUserPremium);
-  }, [premiumEnabled, isPremium, isUserPremium]);
+  /** Localized message for a failed discovery action, by server error code. */
+  const actionErrorMessage = (error: unknown): string => {
+    if (getApiErrorCode(error) === "DIRECT_LIMIT_REACHED") return t('home.favorite.limit_msg');
+    return apiErrorMessage(error, t('errors.action_failed'));
+  };
 
 
   useEffect(() => {
@@ -236,14 +241,9 @@ export default function HomeScreen() {
         return;
       }
 
+      setLoadError(null);
+      setLoading(true);
       const me = await api.getMe();
-      const userPremiumStatus = me.user.isPremium || false;
-      setIsPremium(userPremiumStatus);
-
-      console.log("Premium status from API:", userPremiumStatus);
-
-      // Also refresh premium status from context to ensure consistency
-      await refreshPremiumStatus();
 
       if (!me.profileExists) {
         router.replace("/(auth)/profile-setup");
@@ -286,13 +286,16 @@ export default function HomeScreen() {
 
       await loadFeed();
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : t('common.load_error'); // Assuming 'load_error' or generic 'error'
-      if (errorMessage.includes("Profile required")) {
+      const rawMessage = error instanceof Error ? error.message : "";
+      if (rawMessage.includes("Profile required")) {
         router.replace("/(auth)/profile-setup");
       } else {
-        Alert.alert(t('common.error'), errorMessage);
+        console.error("Failed to load home:", error);
+        // Inline error with a retry; the screen used to stay on "Loading..."
+        // forever because `loading` was only cleared by loadFeed.
+        setLoadError(apiErrorMessage(error, t('home.load_feed_error')));
       }
+      setLoading(false);
     }
   };
 
@@ -331,8 +334,9 @@ export default function HomeScreen() {
       if (activeFilters.ageRange[0] > 18 || activeFilters.ageRange[1] < 60) {
         filterParams.ageRange = activeFilters.ageRange;
       }
-      // Premium filters
-      if (isPremium) {
+      // Premium filters (server enforces too; this only avoids sending them
+      // for a free account)
+      if (isUserPremium) {
         if (activeFilters.verifiedOnly) {
           filterParams.verifiedOnly = activeFilters.verifiedOnly;
         }
@@ -350,13 +354,20 @@ export default function HomeScreen() {
 
       const cards = await api.getFeed(20, Object.keys(filterParams).length > 0 ? filterParams : undefined);
       setFeed(cards);
+      setLoadError(null);
       if (cards.length > 0) setEverSawSomeone(true);
       setCurrentIndex(0);
 
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : t('home.load_feed_error');
-      Alert.alert(t('common.error'), errorMessage);
+        apiErrorMessage(error, t('home.load_feed_error'));
+      if (feed.length === 0) {
+        // Inline with a retry button, instead of an empty deck that claims
+        // there is nobody left.
+        setLoadError(errorMessage);
+      } else {
+        Alert.alert(t('common.error'), errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -429,35 +440,25 @@ export default function HomeScreen() {
     );
   }, [removeTopCard, t]);
 
+  const [reportCard, setReportCard] = useState<DiscoveryCard | null>(null);
+
   const handleReport = useCallback((card: DiscoveryCard) => {
     if (!card?.userId) return;
-    const reasons: Array<{ label: string; value: "SPAM" | "HARASSMENT" | "NUDITY" | "SCAM" | "OTHER" }> = [
-      { label: t('safety.reason_spam'), value: 'SPAM' },
-      { label: t('safety.reason_harassment'), value: 'HARASSMENT' },
-      { label: t('safety.reason_nudity'), value: 'NUDITY' },
-      { label: t('safety.reason_scam'), value: 'SCAM' },
-      { label: t('safety.reason_other'), value: 'OTHER' },
-    ];
-    Alert.alert(
-      t('safety.report_title'),
-      t('safety.report_msg'),
-      [
-        ...reasons.map((r) => ({
-          text: r.label,
-          onPress: async () => {
-            removeTopCard(card);
-            try {
-              await api.reportUser(card.userId, r.value);
-              Alert.alert(t('safety.reported_toast'));
-            } catch (e) {
-              console.error('report failed', e);
-            }
-          },
-        })),
-        { text: t('common.cancel'), style: 'cancel' as const },
-      ]
-    );
-  }, [removeTopCard, t]);
+    setReportCard(card);
+  }, []);
+
+  const submitReport = useCallback(async (reason: ReportReason) => {
+    const card = reportCard;
+    setReportCard(null);
+    if (!card) return;
+    removeTopCard(card);
+    try {
+      await api.reportUser(card.userId, reason);
+      Alert.alert(t('safety.reported_toast'));
+    } catch (e) {
+      console.error('report failed', e);
+    }
+  }, [reportCard, removeTopCard, t]);
 
   const handleLike = async (cardOverride?: DiscoveryCard) => {
     // SwipeDeck always passes the card being swiped (items[0])
@@ -506,27 +507,29 @@ export default function HomeScreen() {
         }).catch(() => { });
       }
     }).catch((error) => {
-      if (error instanceof AxiosError && error.response?.status === 429) {
-        const errorData = error.response.data?.error;
-        const details = errorData?.details;
+      const code = getApiErrorCode(error);
+      // Already liked / they already reached out: the card is rightly gone.
+      if (code === "REQUEST_ALREADY_SENT" || code === "REQUEST_ALREADY_EXISTS") return;
 
-        if (details && errorData.code === "LIKE_LIMIT_REACHED") {
-          // Restore the card to the front of the feed
-          setFeed(prevFeed => [currentCard, ...prevFeed.filter(c => c.userId !== currentCard.userId)]);
+      // Every other failure: put the card back so the like is not silently
+      // lost (it used to vanish with no feedback).
+      setFeed(prevFeed => [currentCard, ...prevFeed.filter(c => c.userId !== currentCard.userId)]);
+      setTimeout(() => {
+        swipeDeckRef.current?.swipeBack();
+      }, 100);
 
-          // Trigger swipeBack animation to bring card back visually
-          setTimeout(() => {
-            swipeDeckRef.current?.swipeBack();
-          }, 100);
-
-          setLikeLimitInfo({
-            likesUsed: details.likesUsed || 0,
-            likesLimit: details.likesLimit || 15,
-          });
-          setShowLikeLimitModal(true);
-        }
+      const details =
+        error instanceof AxiosError ? error.response?.data?.error?.details : undefined;
+      if (code === "LIKE_LIMIT_REACHED" && details) {
+        setLikeLimitInfo({
+          likesUsed: details.likesUsed || 0,
+          likesLimit: details.likesLimit || 15,
+        });
+        setShowLikeLimitModal(true);
+        return;
       }
-      // Silently handle other errors - card already removed
+      console.error("Failed to like:", error);
+      Alert.alert(t('home.like_failed_title'), actionErrorMessage(error));
     });
   };
 
@@ -566,7 +569,14 @@ export default function HomeScreen() {
         likesLimit: rewardResult.likesInfo.likesLimit,
       });
 
-      Alert.alert(t('home.ad.success'), t('home.ad.reward_msg', { amount: rewardResult.rewardAmount }));
+      // Say what the server actually credited (`granted`), not a fixed "+3".
+      const granted = rewardResult.granted;
+      Alert.alert(
+        t('home.ad.success'),
+        granted?.type === "CONVERSATION_SLOT"
+          ? t('home.ad.reward_slot_msg', { count: granted.amount })
+          : t('home.ad.reward_msg', { amount: granted?.amount ?? rewardResult.rewardAmount })
+      );
       setShowLikeLimitModal(false);
 
       // Refresh usage to get updated limits
@@ -583,7 +593,7 @@ export default function HomeScreen() {
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to get reward";
+        apiErrorMessage(error);
       Alert.alert(t('common.error'), errorMessage);
     } finally {
       setWatchingAd(false);
@@ -699,12 +709,14 @@ export default function HomeScreen() {
         setShowSuccessModal(false);
       }, 2000);
     } catch (error) {
-      if (error instanceof AxiosError && error.response?.status === 429) {
-        // Direct message limit reached — show the upsell modal
+      // Only "out of favorites" sells a pack. Other 429s (open conversation
+      // slots full, today's new-conversation limit, rate limit) are not fixed
+      // by buying favorites and get their own message.
+      if (getApiErrorCode(error) === "DIRECT_LIMIT_REACHED") {
         setUpsellVariant("favorite");
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : t('chat.send_error');
+          apiErrorMessage(error, t('chat.send_error'));
         Alert.alert(t('common.error'), errorMessage);
       }
       // Reset favorite card on error
@@ -720,40 +732,51 @@ export default function HomeScreen() {
     setCurrentIndex(0);
   };
 
-  const handlePurchaseFavorites = async () => {
+  const refreshFavoriteInfo = async () => {
     try {
-      setLoading(true);
-
-      if (favoritePackage) {
-        // Real purchase
-        await purchasePremium(favoritePackage);
-
-        // Only if purchase succeeds (doesn't throw), sync with backend
-        await api.syncBilling();
-
-        Alert.alert(t('home.favorite.success_title'), t('home.favorite.purchase_success'));
-
-        // Refresh limits
-        const usage = await api.getUsage();
-        if (usage.usage) {
-          setFavoriteInfo({
-            favoritesUsed: usage.usage.favoritesUsed || 0,
-            favoritesRemaining: usage.usage.favoritesRemaining || 0,
-            favoritesLimit: usage.usage.favoritesLimit || 5,
-          });
-        }
-      } else {
-        // Configuration Error - Do NOT give for free
-        console.warn("No favorite package (conversa_favorite_5pack) found in RevenueCat offerings.");
-        Alert.alert(t('home.favorite.config_error_title'), t('home.favorite.config_error_msg'));
+      const usage = await api.getUsage();
+      if (usage.usage) {
+        setFavoriteInfo({
+          favoritesUsed: usage.usage.favoritesUsed || 0,
+          favoritesRemaining: usage.usage.favoritesRemaining || 0,
+          favoritesLimit: usage.usage.favoritesLimit || 5,
+        });
       }
+    } catch {
+      // non-critical
+    }
+  };
 
-    } catch (error: any) {
-      if (error.message === "Purchase cancelled") {
+  const handlePurchaseFavorites = async () => {
+    if (!favoritePackage) {
+      // Configuration Error - Do NOT give for free
+      console.warn("No favorite package (conversa_favorite_5pack) found in RevenueCat offerings.");
+      Alert.alert(t('home.favorite.config_error_title'), t('home.favorite.config_error_msg'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const before = await readPackBalance("favorite");
+      let transactionId: string | null = null;
+      try {
+        ({ transactionId } = await purchasePack(favoritePackage));
+      } catch (error: any) {
+        if (error?.message === "Purchase cancelled") return;
+        console.error("Favorite purchase error:", error);
+        Alert.alert(t('common.error'), t('home.favorite.purchase_error'));
         return;
       }
-      console.error("Favorite purchase error:", error);
-      Alert.alert(t('common.error'), t('home.favorite.purchase_error'));
+
+      // Charged from here on: never say "failed". The webhook credits the
+      // pack; wait briefly for it and show the real balance.
+      const newBalance = await confirmPackCredit("favorite", before, transactionId);
+      Alert.alert(
+        t('home.favorite.success_title'),
+        newBalance !== null
+          ? t('upsell.favorite.balance_now', { count: newBalance })
+          : t('upsell.purchase_pending_msg')
+      );
+      await refreshFavoriteInfo();
     } finally {
       setLoading(false);
     }
@@ -778,12 +801,13 @@ export default function HomeScreen() {
       setShowBoostModal(false);
       Alert.alert(t('home.ad.success'), t('home.boost.activated'));
     } catch (error) {
-      if (error instanceof AxiosError && (error.response?.status === 403 || error.response?.status === 402)) {
+      // Only "no boosts left" is solved by buying boosts.
+      if (getApiErrorCode(error) === "NO_BOOSTS_REMAINING" || (error instanceof AxiosError && error.response?.status === 402)) {
         setShowBoostModal(false);
         setUpsellVariant("boost");
       } else {
         const errorMessage =
-          error instanceof Error ? error.message : t('home.boost.activation_error');
+          apiErrorMessage(error, t('home.boost.activation_error'));
         Alert.alert(t('common.error'), errorMessage);
       }
     }
@@ -801,6 +825,29 @@ export default function HomeScreen() {
     if (hours > 0) return `${hours}h ${mins}m`;
     return `${mins}m`;
   };
+
+  if (loadError && feed.length === 0 && !loading) {
+    return (
+      <SafeAreaView>
+        <View style={styles.content}>
+          <View style={styles.emptyWrap}>
+            <Card style={styles.emptyCard} elevated>
+              <View style={styles.emptyEmojiBadge}>
+                <MaterialIcons name="cloud-off" size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>{t('home.load_error_title')}</Text>
+              <Text style={styles.emptyText}>{loadError}</Text>
+              <PrimaryButton
+                title={t('common.retry')}
+                onPress={() => checkAuthAndLoadFeed()}
+                style={styles.refreshButton}
+              />
+            </Card>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading && feed.length === 0) {
     return (
@@ -1093,6 +1140,7 @@ export default function HomeScreen() {
           onClose={() => setUpsellVariant(null)}
           onPurchased={() => {
             loadBoostStatus();
+            refreshFavoriteInfo();
           }}
         />
 
@@ -1228,6 +1276,12 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
+
+        <ReportReasonSheet
+          visible={reportCard !== null}
+          onClose={() => setReportCard(null)}
+          onSelect={submitReport}
+        />
       </View>
     </SafeAreaView>
   );

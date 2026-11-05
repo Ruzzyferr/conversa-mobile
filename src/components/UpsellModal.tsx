@@ -16,8 +16,9 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { colors } from "@/src/theme/colors";
 import { spacing } from "@/src/theme/spacing";
 import { typography } from "@/src/theme/typography";
-import { getOfferings, purchasePremium } from "@/src/services/purchases";
+import { getOfferings, purchasePack } from "@/src/services/purchases";
 import { api } from "@/src/services/api";
+import { confirmPackCredit, readPackBalance } from "@/src/state/premium";
 
 export type UpsellVariant = "premium" | "boost" | "favorite" | "whoLiked";
 
@@ -25,8 +26,11 @@ type UpsellModalProps = {
   visible: boolean;
   variant: UpsellVariant;
   onClose: () => void;
-  /** Called after a successful pack purchase (boost/favorite variants). */
-  onPurchased?: () => void;
+  /**
+   * Called after a pack purchase the store charged for (boost/favorite).
+   * `newBalance` is the credited balance, or null if it is still on its way.
+   */
+  onPurchased?: (newBalance: number | null) => void;
 };
 
 const VARIANT_ICON: Record<UpsellVariant, keyof typeof Ionicons.glyphMap> = {
@@ -68,7 +72,59 @@ export function UpsellModal({ visible, variant, onClose, onPurchased }: UpsellMo
     };
   }, [visible, packProductId]);
 
-  const features: string[] = t(`upsell.${variant}.features`, { returnObjects: true }) as string[];
+  // Perk numbers from the server, so the list never promises what the
+  // backend does not grant. Falls back to the static copy when unavailable.
+  const [perks, setPerks] = useState<{
+    favoritesPerWeek?: number;
+    boostsPerWeek?: number;
+    likesPerDay?: number | null;
+    aiPolishPerDay?: number | null;
+    adsFree?: boolean;
+    premiumFilters?: boolean;
+    whoLikedYou?: "blurred" | "visible";
+  } | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    api
+      .getEntitlements()
+      .then((r) => {
+        if (!cancelled) setPerks(r.data.premiumPreview ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  const boostsPerWeek = perks?.boostsPerWeek ?? 2;
+  const favoritesPerWeek = perks?.favoritesPerWeek ?? 5;
+
+  const premiumFeatures = (): string[] | null => {
+    if (!perks || perks.favoritesPerWeek === undefined) return null;
+    const list: string[] = [];
+    list.push(
+      perks.likesPerDay === null || perks.likesPerDay === undefined
+        ? t("upsell.perk.likes_unlimited")
+        : t("upsell.perk.likes_per_day", { count: perks.likesPerDay })
+    );
+    if (perks.whoLikedYou === "visible") list.push(t("upsell.perk.who_liked"));
+    if (boostsPerWeek > 0) list.push(t("upsell.perk.boosts_per_week", { count: boostsPerWeek }));
+    if (favoritesPerWeek > 0) list.push(t("upsell.perk.favorites_per_week", { count: favoritesPerWeek }));
+    if (perks.premiumFilters) list.push(t("upsell.perk.filters"));
+    if (perks.aiPolishPerDay === null) list.push(t("upsell.perk.ai_polish_unlimited"));
+    if (perks.adsFree) list.push(t("upsell.perk.ads_free"));
+    return list;
+  };
+
+  const features: string[] =
+    (variant === "premium" ? premiumFeatures() : null) ??
+    (t(`upsell.${variant}.features`, {
+      returnObjects: true,
+      boosts: boostsPerWeek,
+      favorites: favoritesPerWeek,
+    }) as string[]);
 
   const handlePremium = () => {
     onClose();
@@ -77,20 +133,30 @@ export function UpsellModal({ visible, variant, onClose, onPurchased }: UpsellMo
 
   const handleBuyPack = async () => {
     if (!pack || purchasing) return;
+    const kind = variant === "boost" ? "boost" : "favorite";
     setPurchasing(true);
     try {
-      await purchasePremium(pack);
-      if (variant === "boost") {
-        // Immediate server sync so the credit is usable right away
-        await api.purchaseBoost().catch(() => {});
+      const before = await readPackBalance(kind);
+      let transactionId: string | null = null;
+      try {
+        ({ transactionId } = await purchasePack(pack));
+      } catch (error: any) {
+        if (error?.message !== "Purchase cancelled" && !error?.userCancelled) {
+          Alert.alert(t("common.error"), t("upsell.purchase_failed_msg"));
+        }
+        return;
       }
+
+      // The store has charged from here on: never report a failure.
+      const newBalance = await confirmPackCredit(kind, before, transactionId);
       onClose();
-      Alert.alert(t("upsell.purchase_success_title"), t("upsell.purchase_success_msg"));
-      onPurchased?.();
-    } catch (error: any) {
-      if (error?.message !== "Purchase cancelled" && !error?.userCancelled) {
-        Alert.alert(t("common.error"), t("upsell.purchase_failed_msg"));
-      }
+      Alert.alert(
+        t("upsell.purchase_success_title"),
+        newBalance !== null
+          ? t(`upsell.${kind}.balance_now`, { count: newBalance })
+          : t("upsell.purchase_pending_msg")
+      );
+      onPurchased?.(newBalance);
     } finally {
       setPurchasing(false);
     }

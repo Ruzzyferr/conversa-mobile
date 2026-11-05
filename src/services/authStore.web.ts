@@ -12,6 +12,8 @@
  * olarak gonderiyoruz; web yalnizca gelistirme ve dogrulama icin.
  */
 
+import { emitTokenChange } from "./tokenEvents";
+
 const TOKEN_KEY = "conversa_auth_token";
 
 /** localStorage gizli sekmede ya da site verileri kapaliyken atabilir. */
@@ -38,21 +40,21 @@ export async function getToken(): Promise<string | null> {
 export async function setToken(token: string): Promise<void> {
   memory.set(TOKEN_KEY, token);
   const s = storage();
-  if (!s) return;
   try {
-    s.setItem(TOKEN_KEY, token);
+    s?.setItem(TOKEN_KEY, token);
   } catch {
     // Bellekteki kopya yeterli: oturum en azindan bu sekme boyunca yasar.
   }
+  emitTokenChange(token);
 }
 
 export async function clearToken(): Promise<void> {
   memory.delete(TOKEN_KEY);
   const s = storage();
-  if (!s) return;
   try {
-    s.removeItem(TOKEN_KEY);
+    s?.removeItem(TOKEN_KEY);
   } catch {
     // yoksay
   }
+  emitTokenChange(null);
 }

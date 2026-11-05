@@ -17,7 +17,7 @@
 
 import { api } from './api';
 import { getToken } from './authStore';
-import { registerPushToken } from './pushNotifications';
+import { registerPushToken, registerPushTokenIfPermitted } from './pushNotifications';
 import { startAdsConsentFlow } from './rewardedAds';
 import { delay, waitUntilActive } from './adsConsent';
 
@@ -26,8 +26,18 @@ const BETWEEN_PROMPTS_MS = 1000;
 
 let sequenceRan = false;
 
+/** After logout, the next account must run the sequence (and register its push token). */
+export function resetPostLoginPermissions(): void {
+  sequenceRan = false;
+}
+
 export async function runPostLoginPermissions(isCancelled: () => boolean): Promise<void> {
-  if (sequenceRan) return;
+  if (sequenceRan) {
+    // Nothing left to ask, but the device token must still point at the
+    // account signed in now (no-op when already registered this session).
+    await registerPushTokenIfPermitted();
+    return;
+  }
 
   await waitUntilActive();
   await delay(START_DELAY_MS);

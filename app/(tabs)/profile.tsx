@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Share, Modal, Dimensions, Linking, Platform } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { languageLabel } from "@/src/data/languages";
@@ -9,15 +9,11 @@ import { typography, textStyles } from "@/src/theme/typography";
 import { radius } from "@/src/theme/radius";
 import { PrimaryButton } from "@/src/components/PrimaryButton";
 import { SafeAreaView } from "@/src/components/SafeAreaView";
-import { getToken, clearToken } from "@/src/services/authStore";
+import { getToken } from "@/src/services/authStore";
 import { signOutSocial } from "@/src/services/socialAuth";
-import { api } from "@/src/services/api";
+import { api, clearLocalSession } from "@/src/services/api";
+import { getRegisteredPushToken } from "@/src/services/pushNotifications";
 import { usePremium } from "@/src/state/premium";
-import {
-  getOfferings,
-  purchasePremium,
-  PurchasesPackage
-} from "@/src/services/purchases";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -27,6 +23,7 @@ import { BannerAdComponent } from "@/src/components/BannerAdComponent";
 import { UpsellModal } from "@/src/components/UpsellModal";
 import { Overline } from "@/src/components/ui/Overline";
 import { LegalLinksRows } from "@/src/components/profile/LegalLinksRows";
+import { AiConsentToggle } from "@/src/components/AiConsentToggle";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -49,6 +46,9 @@ export default function ProfileScreen() {
     premiumExpiresAt: string | null;
   } | null>(null);
   const { premiumEnabled } = usePremium();
+  // The shared premium state flips right after a purchase/restore and on
+  // expiry; the /billing/status read below only adds the expiry date.
+  const isPremium = premiumEnabled || !!premiumStatus?.isPremium;
 
   // Boost State
   const [boostStatus, setBoostStatus] = useState<{
@@ -58,36 +58,20 @@ export default function ProfileScreen() {
     weeklyLimit: number;
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [boostPackage, setBoostPackage] = useState<PurchasesPackage | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       loadUserData();
       loadPremiumStatus();
       loadBoostStatus();
-      loadOfferings();
     }, [])
   );
 
-  const loadOfferings = async () => {
-    try {
-      const offerings = await getOfferings();
-      if (offerings?.availablePackages) {
-        // Look for boost package - match RevenueCat identifier
-        const foundPackage = offerings.availablePackages.find(
-          pkg => 
-            pkg.identifier === "Boost Pack" ||
-            pkg.identifier === "conversa_boost_2pack" ||
-            pkg.product.identifier === "conversa_boost_2pack"
-        );
-        if (foundPackage) {
-          setBoostPackage(foundPackage);
-        }
-      }
-    } catch (error) {
-      console.log("Failed to load offerings:", error);
-    }
-  };
+  // Premium changed (purchase, restore, expiry): reload the details.
+  useEffect(() => {
+    loadPremiumStatus();
+    loadBoostStatus();
+  }, [premiumEnabled]);
 
   const loadBoostStatus = async () => {
     try {
@@ -139,7 +123,7 @@ export default function ProfileScreen() {
 
   const onRefresh = async () => { // Added as per instruction
     setRefreshing(true);
-    await Promise.all([loadUserData(), loadPremiumStatus(), loadBoostStatus(), loadOfferings()]);
+    await Promise.all([loadUserData(), loadPremiumStatus(), loadBoostStatus()]);
     setRefreshing(false);
   };
 
@@ -191,39 +175,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handlePurchaseBoost = async () => {
-    try {
-      setLoading(true);
-
-      // If we found a real RevenueCat package, use it
-      if (boostPackage) {
-        await purchasePremium(boostPackage);
-      } else {
-        // Fallback for development/simulators if no package found
-        console.warn("No Boost package (conversa_boost_2pack) found in RevenueCat offerings. Check your RevenueCat configuration.");
-        Alert.alert(t('common.error'), t('profile.boost_package_missing'));
-        setLoading(false);
-        return;
-      }
-
-      // After successful purchase, sync with backend
-      // Note: RevenueCat webhook should ideally handle this, but we call API for immediate UI update if needed
-      const result = await api.purchaseBoost();
-      if (result.success) {
-        await loadBoostStatus();
-        Alert.alert(t('profile.purchase_success_title'), t('profile.purchase_success_msg'));
-      }
-    } catch (error: any) {
-      if (error.message === "Purchase cancelled") {
-        return;
-      }
-      console.error("Boost purchase error:", error);
-      Alert.alert(t('profile.purchase_error_title'), error.message || t('profile.purchase_error_msg'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getTimeRemaining = (expiresAt: string): string => {
     const now = new Date();
     const expires = new Date(expiresAt);
@@ -251,12 +202,36 @@ export default function ProfileScreen() {
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     try {
-      await api.logout();
+      // Send this device's push token so the server stops delivering this
+      // account's notifications to a phone someone else may use next.
+      const pushToken = await getRegisteredPushToken();
+      await api.logout(pushToken);
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      await clearToken();
+      // RevenueCat logout + push/session reset, also when the call failed.
+      await clearLocalSession();
       router.replace("/(auth)/welcome");
+    }
+  };
+
+  /** Store page where the user cancels the subscription itself. */
+  const openSubscriptionManagement = () => {
+    const url =
+      Platform.OS === "ios"
+        ? "https://apps.apple.com/account/subscriptions"
+        : "https://play.google.com/store/account/subscriptions";
+    Linking.openURL(url).catch(() => undefined);
+  };
+
+  const deleteAccountNow = async () => {
+    try {
+      await api.deleteAccount();
+      await signOutSocial();
+      await clearLocalSession();
+      router.replace("/(auth)/welcome");
+    } catch (e) {
+      Alert.alert(t('common.error'), t('profile.delete_account_failed'));
     }
   };
 
@@ -316,7 +291,7 @@ export default function ProfileScreen() {
               <View style={[styles.premiumBadgeSmall, { backgroundColor: colors.boostGold }]}>
                 <Ionicons name="flash" size={16} color="#000" />
               </View>
-            ) : premiumStatus?.isPremium ? (
+            ) : isPremium ? (
               <View style={styles.premiumBadgeSmall}>
                 <MaterialIcons name="workspace-premium" size={16} color={colors.textInverse} />
               </View>
@@ -499,9 +474,9 @@ export default function ProfileScreen() {
         )}
 
         {/* Premium Card */}
-        {premiumStatus && (
+        {(premiumStatus || premiumEnabled) && (
           <View style={styles.card}>
-            {premiumStatus.isPremium ? (
+            {isPremium ? (
               <>
                 <LinearGradient
                   colors={[colors.primary, colors.primaryLight]}
@@ -513,7 +488,7 @@ export default function ProfileScreen() {
                   <Text style={styles.premiumActiveText}>{t('profile.premium_active')}</Text>
                 </LinearGradient>
 
-                {premiumStatus.premiumExpiresAt && (
+                {premiumStatus?.premiumExpiresAt && (
                   <View style={styles.premiumExpiryRow}>
                     <Ionicons name="time-outline" size={18} color={colors.textSecondaryDark} />
                     <Text style={styles.premiumExpiryText}>
@@ -524,10 +499,12 @@ export default function ProfileScreen() {
 
                 <View style={styles.premiumBenefits}>
                   {[
-                    { icon: "infinite", text: t('profile.unlimited_messages') },
+                    { icon: "heart", text: t('profile.perk_likes') },
+                    { icon: "star", text: t('profile.perk_favorites') },
+                    { icon: "options", text: t('profile.perk_filters') },
+                    { icon: "ban", text: t('profile.perk_ads_free') },
                     { icon: "eye", text: t('profile.who_liked') },
-                    { icon: "rocket", text: t('profile.boost') },
-                    { icon: "diamond", text: t('profile.direct_message') },
+                    { icon: "rocket", text: t('profile.perk_boosts') },
                   ].map((benefit, index) => (
                     <View key={index} style={styles.premiumBenefitItem}>
                       <Ionicons name={benefit.icon as any} size={16} color={colors.primary} />
@@ -583,7 +560,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.boostSubtext, boostStatus?.active && { color: 'rgba(255, 215, 0, 0.7)' }]}>
                   {boostStatus?.active
                     ? t('profile.boost_active_desc', { time: getTimeRemaining(boostStatus.endsAt!) })
-                    : premiumStatus?.isPremium
+                    : isPremium || (boostStatus?.boostsRemaining || 0) > 0
                       ? t('profile.boost_remaining', { count: boostStatus?.boostsRemaining || 0 })
                       : t('profile.boost_promo')}
                 </Text>
@@ -606,6 +583,8 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondaryDark} />
           </TouchableOpacity>
 
+          <AiConsentToggle />
+
           <LegalLinksRows
             itemStyle={styles.settingsItem}
             leftStyle={styles.settingsItemLeft}
@@ -624,24 +603,20 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingsItem} onPress={() => {
+            // Deleting the account does NOT cancel a store subscription;
+            // only the user can, in the store. Say so and link there.
             Alert.alert(
               t('profile.delete_account'),
-              t('profile.delete_account_confirm'),
+              `${t('profile.delete_account_confirm')}
+
+${t('profile.delete_account_subscription_note')}`,
               [
                 { text: t('common.cancel'), style: "cancel" },
+                { text: t('profile.manage_subscription'), onPress: openSubscriptionManagement },
                 {
                   text: t('profile.delete_account_cta'),
                   style: "destructive",
-                  onPress: async () => {
-                    try {
-                      await api.deleteAccount();
-                      await signOutSocial();
-                      await clearToken();
-                      router.replace("/(auth)/welcome");
-                    } catch (e) {
-                      Alert.alert(t('common.error'), t('profile.delete_account_failed'));
-                    }
-                  }
+                  onPress: deleteAccountNow,
                 }
               ]
             );

@@ -13,6 +13,7 @@ import { colors, spacing, radius, elevation, textStyles } from "@/src/theme";
 import { api } from "@/src/services/api";
 import { languageLabel } from "@/src/data/languages";
 import { Overline } from "@/src/components/ui/Overline";
+import { useAiConsentGate } from "@/src/components/AiConsentSheet";
 
 type ExamItem = {
   id: string;
@@ -27,6 +28,8 @@ export interface ExamOutcome {
   cefr: string | null;
   /** Istenen rol NATIVE olup dogrulanmadiysa true. Bir HATA DEGIL. */
   downgraded: boolean;
+  /** An earlier, still-valid proof was reused; the exam was skipped. */
+  reused?: boolean;
 }
 
 interface Props {
@@ -71,6 +74,11 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
   /** Degerlendirme kesintiye ugradiysa cevaplari saklayip tekrar gondeririz. */
   const [retryable, setRetryable] = useState<string[] | null>(null);
 
+  // Answers are scored by an external AI model, so the exam must not start
+  // (its timer runs immediately) until the user has agreed to that.
+  const { consent, requireAiConsent, handleAiError, consentSheet } = useAiConsentGate();
+  const consentOk = consent === "granted";
+
   // Zamanlayici, cevabi "suresi doldu" anında oldugu gibi almali; bu yuzden
   // taslak bir ref'te de tutuluyor (setState kapanisi eskir).
   const draftRef = useRef("");
@@ -82,6 +90,20 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
       .getExamItems(language, role)
       .then((res) => {
         if (cancelled) return;
+        // Already passed this language (e.g. onboarding was interrupted
+        // after the exam): reuse the proof instead of running into the
+        // 7-day retake cooldown (contract 7).
+        const proof = res.data.existingProof;
+        if (proof) {
+          setOutcome({
+            language: proof.language,
+            role: proof.role,
+            cefr: proof.cefr,
+            downgraded: role === "NATIVE" && proof.role === "LEARNING",
+            reused: true,
+          });
+          return;
+        }
         setItems(res.data.items);
         setRemaining(res.data.items[0]?.seconds ?? 60);
       })
@@ -113,7 +135,12 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
         setOutcome(result);
       } catch (e: any) {
         const code = e?.response?.data?.error?.code;
-        if (code === "EXAM_UNAVAILABLE") {
+        if (handleAiError(e, "ai")) {
+          // Consent missing/revoked: keep the answers and let them resend
+          // after allowing (the sheet is showing now).
+          setError(t("ai_consent.exam_required"));
+          setRetryable(finalAnswers);
+        } else if (code === "EXAM_UNAVAILABLE") {
           // Degerlendirme yapilamadi: bir sonuc degil, bir kesinti.
           // Kullanici bekleme suresine takilmadan hemen tekrar
           // deneyebilir, o yuzden cevaplari koruyup yeniden gonderme
@@ -127,7 +154,7 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
         setSubmitting(false);
       }
     },
-    [language, role, t]
+    [language, role, t, handleAiError]
   );
 
   const advance = useCallback(() => {
@@ -147,14 +174,14 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
   // Geri sayim. Sure dolunca cevap oldugu gibi alinir ve sonraki maddeye
   // gecilir; kullaniciyi beklemek olcumu bozar.
   useEffect(() => {
-    if (!items || outcome || submitting) return;
+    if (!items || outcome || submitting || !consentOk) return;
     if (remaining <= 0) {
       advance();
       return;
     }
     const timer = setTimeout(() => setRemaining((r) => r - 1), 1000);
     return () => clearTimeout(timer);
-  }, [remaining, items, outcome, submitting, advance]);
+  }, [remaining, items, outcome, submitting, advance, consentOk]);
 
   /**
    * Sinavin eylemini kabugun alt cubuguna bildir.
@@ -172,177 +199,227 @@ export function ExamStep({ language, role = "LEARNING", onComplete, onAction }: 
       ? t("exam.finish")
       : t("common.continue");
   const showAction = !!items && !outcome;
+  const consentLabel = t("ai_consent.exam_cta");
+  const continueLabel = t("common.continue");
+  // Callers pass an inline onComplete; a ref keeps it out of the effect deps
+  // (otherwise the effect would re-emit the action on every render).
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
   useEffect(() => {
+    if (outcome) {
+      // The shell button must not keep the stale "Finish" action.
+      onAction?.({ label: continueLabel, busy: false, run: () => onCompleteRef.current(outcome) });
+      return;
+    }
     if (!showAction) return;
+    if (!consentOk) {
+      onAction?.({ label: consentLabel, busy: false, run: () => void requireAiConsent("ai") });
+      return;
+    }
     onAction?.({ label: actionLabel, busy: submitting, run: advance });
-  }, [showAction, onAction, actionLabel, submitting, advance]);
+  }, [showAction, onAction, actionLabel, submitting, advance, consentOk, consentLabel,
+      continueLabel, outcome, requireAiConsent]);
 
-  if (error && !items) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.noticeCard}>
-          <MaterialIcons name="info-outline" size={24} color={colors.info} />
-          <Text style={styles.noticeText}>{error}</Text>
+  // Every early return below shares the consent sheet.
+  const renderBody = (): React.ReactElement => {
+    if (outcome) {
+      return (
+        <View style={styles.container} testID="exam-result">
+          <Text style={styles.title}>{t("exam.result_title")}</Text>
+
+          <View style={styles.badgeCard}>
+            <View style={styles.badgeIcon}>
+              <MaterialIcons name="verified" size={28} color={colors.textInverse} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Overline style={styles.badgeLanguage}>{outcome.language}</Overline>
+              <Text style={styles.badgeLevel}>
+                {outcome.cefr ?? t("exam.level_unknown")}
+              </Text>
+            </View>
+            {/* KASITLI: "dogrulandi", asla "sertifika". AI'in CEFR takdiri
+                yaklasiktir ve arayuz bunu yansitmalidir. */}
+            <Text style={styles.badgeVerified}>{t("exam.verified")}</Text>
+          </View>
+
+          {outcome.downgraded ? (
+            <View style={styles.noticeCard} testID="exam-downgraded">
+              <MaterialIcons name="info-outline" size={22} color={colors.info} />
+              {/* Sakin ve suclamayan metin: hesap acik, hicbir sey kaybedilmedi. */}
+              <Text style={styles.noticeText}>{t("exam.downgraded")}</Text>
+            </View>
+          ) : null}
+
+          {outcome.reused ? (
+          <Text style={styles.footnote} testID="exam-reused">{t("ai_consent.exam_reused")}</Text>
+        ) : null}
+        <Text style={styles.footnote}>{t("exam.retake_note")}</Text>
+
+          <TouchableOpacity
+            testID="exam-continue"
+            style={styles.primaryButton}
+            onPress={() => onComplete(outcome)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>{t("common.continue")}</Text>
+            <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
+          </TouchableOpacity>
         </View>
-      </View>
-    );
-  }
+      );
+    }
 
-  if (!items) {
-    return (
-      <View style={[styles.container, styles.center]} testID="exam-loading">
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.subtitle}>{t("exam.loading")}</Text>
-      </View>
-    );
-  }
-
-  if (retryable) {
-    return (
-      <View style={styles.container} testID="exam-retry">
-        {/* Baslik OnboardingShell te; burada da yazilinca ekranda iki baslik olusuyordu. */}
-        <View style={styles.noticeCard}>
-          <MaterialIcons name="cloud-off" size={22} color={colors.warning} />
-          <Text style={styles.noticeText}>{error ?? t("exam.unavailable")}</Text>
+    if (error && !items) {
+      return (
+        <View style={styles.container}>
+          <View style={styles.noticeCard}>
+            <MaterialIcons name="info-outline" size={24} color={colors.info} />
+            <Text style={styles.noticeText}>{error}</Text>
+          </View>
         </View>
+      );
+    }
+
+    if (!items) {
+      return (
+        <View style={[styles.container, styles.center]} testID="exam-loading">
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.subtitle}>{t("exam.loading")}</Text>
+        </View>
+      );
+    }
+
+    if (retryable) {
+      return (
+        <View style={styles.container} testID="exam-retry">
+          {/* Baslik OnboardingShell te; burada da yazilinca ekranda iki baslik olusuyordu. */}
+          <View style={styles.noticeCard}>
+            <MaterialIcons name="cloud-off" size={22} color={colors.warning} />
+            <Text style={styles.noticeText}>{error ?? t("exam.unavailable")}</Text>
+          </View>
+          <TouchableOpacity
+            testID="exam-retry-button"
+            style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+            onPress={() => {
+              setRetryable(null);
+              setError(null);
+              void submitAll(retryable);
+            }}
+            disabled={submitting}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>
+              {submitting ? t("exam.submitting") : t("exam.retry")}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.footnote}>{t("exam.unavailable_note")}</Text>
+        </View>
+      );
+    }
+
+    if (!consentOk) {
+      return (
+        <View style={styles.container} testID="exam-consent">
+          <View style={styles.noticeCard}>
+            <MaterialIcons name="privacy-tip" size={22} color={colors.info} />
+            <Text style={styles.noticeText}>{t("ai_consent.exam_required")}</Text>
+          </View>
+          {onAction ? null : (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => void requireAiConsent("ai")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>{t("ai_consent.exam_cta")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+
+    const item = items[index];
+    const isLast = index + 1 >= items.length;
+
+    return (
+      <View style={styles.container} testID="exam-question">
+        <View style={styles.progressRow}>
+          <Overline style={styles.progressText}>
+            {t("exam.progress", { current: index + 1, total: items.length })}
+          </Overline>
+          <View style={[styles.timer, remaining <= 10 && styles.timerLow]}>
+            <MaterialIcons
+              name="timer"
+              size={16}
+              color={remaining <= 10 ? colors.error : colors.textSecondary}
+            />
+            <Text style={[styles.timerText, remaining <= 10 && styles.timerTextLow]}>
+              {remaining}s
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.prompt}>{item.prompt}</Text>
+
+        {/* Soru hedef dilde, arayuz kullanicinin dilinde. Hangi dilde cevap
+            verilecegi SOYLENMEZSE kullanici kendi dilinde yazar ve olcmeye
+            calistigimiz sey olculemez. Gorsel incelemede yakalandi. */}
+        <View style={styles.answerHint}>
+          <MaterialIcons name="edit" size={16} color={colors.primaryTintText} />
+          <Text style={styles.answerHintText}>
+            {t("exam.answer_in", { language: languageLabel(language, i18n.language) })}
+          </Text>
+        </View>
+
+        <TextInput
+          testID="exam-answer"
+          style={styles.input}
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={t("exam.answer_placeholder")}
+          placeholderTextColor={colors.textTertiary}
+          multiline
+          autoFocus
+          textAlignVertical="top"
+          maxLength={2000}
+        />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {/* Esnek bosluk: sinavin dugmesi de diger adimlardaki gibi ekranin
+            altinda dursun, sorunun hemen altinda degil. */}
+        <View style={styles.spacer} />
+
+        {onAction ? null : (
         <TouchableOpacity
-          testID="exam-retry-button"
+          testID="exam-next"
           style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
-          onPress={() => {
-            setRetryable(null);
-            setError(null);
-            void submitAll(retryable);
-          }}
+          onPress={advance}
           disabled={submitting}
           activeOpacity={0.85}
         >
           <Text style={styles.primaryButtonText}>
-            {submitting ? t("exam.submitting") : t("exam.retry")}
+            {submitting
+              ? t("exam.submitting")
+              : isLast
+                ? t("exam.finish")
+                : t("common.continue")}
           </Text>
+          {!submitting ? (
+            <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
+          ) : null}
         </TouchableOpacity>
-        <Text style={styles.footnote}>{t("exam.unavailable_note")}</Text>
+        )}
+
+        <Text style={styles.footnote}>{t("exam.no_back")}</Text>
       </View>
     );
-  }
-
-  if (outcome) {
-    return (
-      <View style={styles.container} testID="exam-result">
-        <Text style={styles.title}>{t("exam.result_title")}</Text>
-
-        <View style={styles.badgeCard}>
-          <View style={styles.badgeIcon}>
-            <MaterialIcons name="verified" size={28} color={colors.textInverse} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Overline style={styles.badgeLanguage}>{outcome.language}</Overline>
-            <Text style={styles.badgeLevel}>
-              {outcome.cefr ?? t("exam.level_unknown")}
-            </Text>
-          </View>
-          {/* KASITLI: "dogrulandi", asla "sertifika". AI'in CEFR takdiri
-              yaklasiktir ve arayuz bunu yansitmalidir. */}
-          <Text style={styles.badgeVerified}>{t("exam.verified")}</Text>
-        </View>
-
-        {outcome.downgraded ? (
-          <View style={styles.noticeCard} testID="exam-downgraded">
-            <MaterialIcons name="info-outline" size={22} color={colors.info} />
-            {/* Sakin ve suclamayan metin: hesap acik, hicbir sey kaybedilmedi. */}
-            <Text style={styles.noticeText}>{t("exam.downgraded")}</Text>
-          </View>
-        ) : null}
-
-        <Text style={styles.footnote}>{t("exam.retake_note")}</Text>
-
-        <TouchableOpacity
-          testID="exam-continue"
-          style={styles.primaryButton}
-          onPress={() => onComplete(outcome)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryButtonText}>{t("common.continue")}</Text>
-          <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const item = items[index];
-  const isLast = index + 1 >= items.length;
+  };
 
   return (
-    <View style={styles.container} testID="exam-question">
-      <View style={styles.progressRow}>
-        <Overline style={styles.progressText}>
-          {t("exam.progress", { current: index + 1, total: items.length })}
-        </Overline>
-        <View style={[styles.timer, remaining <= 10 && styles.timerLow]}>
-          <MaterialIcons
-            name="timer"
-            size={16}
-            color={remaining <= 10 ? colors.error : colors.textSecondary}
-          />
-          <Text style={[styles.timerText, remaining <= 10 && styles.timerTextLow]}>
-            {remaining}s
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.prompt}>{item.prompt}</Text>
-
-      {/* Soru hedef dilde, arayuz kullanicinin dilinde. Hangi dilde cevap
-          verilecegi SOYLENMEZSE kullanici kendi dilinde yazar ve olcmeye
-          calistigimiz sey olculemez. Gorsel incelemede yakalandi. */}
-      <View style={styles.answerHint}>
-        <MaterialIcons name="edit" size={16} color={colors.primaryTintText} />
-        <Text style={styles.answerHintText}>
-          {t("exam.answer_in", { language: languageLabel(language, i18n.language) })}
-        </Text>
-      </View>
-
-      <TextInput
-        testID="exam-answer"
-        style={styles.input}
-        value={draft}
-        onChangeText={setDraft}
-        placeholder={t("exam.answer_placeholder")}
-        placeholderTextColor={colors.textTertiary}
-        multiline
-        autoFocus
-        textAlignVertical="top"
-        maxLength={2000}
-      />
-
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      {/* Esnek bosluk: sinavin dugmesi de diger adimlardaki gibi ekranin
-          altinda dursun, sorunun hemen altinda degil. */}
-      <View style={styles.spacer} />
-
-      {onAction ? null : (
-      <TouchableOpacity
-        testID="exam-next"
-        style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
-        onPress={advance}
-        disabled={submitting}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.primaryButtonText}>
-          {submitting
-            ? t("exam.submitting")
-            : isLast
-              ? t("exam.finish")
-              : t("common.continue")}
-        </Text>
-        {!submitting ? (
-          <MaterialIcons name="arrow-forward" size={20} color={colors.textInverse} />
-        ) : null}
-      </TouchableOpacity>
-      )}
-
-      <Text style={styles.footnote}>{t("exam.no_back")}</Text>
-    </View>
+    <>
+      {renderBody()}
+      {consentSheet}
+    </>
   );
 }
 

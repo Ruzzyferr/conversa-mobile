@@ -36,7 +36,10 @@ import { AxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LikeLimitModal } from "@/src/components/LikeLimitModal";
 import { UpsellModal } from "@/src/components/UpsellModal";
+import { usePremium } from "@/src/state/premium";
 import { Overline } from "@/src/components/ui/Overline";
+import { SafetyActions } from "@/src/components/SafetyActions";
+import { apiErrorMessage } from "@/src/services/apiErrors";
 
 type Request = {
   requestId: string;
@@ -183,7 +186,10 @@ export default function RequestsScreen() {
   const [showLikeLimitModal, setShowLikeLimitModal] = useState(false);
   const [likesUsed, setLikesUsed] = useState(0);
   const [likesLimit, setLikesLimit] = useState(10);
-  const [isPremium, setIsPremium] = useState(false);
+  // Shared premium state. This was a local `useState(false)` that nothing
+  // ever set, so premium users hitting the like limit modal were offered
+  // "Go Premium".
+  const { premiumEnabled: isPremium } = usePremium();
   const [watchingAd, setWatchingAd] = useState(false);
 
   // Reset animations when modal closes
@@ -220,6 +226,15 @@ export default function RequestsScreen() {
       loadRequests();
     }, [loadRequests])
   );
+
+  // Premium just turned on (or off): the server decides which likes are
+  // blurred, so reload instead of waiting for the next focus/restart.
+  const premiumSeenRef = React.useRef(isPremium);
+  useEffect(() => {
+    if (premiumSeenRef.current === isPremium) return;
+    premiumSeenRef.current = isPremium;
+    loadRequests();
+  }, [isPremium, loadRequests]);
 
   const handleAccept = async (fromUserId: string, matchedUserName?: string, matchedUserPhoto?: string, requestKind?: "LIKE" | "FAVORITE") => {
     try {
@@ -324,7 +339,7 @@ export default function RequestsScreen() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : t('likes.accept_error');
+      const message = apiErrorMessage(error, t('likes.accept_error'));
       Alert.alert(t('common.error'), message);
     }
   };
@@ -375,7 +390,7 @@ export default function RequestsScreen() {
       // Update badge
       badgeUpdater.update();
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : t('likes.decline_error');
+      const message = apiErrorMessage(error, t('likes.decline_error'));
       Alert.alert(t('common.error'), message);
     }
   };
@@ -395,7 +410,7 @@ export default function RequestsScreen() {
         console.error("Axios error:", error.response?.data);
       }
       const errorMessage =
-        error instanceof Error ? error.message : t('likes.profile_error');
+        apiErrorMessage(error, t('likes.profile_error'));
       Alert.alert(t('common.error'), errorMessage, [
         {
           text: t('common.complete'),
@@ -983,6 +998,21 @@ export default function RequestsScreen() {
                       ))}
                     </View>
                   </View>
+
+                  {/* Block & Report, same as the discovery card */}
+                  {selectedRequest?.fromUserId ? (
+                    <View style={{ marginBottom: 40 }}>
+                      <SafetyActions
+                        userId={selectedRequest.fromUserId}
+                        onDone={() => {
+                          setShowProfileModal(false);
+                          setProfileData(null);
+                          setSelectedRequest(null);
+                          loadRequests();
+                        }}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               </ScrollView>
 

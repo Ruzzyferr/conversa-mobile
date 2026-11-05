@@ -124,7 +124,9 @@
       "not_completed_msg": "Please watch the ad completely to earn your reward.",
       "error": "Failed to watch ad",
       "success": "Success",
-      "reward_msg": "You got +{{amount}} likes!"
+      "reward_msg": "You got +{{amount}} likes!",
+      "reward_slot_msg_one": "You got +{{count}} conversation slot for today!",
+      "reward_slot_msg_other": "You got +{{count}} conversation slots for today!"
     },
     "favorite": {
       "limit_title": "No Favorites Left",
@@ -157,7 +159,9 @@
       "go_premium": "Go Premium",
       "watch_ad": "Watch an ad → +3 likes",
       "later": "Come back tomorrow"
-    }
+    },
+    "like_failed_title": "Like not sent",
+    "load_error_title": "Couldn't load profiles"
   },
   "profile": {
     "loading": "Loading...",
@@ -170,7 +174,6 @@
     "about": "About",
     "premium_active": "Premium Active",
     "remaining": "Remaining: {{time}}",
-    "unlimited_messages": "Unlimited Messages",
     "who_liked": "Who Liked You",
     "boost": "Boost",
     "direct_message": "Direct Message",
@@ -226,7 +229,14 @@
     "take_exam": "Take the check",
     "privacy_policy": "Privacy Policy",
     "terms_of_use": "Terms of Use",
-    "contact_support": "Contact Support"
+    "contact_support": "Contact Support",
+    "perk_likes": "Unlimited likes",
+    "perk_favorites": "Free Favorites every week",
+    "perk_boosts": "Free Boosts every week",
+    "perk_filters": "Advanced filters",
+    "perk_ads_free": "No ads",
+    "delete_account_subscription_note": "Deleting your account does not cancel a Premium subscription. Cancel it yourself so you are not charged again: on iPhone, Settings > [your name] > Subscriptions; on Android, Play Store > Profile > Payments & subscriptions > Subscriptions.",
+    "manage_subscription": "Manage subscription"
   },
   "setup": {
     "step1": {
@@ -619,6 +629,10 @@
     "other_person": "the other person"
   },
   "chat": {
+    "load_error_title": "Couldn't load your chats",
+    "load_error": "Couldn't load your conversations. Check your connection and try again.",
+    "match_not_ready_title": "Chat not ready yet",
+    "match_not_ready_msg": "This chat is still being set up. We refreshed your list; try again in a moment.",
     "header": "Chat",
     "warning": "Warning",
     "write_message": "Please write a message",
@@ -747,7 +761,7 @@
     "submit_button": "Submit",
     "submitting": "Submitting...",
     "pending_title": "Under review",
-    "pending_desc": "Your selfie is being checked automatically. This usually takes under a minute — pull to refresh.",
+    "pending_desc": "Your selfie is being checked automatically. This usually takes under a minute.",
     "verified_title": "You're verified!",
     "verified_desc": "The blue verification badge now shows on your profile.",
     "start_failed": "Could not start verification. Please try again.",
@@ -826,7 +840,24 @@
     "per_n_days": "/{{count}} days",
     "per_n_weeks": "/{{count}} weeks",
     "per_n_months": "/{{count}} months",
-    "per_n_years": "/{{count}} years"
+    "per_n_years": "/{{count}} years",
+    "col_free": "Free",
+    "val_none": "None",
+    "row_ai_polish": "AI message polish",
+    "row_likes": "Likes",
+    "row_favorites": "Favorites (message first)",
+    "row_boosts": "Free Boosts",
+    "row_ads_free": "Ad-free",
+    "duration_day_one": "{{count}} day",
+    "duration_day_other": "{{count}} days",
+    "duration_week_one": "{{count}} week",
+    "duration_week_other": "{{count}} weeks",
+    "duration_month_one": "{{count}} month",
+    "duration_month_other": "{{count}} months",
+    "duration_year_one": "{{count}} year",
+    "duration_year_other": "{{count}} years",
+    "intro_free": "{{duration}} free, then {{price}}",
+    "intro_paid": "{{introPrice}} for {{duration}}, then {{price}}"
   },
   "interest_categories": {
     "self_care": "Self-care",
@@ -861,8 +892,8 @@
       "features": [
         "Unlimited likes",
         "See who liked you",
-        "2 free Boosts every week",
-        "5 Favorite messages every week",
+        "{{boosts}} free Boosts every week",
+        "{{favorites}} Favorite messages every week",
         "Advanced filters",
         "Ad-free experience"
       ]
@@ -873,9 +904,11 @@
       "features": [
         "Your profile stays on top for 30 minutes",
         "Up to 10x more views",
-        "2 free Boosts weekly with Premium"
+        "{{boosts}} free Boosts weekly with Premium"
       ],
-      "pack_cta": "Boost 2-Pack — {{price}}"
+      "pack_cta": "Boost 2-Pack — {{price}}",
+      "balance_now_one": "You now have {{count}} Boost.",
+      "balance_now_other": "You now have {{count}} Boosts."
     },
     "favorite": {
       "title": "Make an Impression with Favorite",
@@ -883,9 +916,11 @@
       "features": [
         "Your message goes straight to them",
         "Far more effective than a regular like",
-        "5 free Favorites weekly with Premium"
+        "{{favorites}} free Favorites weekly with Premium"
       ],
-      "pack_cta": "Favorite 5-Pack — {{price}}"
+      "pack_cta": "Favorite 5-Pack — {{price}}",
+      "balance_now_one": "You now have {{count}} Favorite.",
+      "balance_now_other": "You now have {{count}} Favorites."
     },
     "whoLiked": {
       "title": "See Who Liked You",
@@ -895,6 +930,19 @@
         "Remove the blur and match right away",
         "Like them back with unlimited likes"
       ]
+    },
+    "purchase_pending_msg": "Payment received. Your pack is being added and will appear in your account shortly.",
+    "perk": {
+      "likes_unlimited": "Unlimited likes",
+      "likes_per_day": "{{count}} likes per day",
+      "who_liked": "See who liked you",
+      "boosts_per_week_one": "{{count}} free Boost every week",
+      "boosts_per_week_other": "{{count}} free Boosts every week",
+      "favorites_per_week_one": "{{count}} Favorite message every week",
+      "favorites_per_week_other": "{{count}} Favorite messages every week",
+      "filters": "Advanced filters",
+      "ai_polish_unlimited": "Unlimited AI message polish",
+      "ads_free": "Ad-free experience"
     }
   },
   "edit": {
@@ -963,6 +1011,8 @@
     "failed": "Could not sign you in. Please try again."
   },
   "otp": {
+    "too_many_attempts": "Too many incorrect attempts. Request a new code.",
+    "send_new_code": "Send a new code",
     "title": "Enter verification code",
     "subtitle": "We sent a 6-digit code to",
     "cta": "Verify",
@@ -1091,12 +1141,116 @@
     "spelling": "Spelling",
     "register": "Register"
   },
+  "launch": {
+    "error_title": "Can't connect right now",
+    "error_body": "We couldn't reach Conversa. Check your connection and try again."
+  },
   "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "You seem to be offline. Check your connection and try again.",
+    "rate_limited": "You're going a bit fast. Please wait a moment and try again.",
+    "request_already_exists": "This person has already sent you a request. Accept or decline it first.",
+    "request_already_sent": "You've already sent a request to this person.",
+    "concurrency_full": "Your open chats are full. You can start a new one when someone replies.",
+    "throughput_full": "You've used today's new chats. You can start more tomorrow.",
+    "ai_consent_required": "AI features are off. Turn on AI features in your settings to use this.",
+    "track_cooldown": "You can switch tracks once every 30 days.",
+    "proof_required": "Verify at least one of your languages before switching to the language track.",
+    "under_18": "You must be at least 18 to use Conversa.",
+    "exam_cooldown": "You can retake the check for this language once every 7 days.",
+    "boost_unavailable": "Boost isn't available on your account right now.",
+    "blocked": "This conversation is no longer available.",
+    "code_expired": "That code has expired. Request a new one.",
+    "code_invalid": "That code is not right. Please try again.",
+    "too_many_attempts": "Too many incorrect attempts. Request a new code.",
     "not_sent_title": "Message not sent",
     "content_rejected": "This contains words or content that aren't allowed on Conversa. Please change it and try again.",
     "image_rejected": "This photo can't be used because it doesn't meet our community guidelines. Please choose a different photo.",
     "age_locked": "Your birth year can't be changed after your profile is created. Contact support if it's wrong.",
     "birth_year_required": "Please add your birth year to finish your profile.",
-    "image_check_unavailable": "We couldn't check this photo right now. Please try again in a moment."
+    "image_check_unavailable": "We couldn't check this photo right now. Please try again in a moment.",
+    "action_failed": "That didn't go through. Please try again.",
+    "first_message_text": "Start the conversation with a text message. Photos and voice notes can follow once you are talking.",
+    "first_message_restricted": "In dating matches, women send the first message. You can reply once she writes.",
+    "first_message_too_short": "Your first message needs at least 20 characters. Say a bit more about why you are writing.",
+    "already_verified": "Your profile is already verified.",
+    "verification_pending": "Your last selfie is still being checked. Try again in a few minutes.",
+    "boost_already_active": "You already have an active boost.",
+    "no_boosts_remaining": "You have no boosts left."
+  },
+  "ai_consent": {
+    "title": "Before you use AI features",
+    "intro": "Some Conversa features send your content to outside AI services. We only do this if you allow it.",
+    "voice_title": "Voice notes → OpenAI",
+    "voice_body": "Each voice note you send is transcribed by OpenAI's speech-to-text service so we can screen it for safety (harassment, threats, scams) before delivery.",
+    "ai_title": "AI help → Google Gemini",
+    "ai_body": "When you use \"Fix with AI\", the AI coach, translation or the language check, the text you choose (or your exam answers) is sent through our AI gateway to Google Gemini to generate the result.",
+    "not_used": "Only the content of that request is sent, without your name, photos or contact details.",
+    "voice_required": "Voice notes can't be sent without this, because every voice note is screened for safety.",
+    "change_later": "You can change this any time in your profile settings under AI features.",
+    "privacy_link": "Read the privacy policy",
+    "allow": "Allow",
+    "not_now": "Not now",
+    "save_error": "Couldn't save your choice. Check your connection and try again.",
+    "setting_title": "AI features",
+    "setting_on": "On: voice notes are screened by OpenAI; AI help uses Google Gemini.",
+    "setting_off": "Off: AI help and voice notes are unavailable.",
+    "revoke_title": "Turn off AI features?",
+    "revoke_msg": "\"Fix with AI\", the coach, translation, the language check and voice notes will stop working until you turn this back on.",
+    "revoke_confirm": "Turn off",
+    "exam_required": "The language check is scored by Google Gemini through our AI gateway. Allow AI features to start it. The timer only starts after that.",
+    "exam_cta": "Review and allow",
+    "exam_reused": "You already passed this check, so we've used your existing result. No need to take it again."
+  },
+  "age_gate": {
+    "month_label": "Which month were you born in?",
+    "month_required": "Please choose your birth month.",
+    "under_18": "You must be 18 or older to use Conversa.",
+    "confirm_18": "I confirm I am 18 or older",
+    "confirm_required": "Please confirm you are 18 or older."
+  },
+  "track_switch": {
+    "section_title": "Your side",
+    "current_date": "You're on the dating side.",
+    "current_language": "You're on the language side.",
+    "switch_to_language": "Switch to the language side",
+    "switch_to_date": "Switch to the dating side",
+    "confirm_title_language": "Switch to the language side?",
+    "confirm_title_date": "Switch to the dating side?",
+    "consequence_wall": "The two sides are separate: matches and conversations from your current side will be hidden while you're on the other side.",
+    "consequence_cooldown": "After switching you can't switch again for 30 days.",
+    "consequence_exam": "The language side needs at least one verified language. If you don't have one yet, take the language check first.",
+    "confirm": "Switch",
+    "done_title": "Switched",
+    "done_language": "You're now on the language side.",
+    "done_date": "You're now on the dating side.",
+    "error_cooldown": "You switched recently. You can switch again 30 days after your last change.",
+    "error_cooldown_until": "You switched recently. You can switch again on {{date}}.",
+    "error_proof": "To join the language side you need at least one verified language. Take the language check first.",
+    "error_generic": "Couldn't switch right now. Please try again."
+  },
+  "safety_actions": {
+    "failed": "Something went wrong. Please try again."
+  },
+  "verify_result": {
+    "disclosure": "Verification is optional. Your selfie is compared automatically with your profile photos (face comparison) to confirm it's you. See our privacy policy for how the selfie is stored and deleted.",
+    "capture_disclosure": "Your selfie will be compared automatically with your profile photos (face comparison). Verification is optional.",
+    "privacy_link": "Privacy policy",
+    "rejected_title": "We couldn't verify you",
+    "reason_no_face_in_selfie": "We couldn't find a face in your selfie.",
+    "reason_no_face_in_photos": "We couldn't find a clear face in your profile photos to compare with.",
+    "reason_no_match": "Your selfie didn't match your profile photos closely enough.",
+    "reason_error": "The automatic check failed on our side. It's not about you.",
+    "reason_generic": "Your last verification attempt didn't pass.",
+    "rejected_tip": "Tip: use good light, face the camera and make sure at least one profile photo clearly shows your face.",
+    "try_again": "Try again",
+    "check_again": "Check status",
+    "checking": "Checking…",
+    "still_pending": "Still checking. This usually takes under a minute.",
+    "check_failed": "Couldn't check the status. Check your connection and try again.",
+    "start_over": "Taking too long? Start again",
+    "stale_pending": "Your last selfie is still being checked. Try again in a few minutes.",
+    "reason_timeout": "The check took too long on our side. Please try again.",
+    "reason_photos_changed": "You changed your profile photos, so please verify again."
   }
 }

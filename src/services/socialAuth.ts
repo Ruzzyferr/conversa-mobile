@@ -66,9 +66,17 @@ export interface SocialResult {
 async function exchange(
   provider: "google" | "apple",
   idToken: string,
-  fullName?: string
+  fullName?: string,
+  authorizationCode?: string
 ): Promise<SocialResult> {
-  const result = await api.socialLogin({ provider, idToken, fullName });
+  const result = await api.socialLogin({
+    provider,
+    idToken,
+    fullName,
+    // Apple only: lets the server obtain a refresh token it can revoke when
+    // the account is deleted (Apple's account-deletion requirement).
+    ...(authorizationCode ? { authorizationCode } : {}),
+  });
   await setToken(result.token);
   return result;
 }
@@ -147,7 +155,12 @@ export async function signInWithApple(): Promise<SocialResult> {
       .join(" ")
       .trim();
 
-    return await exchange("apple", credential.identityToken, name || undefined);
+    return await exchange(
+      "apple",
+      credential.identityToken,
+      name || undefined,
+      credential.authorizationCode ?? undefined
+    );
   } catch (error: any) {
     if (error?.code === "ERR_REQUEST_CANCELED" || error?.code === "ERR_CANCELED") {
       throw new SocialCancelled();

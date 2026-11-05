@@ -1,3 +1,5 @@
+import { emitTokenChange } from "./tokenEvents";
+
 // Lazy import to avoid errors in Expo Go
 let SecureStore: any = null;
 
@@ -57,6 +59,7 @@ export async function setToken(token: string): Promise<void> {
     const store = await loadSecureStore();
     if (store.setItemAsync) {
       await store.setItemAsync(TOKEN_KEY, token);
+      emitTokenChange(token);
       return;
     }
     throw new Error("SecureStore not available");
@@ -78,5 +81,6 @@ export async function clearToken(): Promise<void> {
   } catch (error) {
     console.error("Error clearing token:", error);
   }
+  emitTokenChange(null);
 }
 

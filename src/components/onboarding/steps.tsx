@@ -52,12 +52,33 @@ export function BirthStep({
   value,
   onChange,
   error,
+  askMonth = false,
+  month = null,
+  onMonth,
+  adultConfirmed = false,
+  onAdultConfirmed,
 }: {
   value: string;
   onChange: (v: string) => void;
   error?: string;
+  /** True when the year alone cannot prove 18+ (youngest allowed year). */
+  askMonth?: boolean;
+  month?: number | null;
+  onMonth?: (m: number) => void;
+  adultConfirmed?: boolean;
+  onAdultConfirmed?: (v: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const monthNames = React.useMemo(() => {
+    const fmt = (m: number) => {
+      try {
+        return new Date(2000, m - 1, 1).toLocaleString(i18n.language, { month: "short" });
+      } catch {
+        return String(m);
+      }
+    };
+    return Array.from({ length: 12 }, (_, i) => fmt(i + 1));
+  }, [i18n.language]);
   return (
     <View>
       <TextInput
@@ -70,7 +91,41 @@ export function BirthStep({
         maxLength={4}
         autoFocus
       />
+      {askMonth ? (
+        <View style={styles.monthBlock}>
+          <Text style={styles.monthLabel}>{t("age_gate.month_label")}</Text>
+          <View style={styles.monthGrid}>
+            {monthNames.map((name, i) => {
+              const m = i + 1;
+              const on = month === m;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => onMonth?.(m)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  style={[styles.monthChip, on && styles.choiceOn]}
+                >
+                  <Text style={[styles.choiceText, on && styles.choiceTextOn]}>{name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
       <FieldError message={error} />
+      <Pressable
+        onPress={() => onAdultConfirmed?.(!adultConfirmed)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: adultConfirmed }}
+        style={styles.confirmRow}
+        testID="adult-confirm"
+      >
+        <View style={[styles.checkbox, adultConfirmed && styles.radioOn]}>
+          {adultConfirmed && <MaterialIcons name="check" size={14} color={colors.textInverse} />}
+        </View>
+        <Text style={styles.confirmText}>{t("age_gate.confirm_18")}</Text>
+      </Pressable>
       <Text style={styles.note}>{t("setup.birth_note")}</Text>
     </View>
   );
@@ -302,6 +357,36 @@ const styles = StyleSheet.create({
   },
   bigInputError: { borderBottomColor: colors.error },
   yearInput: { letterSpacing: 6 },
+  monthBlock: { marginTop: spacing.lg, gap: spacing.sm },
+  monthLabel: { ...textStyles.label, color: colors.text },
+  monthGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  monthChip: {
+    minWidth: 64,
+    minHeight: 40,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    minHeight: 44,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmText: { ...textStyles.body, color: colors.text, flex: 1 },
   note: {
     ...textStyles.bodySmall,
     color: colors.textTertiary,

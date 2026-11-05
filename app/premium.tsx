@@ -28,7 +28,7 @@ import {
   PurchasesPackage,
   PurchasesOffering,
 } from "@/src/services/purchases";
-import { api } from "@/src/services/api";
+import { api, EntitlementSnapshot } from "@/src/services/api";
 import { LEGAL_URLS } from "@/src/config/legal";
 
 /**
@@ -78,7 +78,7 @@ const isMonthly = (p: PurchasesPackage) =>
 
 export default function PremiumScreen() {
   const { t } = useTranslation();
-  const { premiumEnabled, refreshPremiumStatus } = usePremium();
+  const { premiumEnabled, applyPurchaseResult } = usePremium();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -188,10 +188,13 @@ export default function PremiumScreen() {
       }
 
       const customerInfo = await purchasePremium(packageToPurchase, userId);
-      const isPremium = customerInfo.entitlements.active["premium"] !== undefined;
+      // Flip the app to premium from THIS result (and the server's sync
+      // answer) instead of re-reading /billing/status, which can still say
+      // "free" for a few seconds and used to leave ads and locks on until a
+      // restart.
+      const isPremium = await applyPurchaseResult(customerInfo);
 
       if (isPremium) {
-        await refreshPremiumStatus();
         showStatus(
           "success",
           t("common.success"),
@@ -229,10 +232,9 @@ export default function PremiumScreen() {
       }
 
       const customerInfo = await restorePurchases(userId);
-      const isPremium = customerInfo.entitlements.active["premium"] !== undefined;
+      const isPremium = await applyPurchaseResult(customerInfo);
 
       if (isPremium) {
-        await refreshPremiumStatus();
         showStatus(
           "success",
           t("common.success"),
@@ -290,6 +292,23 @@ export default function PremiumScreen() {
     return isWeekly(p) ? t("premium.per_week_short") : t("premium.per_month_short");
   };
 
+  /**
+   * Introductory offer / free trial (App Review 3.1.2): the trial length and
+   * the price charged after it must be stated next to the plan.
+   */
+  const introNote = (p: PurchasesPackage): string | undefined => {
+    const intro = p.product.introPrice;
+    if (!intro) return undefined;
+    const units = (intro.periodNumberOfUnits || 1) * Math.max(1, intro.cycles || 1);
+    const unitKey = String(intro.periodUnit || "").toLowerCase();
+    if (!["day", "week", "month", "year"].includes(unitKey)) return undefined;
+    const duration = t(`premium.duration_${unitKey}`, { count: units });
+    const then = `${priceOnly(p)}${periodLabel(p)}`;
+    return intro.price === 0
+      ? t("premium.intro_free", { duration, price: then })
+      : t("premium.intro_paid", { duration, introPrice: intro.priceString, price: then });
+  };
+
   const plans = (offering?.availablePackages ?? [])
     .filter((p) => isWeekly(p) || isMonthly(p))
     .sort((a, b) => (isWeekly(a) ? -1 : isWeekly(b) ? 1 : 0));
@@ -321,71 +340,65 @@ export default function PremiumScreen() {
   const perWeek = (n: number | null) =>
     n === null ? t("premium.val_unlimited") : t("premium.val_per_week", { count: n });
 
+  const onOff = (on: boolean) => (on ? t("premium.val_open") : t("premium.val_locked"));
+  const countPerWeek = (n: number | undefined) =>
+    n === undefined ? null : n === 0 ? t("premium.val_none") : perWeek(n);
+
   const compareRows: CompareRow[] = React.useMemo(() => {
     // `premiumPreview` sunucudan geliyor ve uygulama sunucudan YENI olabilir
     // (kademeli dagitimda normal). Yoksa tabloyu gizliyoruz; ekranin geri
-    // kalani satis yapmayi surdurur. Onceki hali burada dogrudan cokuyordu
-    // ve odeme ekraninin tamamini goturuyordu.
+    // kalani satis yapmayi surdurur.
     if (!entitlements?.premiumPreview) return [];
     const e = entitlements;
-    const p = e.premiumPreview;
 
-    const shared: CompareRow[] = [
-      {
-        label: t("premium.row_slots"),
-        now: String(e.concurrencySlots),
-        premium: String(p.concurrencySlots),
-        unchanged: e.concurrencySlots === p.concurrencySlots,
-      },
-      {
-        label: t("premium.row_daily"),
-        now: String(e.dailyConversations),
-        premium: String(p.dailyConversations),
-        unchanged: e.dailyConversations === p.dailyConversations,
-      },
-      {
-        label: t("premium.row_translate"),
-        now: perDay(e.translationsPerDay),
-        premium: perDay(p.translationsPerDay),
-        unchanged: e.translationsPerDay === p.translationsPerDay,
-      },
-    ];
+    // Left column: what a FREE account gets. For an active premium user the
+    // server sends a `free` baseline (contract 5); comparing premium against
+    // itself greyed out every row and showed nothing they are paying for.
+    // Right column: what premium gets.
+    const base: EntitlementSnapshot & { isPremium?: boolean } =
+      e.isPremium ? e.free ?? e : e;
+    const prem: EntitlementSnapshot = e.isPremium ? e : e.premiumPreview;
+    const baseIsFree = !base.isPremium;
 
-    if (e.track === "LANGUAGE") {
-      return [
-        ...shared,
-        {
-          label: t("premium.row_coach"),
-          now: perDay(e.coachPerDay),
-          premium: perDay(p.coachPerDay),
-          unchanged: e.coachPerDay === p.coachPerDay,
-        },
-        {
-          label: t("premium.row_sessions"),
-          now: perWeek(e.sessionsPerWeek),
-          premium: perWeek(p.sessionsPerWeek),
-          unchanged: e.sessionsPerWeek === p.sessionsPerWeek,
-        },
-      ];
+    const rows: CompareRow[] = [];
+    const push = (label: string, now: string | null, premium: string | null) => {
+      if (now === null || premium === null) return; // older server: skip row
+      rows.push({ label, now, premium, unchanged: now === premium });
+    };
+
+    push(t("premium.row_slots"), String(base.concurrencySlots), String(prem.concurrencySlots));
+    push(t("premium.row_daily"), String(base.dailyConversations), String(prem.dailyConversations));
+    push(t("premium.row_translate"), perDay(base.translationsPerDay), perDay(prem.translationsPerDay));
+    if (base.aiPolishPerDay !== undefined && prem.aiPolishPerDay !== undefined) {
+      push(t("premium.row_ai_polish"), perDay(base.aiPolishPerDay), perDay(prem.aiPolishPerDay));
     }
 
-    // DATE hattinda kesfi etkileyen iki hak var; bunlar sayisal degil
-    // acik/kapali oldugu icin onizleme ucundan degil buradan geliyor.
-    return [
-      ...shared,
-      {
-        label: t("premium.row_who_liked"),
-        now: e.isPremium ? t("premium.val_open") : t("premium.val_locked"),
-        premium: t("premium.val_open"),
-        unchanged: e.isPremium,
-      },
-      {
-        label: t("premium.row_filters"),
-        now: e.isPremium ? t("premium.val_open") : t("premium.val_locked"),
-        premium: t("premium.val_open"),
-        unchanged: e.isPremium,
-      },
-    ];
+    if (e.track === "LANGUAGE") {
+      push(t("premium.row_coach"), perDay(base.coachPerDay), perDay(prem.coachPerDay));
+      push(t("premium.row_sessions"), perWeek(base.sessionsPerWeek), perWeek(prem.sessionsPerWeek));
+    } else {
+      // DATE hattinda kesfi etkileyen haklar.
+      if (base.likesPerDay !== undefined && prem.likesPerDay !== undefined) {
+        push(t("premium.row_likes"), perDay(base.likesPerDay), perDay(prem.likesPerDay));
+      }
+      push(t("premium.row_favorites"), countPerWeek(base.favoritesPerWeek), countPerWeek(prem.favoritesPerWeek));
+      push(t("premium.row_boosts"), countPerWeek(base.boostsPerWeek), countPerWeek(prem.boostsPerWeek));
+      push(
+        t("premium.row_who_liked"),
+        onOff(base.whoLikedYou ? base.whoLikedYou === "visible" : !baseIsFree),
+        onOff(prem.whoLikedYou ? prem.whoLikedYou === "visible" : true)
+      );
+      push(
+        t("premium.row_filters"),
+        onOff(base.premiumFilters ?? !baseIsFree),
+        onOff(prem.premiumFilters ?? true)
+      );
+    }
+
+    if (base.adsFree !== undefined && prem.adsFree !== undefined) {
+      push(t("premium.row_ads_free"), onOff(base.adsFree), onOff(prem.adsFree));
+    }
+    return rows;
   }, [entitlements, t]);
 
   // ---- Parcalar -----------------------------------------------------------
@@ -417,7 +430,11 @@ export default function PremiumScreen() {
         <Text style={styles.sectionTitle}>{t("premium.compare_title")}</Text>
         <CompareTable
           rows={compareRows}
-          nowLabel={t("premium.col_now")}
+          nowLabel={
+            entitlements?.isPremium && entitlements.free
+              ? t("premium.col_free")
+              : t("premium.col_now")
+          }
           premiumLabel={t("premium.col_premium")}
         />
       </View>
@@ -549,6 +566,7 @@ export default function PremiumScreen() {
                     price={priceOnly(p)}
                     period={periodLabel(p)}
                     badge={p.identifier === bestValueId ? t("premium.plan_best") : undefined}
+                    note={introNote(p)}
                     selected={selectedPackage?.identifier === p.identifier}
                     disabled={purchasing}
                     onPress={() => setSelectedPackage(p)}

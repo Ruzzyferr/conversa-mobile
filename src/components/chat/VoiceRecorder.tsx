@@ -47,6 +47,12 @@ type VoiceRecorderProps = {
     onCancel: () => void;
     onRecordingStateChange?: (isActive: boolean) => void;
     disabled?: boolean;
+    /**
+     * Runs before recording starts; return false to block it. The chat
+     * screen uses it for the AI consent gate (voice notes are transcribed
+     * by OpenAI for safety screening).
+     */
+    beforeRecord?: () => Promise<boolean>;
 };
 
 const NUM_BARS = 20;
@@ -156,6 +162,7 @@ export function VoiceRecorder({
     onCancel,
     onRecordingStateChange,
     disabled,
+    beforeRecord,
 }: VoiceRecorderProps) {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -262,6 +269,14 @@ export function VoiceRecorder({
         try {
             if (recorderState.isRecording) {
                 console.log("Already recording, ignoring start request");
+                return;
+            }
+
+            // beforeRecord (AI consent gate) resolves true only when consent
+            // was already granted. If it had to show its sheet it resolves
+            // false even after Allow: recording then needs a new press and
+            // never starts by itself behind a dismissed dialog.
+            if (beforeRecord && !(await beforeRecord())) {
                 return;
             }
 
@@ -598,6 +613,9 @@ export function VoiceRecorder({
                         disabled && styles.micButtonDisabled,
                     ]}
                     onLongPress={startRecording}
+                    // A plain tap only runs the gate, so a user without
+                    // consent sees why voice notes are unavailable.
+                    onPress={beforeRecord ? () => void beforeRecord() : undefined}
                     delayLongPress={200}
                     disabled={disabled}
                 >

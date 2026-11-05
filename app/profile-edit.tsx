@@ -32,6 +32,7 @@ import { friendlyApiErrorMessage } from "@/src/services/apiErrors";
 import { InterestPicker } from "@/src/components/InterestPicker";
 import { LanguagePickerModal } from "@/src/components/ui/LanguagePickerModal";
 import { LEGACY_INTEREST_MAP } from "@/src/data/interests";
+import { TrackSwitch, type Track } from "@/src/components/TrackSwitch";
 
 type Purpose = "CONVERSATION" | "PRACTICE" | "COFFEE";
 
@@ -55,7 +56,13 @@ export default function ProfileEditScreen() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number; city?: string; country?: string } | null>(null);
+  // lat/lng are optional: a profile can have a city without stored
+  // coordinates, and those must not be overwritten with 0,0 on save.
+  const [location, setLocation] = useState<{ lat?: number; lng?: number; city?: string; country?: string } | null>(null);
+  // Not editable here, but the profile update replaces every field: the
+  // loaded value has to be sent back or the server clears it.
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "OTHER" | null>(null);
+  const [track, setTrack] = useState<Track>("DATE");
 
   useEffect(() => {
     loadProfile();
@@ -75,8 +82,15 @@ export default function ProfileEditScreen() {
       setSelectedInterests(
         (profile.interests || []).map((i: string) => LEGACY_INTEREST_MAP[i] || i)
       );
-      if (profile.city) {
-        setLocation({ lat: 0, lng: 0, city: profile.city, country: profile.country || undefined });
+      setGender(profile.gender ?? null);
+      setTrack(profile.track ?? "DATE");
+      if (profile.city || profile.lat != null || profile.lng != null) {
+        setLocation({
+          lat: profile.lat ?? undefined,
+          lng: profile.lng ?? undefined,
+          city: profile.city || undefined,
+          country: profile.country || undefined,
+        });
       }
     } catch (error) {
       Alert.alert(t('common.error'), t('profile.load_error'));
@@ -280,12 +294,15 @@ export default function ProfileEditScreen() {
       await api.upsertMyProfile({
         displayName: displayName.trim(),
         birthYear: birthYear ? parseInt(birthYear) : undefined,
+        gender: gender ?? undefined,
         purpose: purpose,
         languagesNative: languagesNative,
         languagesPractice: languagesPractice,
         photos: uploadedPhotos, // Use the uploaded URLs
-        bio: bio.trim() || undefined,
-        interests: selectedInterests.length > 0 ? selectedInterests : undefined,
+        // Always sent, so clearing them is explicit (the backend schema
+        // accepts "" for bio and [] for interests).
+        bio: bio.trim(),
+        interests: selectedInterests,
         city: location?.city,
         country: location?.country,
         lat: location?.lat,
@@ -589,6 +606,18 @@ export default function ProfileEditScreen() {
                 {location?.city || t("edit.update_location")}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Track (dating / language side) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t("track_switch.section_title")}</Text>
+            <TrackSwitch
+              track={track}
+              onChanged={(next, nextPurpose) => {
+                setTrack(next);
+                setPurpose(nextPurpose);
+              }}
+            />
           </View>
 
           {/* Save Button */}

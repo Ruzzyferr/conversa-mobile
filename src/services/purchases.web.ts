@@ -74,10 +74,25 @@ export async function purchasePremium(
   throw new Error(NOT_SUPPORTED);
 }
 
+export async function purchasePack(
+  _pkg: PurchasesPackage,
+  _userId?: string
+): Promise<{ customerInfo: CustomerInfo; transactionId: string | null }> {
+  throw new Error(NOT_SUPPORTED);
+}
+
 export async function restorePurchases(_userId?: string): Promise<CustomerInfo> {
   throw new Error(NOT_SUPPORTED);
 }
 
+export function getPurchasesUserId(): string | null {
+  return null;
+}
+
 export async function logoutPurchases(): Promise<void> {
   // yok
+}
+
+export function onCustomerInfoUpdate(_listener: (info: CustomerInfo) => void): () => void {
+  return () => {};
 }

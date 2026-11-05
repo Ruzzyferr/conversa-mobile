@@ -9,36 +9,71 @@ export type { PurchasesOffering, PurchasesPackage };
 import { Platform } from "react-native";
 import { api } from "./api";
 
-let isInitialized = false;
+/** `Purchases.configure` has run. It must run exactly once per app process. */
+let isConfigured = false;
+/** RevenueCat app user id currently logged in, or null (anonymous / logged out). */
+let currentUserId: string | null = null;
 let initPromise: Promise<void> | null = null;
+let pendingUserId: string | null = null;
+
+/** RevenueCat app user id currently logged in, or null after logout / before init. */
+export function getPurchasesUserId(): string | null {
+  return currentUserId;
+}
 
 /**
- * Initialize RevenueCat Purchases SDK
+ * Initialize RevenueCat Purchases SDK for a Conversa user.
+ *
+ * Safe to call repeatedly. On a shared phone the SDK used to stay logged in
+ * as the PREVIOUS account: this returned early once initialized, so a second
+ * user's purchase was attributed to the first user's RevenueCat id. Now a
+ * different user id switches the SDK user with `Purchases.logIn`. A failed
+ * attempt clears `initPromise` so the next call retries instead of replaying
+ * the same rejected promise forever.
+ *
  * @param userId - Conversa user ID to sync across devices
  */
-export async function initPurchases(userId: string): Promise<void> {
-  if (isInitialized) {
-    return;
+export function initPurchases(userId: string): Promise<void> {
+  if (isConfigured && currentUserId === userId) {
+    return Promise.resolve();
   }
-
-  // If initialization is in progress, wait for it
-  if (initPromise) {
+  if (initPromise && pendingUserId === userId) {
     return initPromise;
   }
 
-  initPromise = (async () => {
-    const apiKey =
-      Platform.OS === "ios"
-        ? process.env.EXPO_PUBLIC_RC_IOS_API_KEY
-        : process.env.EXPO_PUBLIC_RC_ANDROID_API_KEY;
+  // Serialize behind any in-flight attempt (for another user) so configure /
+  // logIn calls never interleave.
+  const previous = initPromise ?? Promise.resolve();
+  pendingUserId = userId;
+  const attempt: Promise<void> = previous
+    .catch(() => undefined)
+    .then(() => doInitPurchases(userId))
+    .finally(() => {
+      if (initPromise === attempt) {
+        initPromise = null;
+        pendingUserId = null;
+      }
+    });
+  initPromise = attempt;
+  return attempt;
+}
 
-    if (!apiKey) {
-      const errorMsg = `RevenueCat API key not found for ${Platform.OS}. Premium features will not work.`;
-      console.warn(errorMsg);
-      throw new Error(errorMsg);
-    }
+async function doInitPurchases(userId: string): Promise<void> {
+  if (isConfigured && currentUserId === userId) return;
 
-    try {
+  try {
+    if (!isConfigured) {
+      const apiKey =
+        Platform.OS === "ios"
+          ? process.env.EXPO_PUBLIC_RC_IOS_API_KEY
+          : process.env.EXPO_PUBLIC_RC_ANDROID_API_KEY;
+
+      if (!apiKey) {
+        const errorMsg = `RevenueCat API key not found for ${Platform.OS}. Premium features will not work.`;
+        console.warn(errorMsg);
+        throw new Error(errorMsg);
+      }
+
       // SDK'nin kendi gunlugunu kendi filtremizden geciriyoruz.
       //
       // RevenueCat, faturalandirmanin bulunmadigi cihazlarda ("Billing is not
@@ -56,46 +91,91 @@ export async function initPurchases(userId: string): Promise<void> {
         else if (__DEV__) console.log("[RevenueCat]", message);
       });
 
-      await Purchases.configure({ apiKey });
-      await Purchases.logIn(userId);
-      isInitialized = true;
+      // Configure directly with the app user id: no anonymous user is
+      // created and nothing can be bought under one in between.
+      await Purchases.configure({ apiKey, appUserID: userId });
+      isConfigured = true;
+      currentUserId = userId;
+      attachCustomerInfoBridge();
       console.log("RevenueCat initialized for user:", userId);
-    } catch (error) {
-      if (isBillingUnavailable(error)) {
-        console.warn("RevenueCat baslatilamadi (cihazda faturalandirma yok):", describe(error));
-      } else {
-        console.error("Failed to initialize RevenueCat:", error);
-      }
-      throw error;
+      return;
     }
-  })();
 
-  return initPromise;
+    // Already configured for another (or no) user: switch accounts.
+    await Purchases.logIn(userId);
+    currentUserId = userId;
+    console.log("RevenueCat switched to user:", userId);
+  } catch (error) {
+    if (isBillingUnavailable(error)) {
+      console.warn("RevenueCat baslatilamadi (cihazda faturalandirma yok):", describe(error));
+    } else {
+      console.error("Failed to initialize RevenueCat:", error);
+    }
+    throw error;
+  }
 }
 
 /**
- * Ensure RevenueCat is initialized before making any Purchases calls
- * This function will try to get the user ID from the API if not provided
+ * Ensure RevenueCat is initialized (for the right user) before making any
+ * Purchases calls. Gets the user ID from the API if not provided.
  */
 async function ensureInitialized(userId?: string): Promise<void> {
-  if (isInitialized) {
-    return;
-  }
-
-  // If userId is provided, use it
   if (userId) {
     await initPurchases(userId);
     return;
   }
 
+  if (isConfigured && currentUserId) {
+    return;
+  }
+
   // Otherwise, try to get user ID from API
+  let id: string;
   try {
     const me = await api.getMe();
-    await initPurchases(me.user.id);
+    id = me.user.id;
   } catch (error) {
     console.error("Failed to get user ID for RevenueCat initialization:", error);
     throw new Error("RevenueCat not initialized and cannot get user ID");
   }
+  await initPurchases(id);
+}
+
+// ---- Customer info updates -------------------------------------------------
+
+type CustomerInfoListener = (info: CustomerInfo) => void;
+const customerInfoListeners = new Set<CustomerInfoListener>();
+let bridgeAttached = false;
+
+/** Forward the SDK's single listener to every subscriber. Needs a configured SDK. */
+function attachCustomerInfoBridge(): void {
+  if (bridgeAttached) return;
+  try {
+    Purchases.addCustomerInfoUpdateListener((info) => {
+      customerInfoListeners.forEach((listener) => {
+        try {
+          listener(info);
+        } catch (error) {
+          console.warn("customerInfo listener failed:", error);
+        }
+      });
+    });
+    bridgeAttached = true;
+  } catch (error) {
+    console.warn("Could not attach RevenueCat customerInfo listener:", error);
+  }
+}
+
+/**
+ * Subscribe to RevenueCat customer info changes (renewal, expiry, refund,
+ * purchases made outside this screen). Returns an unsubscribe function.
+ */
+export function onCustomerInfoUpdate(listener: CustomerInfoListener): () => void {
+  customerInfoListeners.add(listener);
+  if (isConfigured) attachCustomerInfoBridge();
+  return () => {
+    customerInfoListeners.delete(listener);
+  };
 }
 
 /**
@@ -197,6 +277,28 @@ export async function purchasePremium(
 }
 
 /**
+ * Purchase a consumable pack (boosts, favorites). Like `purchasePremium` but
+ * also returns the store transaction id so the server can confirm exactly
+ * this purchase was credited.
+ */
+export async function purchasePack(
+  packageToPurchase: PurchasesPackage,
+  userId?: string
+): Promise<{ customerInfo: CustomerInfo; transactionId: string | null }> {
+  try {
+    await ensureInitialized(userId);
+    const { customerInfo, transaction } = await Purchases.purchasePackage(packageToPurchase);
+    return { customerInfo, transactionId: transaction?.transactionIdentifier ?? null };
+  } catch (error: any) {
+    if (error.userCancelled) {
+      throw new Error("Purchase cancelled");
+    }
+    console.error("Pack purchase failed:", error);
+    throw error;
+  }
+}
+
+/**
  * Restore previous purchases
  */
 export async function restorePurchases(userId?: string): Promise<CustomerInfo> {
@@ -210,20 +312,23 @@ export async function restorePurchases(userId?: string): Promise<CustomerInfo> {
 }
 
 /**
- * Log out current user (useful for switching accounts)
+ * Log the RevenueCat SDK out of the current Conversa user. Call on logout,
+ * account deletion and automatic session expiry, so the next account on the
+ * same phone never buys or restores under the previous user's id.
+ * Never throws: a failure here must not block signing out.
  */
 export async function logoutPurchases(): Promise<void> {
+  // Let an in-flight init finish first, or it would log the old user back in.
+  if (initPromise) {
+    await initPromise.catch(() => undefined);
+  }
+  const wasLoggedIn = isConfigured && currentUserId !== null;
+  currentUserId = null;
+  if (!wasLoggedIn) return;
   try {
-    if (isInitialized) {
-      await Purchases.logOut();
-    }
-    isInitialized = false;
-    initPromise = null; // Reset promise so initialization can be retried
+    await Purchases.logOut();
   } catch (error) {
-    console.error("Failed to logout from RevenueCat:", error);
-    isInitialized = false;
-    initPromise = null; // Reset even on error
-    throw error;
+    // logOut throws when the SDK user is already anonymous; nothing to undo.
+    console.warn("Failed to logout from RevenueCat:", describe(error));
   }
 }
-

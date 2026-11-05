@@ -48,6 +48,10 @@ class ApiClient {
       timeout: 10000,
       headers: {
         "Content-Type": "application/json",
+        // Tells the server this build shows the AI consent sheet. Builds
+        // without it (already in the stores) are never AI-consent gated,
+        // otherwise their voice notes and language exam would break.
+        "X-Client-Features": "ai-consent",
       },
     });
 
@@ -86,7 +90,9 @@ class ApiClient {
             isLoggingOut = true;
 
             try {
-              await clearToken();
+              // Same local cleanup as a manual logout: RevenueCat must not
+              // stay logged in as this user for whoever signs in next.
+              await clearLocalSession();
               // Use setTimeout to ensure we're not in a render cycle
               setTimeout(() => {
                 router.replace("/(auth)/welcome");
@@ -154,6 +160,11 @@ class ApiClient {
       isVerified?: boolean;
       verificationStatus?: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
       verificationPose?: string | null;
+      /** Why the last automatic check failed (e.g. "no_match"), when the server sends it. */
+      verificationRejectReason?: string | null;
+      /** AI data-sharing consent (contract 1). null = never asked. */
+      aiConsent?: "granted" | "declined" | null;
+      aiConsentAt?: string | null;
       createdAt: string;
     };
     profileExists: boolean;
@@ -203,12 +214,26 @@ class ApiClient {
     return await response.json();
   }
 
+  /** Records the AI data-sharing answer (contract 1). */
+  async setAiConsent(granted: boolean): Promise<{ aiConsent: "granted" | "declined" | null }> {
+    const response = await this.client.post("/api/v1/auth/me/ai-consent", { granted });
+    return response.data?.data ?? response.data;
+  }
+
   async ackModerationWarning(): Promise<void> {
     await this.client.post("/api/v1/auth/ack-warning");
   }
 
-  async logout(): Promise<void> {
-    await this.client.post("/api/v1/auth/logout");
+  /**
+   * Ends the session server-side. Pass this device's push token so the
+   * server stops sending this account's notifications to the device.
+   * Call `clearLocalSession()` afterwards (also when this fails).
+   */
+  async logout(pushToken?: string | null): Promise<void> {
+    await this.client.post(
+      "/api/v1/auth/logout",
+      pushToken ? { pushToken } : {}
+    );
   }
 
   async deleteAccount(): Promise<void> {
@@ -229,6 +254,9 @@ class ApiClient {
     photos: string[];
     interests?: string[];
     gender?: "MALE" | "FEMALE" | "OTHER" | null;
+    /** Grid-snapped coordinates the server stored (null when never shared). */
+    lat?: number | null;
+    lng?: number | null;
     track: "DATE" | "LANGUAGE";
     trackChangedAt: string | null;
     languageProofs?: Array<{
@@ -271,6 +299,8 @@ class ApiClient {
   async upsertMyProfile(payload: {
     displayName: string;
     birthYear?: number;
+    /** 1-12. Sent when birthYear is the youngest allowed year; server answers UNDER_18 if not yet 18. */
+    birthMonth?: number;
     city?: string;
     /** ISO-3166 alpha-2, from the device reverse geocode. */
     country?: string;
@@ -515,13 +545,52 @@ class ApiClient {
       createdAt: string;
     }>
   > {
+    const page = await this.getMessagesPage(conversationId, { limit });
+    return page.messages;
+  }
+
+  /**
+   * One page of messages, chronological. `before` = id of the oldest message
+   * already shown, to load older history. Reads `hasMore` from the body
+   * (`{ messages, hasMore }`) or a `x-has-more` header; a bare array without
+   * either is treated as "more if the page was full".
+   */
+  async getMessagesPage(
+    conversationId: string,
+    options: { before?: string; limit?: number } = {}
+  ): Promise<{
+    messages: Array<{
+      id: string;
+      conversationId: string;
+      senderUserId: string;
+      text: string;
+      audioUrl?: string | null;
+      imageUrl?: string | null;
+      createdAt: string;
+    }>;
+    hasMore: boolean;
+  }> {
+    const limit = options.limit ?? 50;
+    const params: Record<string, string | number> = { limit };
+    if (options.before) params.before = options.before;
     const response = await this.client.get(
       `/api/v1/chat/conversations/${conversationId}/messages`,
-      {
-        params: { limit },
-      }
+      { params }
     );
-    return response.data;
+    const data = response.data;
+    const messages = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.messages)
+        ? data.messages
+        : [];
+    let hasMore: boolean;
+    if (data && !Array.isArray(data) && typeof data.hasMore === "boolean") {
+      hasMore = data.hasMore;
+    } else {
+      const header = response.headers?.["x-has-more"];
+      hasMore = header !== undefined ? String(header) === "true" : messages.length >= limit;
+    }
+    return { messages, hasMore };
   }
 
   async sendMessage(
@@ -574,6 +643,7 @@ class ApiClient {
         method: "POST",
         headers: {
           "Authorization": token ? `Bearer ${token}` : "",
+          "X-Client-Features": "ai-consent",
           // Do NOT set Content-Type header, let fetch handle the boundary
         },
         body: formData,
@@ -682,8 +752,9 @@ class ApiClient {
     }
   }
 
+  /** Same as leaving: kept for callers, routes through POST /leave. */
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.client.delete(`/api/v1/chat/conversations/${conversationId}`);
+    await this.leaveConversation(conversationId);
   }
 
   async polishMessage(
@@ -800,7 +871,12 @@ class ApiClient {
   // Billing endpoints
   async syncBilling(data?: {
     customerInfo?: any; // Optional customer info for debugging
-  }): Promise<{ isPremium: boolean }> {
+  }): Promise<{
+    isPremium: boolean;
+    /** Purchased pack balances. */
+    purchasedBoosts?: number;
+    purchasedFavorites?: number;
+  }> {
     const response = await this.client.post("/api/v1/billing/sync", data || {});
     return response.data;
   }
@@ -810,17 +886,33 @@ class ApiClient {
     premiumSource: string | null;
     premiumUpdatedAt: string | null;
     premiumExpiresAt: string | null;
+    purchasedBoosts?: number;
+    purchasedFavorites?: number;
   }> {
     const response = await this.client.get("/api/v1/billing/status");
     return response.data;
   }
 
-  async purchaseBoost(): Promise<{
+  /**
+   * Called after a store pack purchase. Never errors; the server reconciles
+   * with RevenueCat and waits up to ~5s for the credit. Works for any pack
+   * when `transactionId` is given; `previousCount` compares boost credits.
+   */
+  async purchaseBoost(body?: {
+    transactionId?: string;
+    previousCount?: number;
+  }): Promise<{
     success: boolean;
-    purchasedAmount: number;
+    credited?: boolean;
     message: string;
+    purchasedBoosts?: number;
+    purchasedFavorites?: number;
   }> {
-    const response = await this.client.post("/api/v1/billing/purchase-boost");
+    const response = await this.client.post(
+      "/api/v1/billing/purchase-boost",
+      body ?? {},
+      { timeout: 15000 }
+    );
     return response.data;
   }
 
@@ -865,6 +957,8 @@ class ApiClient {
     provider: "google" | "apple";
     idToken: string;
     fullName?: string;
+    /** Apple only: one-time code the server swaps for a revocable refresh token (contract 3). */
+    authorizationCode?: string;
   }): Promise<{
     userId: string;
     token: string;
@@ -887,6 +981,8 @@ class ApiClient {
   async rewardAdLike(nonce?: string): Promise<{
     success: boolean;
     rewardAmount: number;
+    /** What this call actually credited (newer servers). */
+    granted?: { type: "CONVERSATION_SLOT" | "LIKES"; amount: number };
     likesInfo: {
       likesUsed: number;
       likesRemaining: number;
@@ -1033,6 +1129,14 @@ class ApiClient {
         prompt: string;
         seconds: number;
       }>;
+      /** Present when a valid proof already exists: the client skips the exam (contract 7). */
+      existingProof?: {
+        language: string;
+        role: "NATIVE" | "LEARNING";
+        cefr: string | null;
+        verified: boolean;
+        expiresAt: string;
+      } | null;
     };
   }> {
     const response = await this.client.get("/api/v1/exam/items", {
@@ -1097,9 +1201,20 @@ class ApiClient {
       translationsPerDay: number | null;
       sessionsPerWeek: number | null;
       partnerCorrections: "unlimited";
+      /** Perk limits (contract 5); optional for older servers. */
+      favoritesPerWeek?: number;
+      boostsPerWeek?: number;
+      /** null = unlimited */
+      likesPerDay?: number | null;
+      aiPolishPerDay?: number | null;
+      adsFree?: boolean;
+      whoLikedYou?: "blurred" | "visible";
+      premiumFilters?: boolean;
+      /** Same shape, computed for a free user on the same track (contract 5). */
+      free?: EntitlementSnapshot;
       /** Premium alinsa ne degisirdi. Odeme ekrani bu sayilari kendi
        *  hesaplamasin diye sunucudan geliyor. */
-      premiumPreview: {
+      premiumPreview: EntitlementSnapshot & {
         concurrencySlots: number;
         dailyConversations: number;
         coachPerDay: number | null;
@@ -1260,4 +1375,70 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+/** One side of the free-vs-premium comparison from /billing/entitlements. */
+export interface EntitlementSnapshot {
+  isPremium?: boolean;
+  concurrencySlots: number;
+  dailyConversations: number;
+  coachPerDay: number | null;
+  translationsPerDay: number | null;
+  sessionsPerWeek: number | null;
+  favoritesPerWeek?: number;
+  boostsPerWeek?: number;
+  likesPerDay?: number | null;
+  aiPolishPerDay?: number | null;
+  adsFree?: boolean;
+  whoLikedYou?: "blurred" | "visible";
+  premiumFilters?: boolean;
+}
+
+/**
+ * Local sign-out cleanup shared by logout, account deletion and the
+ * automatic logout on an expired session: RevenueCat is logged out (so the
+ * next account on a shared phone never buys or restores under this user's
+ * id), the push token state is reset (so the next account registers its own)
+ * and the session token is cleared. Never throws; concurrent calls share
+ * one run.
+ */
+let clearSessionInFlight: Promise<void> | null = null;
+
+export function clearLocalSession(): Promise<void> {
+  // A manual logout racing the automatic 401 logout must not run the cleanup
+  // twice (two RevenueCat logOuts, two token events).
+  if (!clearSessionInFlight) {
+    clearSessionInFlight = runClearLocalSession().finally(() => {
+      clearSessionInFlight = null;
+    });
+  }
+  return clearSessionInFlight;
+}
+
+async function runClearLocalSession(): Promise<void> {
+  // Token first: clearToken emits the null token event, so the premium
+  // provider stops refreshing BEFORE Purchases.logOut fires its customer-info
+  // listener (a refresh then would log RevenueCat back in as this user).
+  await clearToken();
+  try {
+    const { resetAiConsentCache } = await import("./aiConsent");
+    resetAiConsentCache();
+  } catch (error) {
+    console.warn("[API] AI consent reset failed:", error);
+  }
+  // Dynamic imports: these modules import this one.
+  try {
+    const { logoutPurchases } = await import("./purchases");
+    await logoutPurchases();
+  } catch (error) {
+    console.warn("[API] RevenueCat logout failed:", error);
+  }
+  try {
+    const { resetPushTokenState } = await import("./pushNotifications");
+    resetPushTokenState();
+    const { resetPostLoginPermissions } = await import("./postLoginPermissions");
+    resetPostLoginPermissions();
+  } catch (error) {
+    console.warn("[API] Push token reset failed:", error);
+  }
+}
 

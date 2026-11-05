@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { languageLabel } from "@/src/data/languages";
 import { OptimizedImage } from "./ui/OptimizedImage";
 import { Overline } from "@/src/components/ui/Overline";
+import { SafetyActions } from "@/src/components/SafetyActions";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -44,6 +45,8 @@ type ProfileModalProps = {
     onDecline?: () => void;
     // Optional: First message for FAVORITE requests
     firstMessage?: { text: string } | null;
+    /** After Block/Report succeeds (the modal closes itself first). */
+    onSafetyAction?: (action: "block" | "report") => void;
 };
 
 export function ProfileModal({
@@ -54,6 +57,7 @@ export function ProfileModal({
     onAccept,
     onDecline,
     firstMessage,
+    onSafetyAction,
 }: ProfileModalProps) {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -238,6 +242,15 @@ export function ProfileModal({
                                     ))}
                                 </View>
                             </View>
+
+                            {/* Block & Report, same as the discovery card */}
+                            <SafetyActions
+                                userId={profileData.userId}
+                                onDone={(action) => {
+                                    handleClose();
+                                    onSafetyAction?.(action);
+                                }}
+                            />
                         </View>
                     </ScrollView>
 
